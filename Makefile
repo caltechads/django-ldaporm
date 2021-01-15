@@ -10,6 +10,10 @@ clean:
 	rm -rf dist *.egg-info
 	find . -name "*.pyc" -exec rm '{}' ';'
 
+dist: clean
+	@python setup.py sdist
+	@python setup.py bdist_wheel --universal
+
 pypi: dist
 	@twine upload dist/*
 
