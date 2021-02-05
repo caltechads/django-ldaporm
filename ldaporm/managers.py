@@ -721,6 +721,7 @@ class LdapManager:
                 if type(attrs) == dict:
                     results.append((dn, attrs))
 
+
             # Get cookie for the next request.
             paged_controls = self._get_pctrls(serverctrls)
             if not paged_controls:
@@ -809,7 +810,6 @@ class LdapManager:
         ldap_object = ldap.initialize(config['url'])
         ldap_object.set_option(ldap.OPT_REFERRALS, 0)
         ldap_object.set_option(ldap.OPT_NETWORK_TIMEOUT, 15.0)
-        # if not settings.DEBUG:
         ldap.set_option(ldap.OPT_X_TLS, ldap.OPT_X_TLS_ALLOW)
         ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
         ldap_object.start_tls_s()
@@ -856,7 +856,6 @@ class LdapManager:
         for objectclass in self.extra_objectclasses:
             obj.objectclass.append(objectclass.encode())
         obj.objectclass.append(self.objectclass.encode())
-        # obj.objectclass = self.extra_objectclasses + [self.objectclass]
         modlist = Modlist(self).add(obj)
         self.connection.add_s(self.dn(obj), modlist)
 
