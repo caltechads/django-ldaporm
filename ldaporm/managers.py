@@ -886,12 +886,43 @@ class LdapManager:
         self.connection.delete_s(obj.dn)
 
     @atomic(key='write')
+    def rename(self, old_dn, new_dn):
+        """
+        Update an object's dn, keeping it within the same basedn.
+        """
+        newrdn = new_dn.split(',')[0]
+        old_basedn = ','.join(old_dn.split(',')[1:])
+        new_basedn = ','.join(new_dn.split(',')[1:])
+        newsuperior = None
+        if old_basedn != new_basedn:
+            newsuperior = new_basedn
+        self.connection.rename_s(old_dn, newrdn, newsuperior)
+
+    @atomic(key='write')
     def modify(self, obj, old=None):
-        # use a function that will use delete if value is None
+        # First check to see whether we updated our primary key.  If so, we need to rename
+        # the object in LDAP, and its obj._dn.  The old obj._dn should reference the old PK.
+        old_pk_value = obj.dn.split(',')[0].split('=')[1]
+        new_pk_value = getattr(obj, self.pk)
+        if new_pk_value != old_pk_value:
+            # We need to do a modrdn_s if we change pk, to cause the dn to be updated also
+            self.connection.modrdn_s(obj.dn, f'{self.pk}={new_pk_value}')
+            # And update our object's _dn to the new one
+            basedn = ','.join(obj.dn.split(',')[1:])
+            new_dn = f'{self.pk}={new_pk_value},{basedn}'
+            obj._dn = new_dn
+            # force reload old, if it was passed in so that we get the new pk value and dn
+            old = None
+
+        # Now update the non-PK attributes
         if not old:
             old = self.get(**{self.pk: getattr(obj, self.pk)})
         modlist = Modlist(self).update(obj, old)
-        self.connection.modify_s(obj.dn, modlist)
+        if modlist:
+            # Only issue the modify_s if we actually have changes
+            self.connection.modify_s(obj.dn, modlist)
+        else:
+            self.logger.debug(f'ldaporm.manager.modify.no-changes dn={obj.dn}')
 
     def only(self, *names):
         return F(manager=self).attributes(names)
