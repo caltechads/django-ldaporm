@@ -780,7 +780,13 @@ class LdapManager:
             if v == self.pk:
                 dn_key = k
                 break
-        return "{}={},{}".format(dn_key, getattr(obj, self.pk), self.basedn)
+        pk_value = getattr(obj, self.pk)
+        if pk_value:
+            return "{}={},{}".format(dn_key, getattr(obj, self.pk), self.basedn)
+        else:
+            # If our pk_value is None or '', we're in the middle of creating a new record and haven't set
+            # it yet.
+            return None
 
     def disconnect(self):
         self.connection.unbind_s()
