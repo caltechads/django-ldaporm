@@ -159,12 +159,15 @@ class Model(metaclass=LdapModelBase):
         for obj in objects:
             if not type(obj[1]) == dict:
                 continue
+            # Case sensitivity does not matter in LDAP, but it does when we're looking up keys in our dict here.  Deal
+            # with the case for when we have a different case on our field name than what LDAP returns
+            obj_attr_lookup = {k.lower(): k for k in obj[1]}
             kwargs = {}
             kwargs['_dn'] = obj[0]
             for attr in attributes:
                 name = _attr_lookup[attr]
                 try:
-                    value = obj[1][attr]
+                    value = obj[1][obj_attr_lookup[attr.lower()]]
                 except KeyError:
                     # if the object in LDAP doesn't have that data, the
                     # attribute won't be present in the response
