@@ -775,19 +775,21 @@ class LdapManager:
         setattr(cls, accessor_name, self)
 
     def dn(self, obj):
-        _attribute_lookup = obj._meta.attribute_to_field_name_map
-        dn_key = self.pk
-        for k, v in _attribute_lookup.items():
-            if v == self.pk:
-                dn_key = k
-                break
-        pk_value = getattr(obj, self.pk)
-        if pk_value:
-            return "{}={},{}".format(dn_key, getattr(obj, self.pk), self.basedn)
-        else:
-            # If our pk_value is None or '', we're in the middle of creating a new record and haven't set
-            # it yet.
-            return None
+        if not obj._dn:
+            _attribute_lookup = obj._meta.attribute_to_field_name_map
+            dn_key = self.pk
+            for k, v in _attribute_lookup.items():
+                if v == self.pk:
+                    dn_key = k
+                    break
+            pk_value = getattr(obj, self.pk)
+            if pk_value:
+                obj._dn = "{}={},{}".format(dn_key, getattr(obj, self.pk), self.basedn)
+            else:
+                # If our pk_value is None or '', we're in the middle of creating a new record and haven't set
+                # it yet.
+                obj._dn = None
+        return obj._dn
 
     def disconnect(self):
         self.connection.unbind_s()
@@ -958,10 +960,10 @@ class LdapManager:
         return self.__filter().all()
 
     def values(self, *args):
-        return self.values(*args)
+        return self.__filter().values(*args)
 
     def values_list(self, *args, **kwargs):
-        return self.values_list(*args, **kwargs)
+        return self.__filter().values_list(*args, **kwargs)
 
     def order_by(self, *args):
         return self.__filter().order_by(*args)
