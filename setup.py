@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='django-ldaporm',
-    version='1.0.3',
+    version='1.0.4',
     description='A Django ORM-like interface for ldap objectclasses',
     long_description=long_description,
     long_description_content_type="text/markdown",
