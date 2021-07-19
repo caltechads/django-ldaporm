@@ -727,7 +727,10 @@ class DateField(Field):
 
 class DateTimeField(DateField):
 
-    LDAP_DATETIME_FORMAT = "%Y%m%d%H%M%SZ"
+    LDAP_DATETIME_FORMATS = [
+        "%Y%m%d%H%M%SZ",
+        "%Y%m%d%H%M%S+0000"
+    ]
 
     empty_strings_allowed = False
     default_error_messages = {
@@ -738,6 +741,7 @@ class DateTimeField(DateField):
         'invalid_datetime': _("'%(value)s' value has the correct format "
                               "(YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ]) "
                               "but it is an invalid date/time."),
+        'invalid_ldap_datetime': _("LDAP datetime '%(value)s' value is not in a supported format"),
     }
     description = _("Date (with time)")
 
@@ -837,7 +841,19 @@ class DateTimeField(DateField):
         if value is []:
             return None
         value = value[0]
-        value = datetime.datetime.strptime(value, self.LDAP_DATETIME_FORMAT)
+        for fmt in self.LDAP_DATETIME_FORMATS:
+            try:
+                value = datetime.datetime.strptime(value, fmt)
+            except ValueError:
+                pass
+            else:
+                break
+        if not isinstance(value, datetime.datetime):
+            raise exceptions.ValidationError(
+                self.error_messages['invalid_ldap_datetime'],
+                code='invalid_ldap_datetime',
+                params={'value': value},
+            )
         value = pytz.utc.localize(value)
         return value
 
