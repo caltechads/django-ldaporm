@@ -731,6 +731,7 @@ class DateTimeField(DateField):
         "%Y%m%d%H%M%SZ",
         "%Y%m%d%H%M%S+0000"
     ]
+    LDAP_DATETIME_FORMAT = "%Y%m%d%H%M%S+0000"
 
     empty_strings_allowed = False
     default_error_messages = {
