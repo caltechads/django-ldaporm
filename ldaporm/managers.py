@@ -983,9 +983,7 @@ class LdapManager:
             return
 
         pwhash = self.model.get_password_hash(new_password)
-        attr = {
-            password_attribute: [pwhash]
-        }
+        attr = {password_attribute: [pwhash]}
         attributes.update(attr)
 
         modlist = Modlist(self)._get_modlist(attr, ldap.MOD_REPLACE)
@@ -993,7 +991,8 @@ class LdapManager:
         self.connect('write')
         self.connection.modify_s(user.dn, modlist)
         self.disconnect()
-        self.logger.info(f'{self.service}.password_reset.success dn={user.dn}')
+        service = getattr(self.model._meta, 'ldap_server', 'ldap')
+        self.logger.info(f'{service}.password_reset.success dn={user.dn}')
         return True
 
     def authenticate(self, username, password):
