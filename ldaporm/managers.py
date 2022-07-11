@@ -812,8 +812,8 @@ class LdapManager:
         ldap_object = ldap.initialize(config['url'])
         ldap_object.set_option(ldap.OPT_REFERRALS, 0)
         ldap_object.set_option(ldap.OPT_NETWORK_TIMEOUT, 15.0)
-        ldap.set_option(ldap.OPT_X_TLS, ldap.OPT_X_TLS_ALLOW)
         ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+        ldap.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
         ldap_object.start_tls_s()
         ldap_object.simple_bind_s(dn, password)
         self._ldap_objects[threading.current_thread()] = ldap_object
