@@ -1,9 +1,9 @@
 from base64 import b64encode as encode
+
 import collections.abc
 import datetime
 from functools import partialmethod, total_ordering
 import hashlib
-import operator
 import os
 import warnings
 
@@ -19,7 +19,6 @@ from django.utils.dateparse import (
     parse_date,
     parse_datetime
 )
-from django.utils.encoding import smart_text
 from django.utils.functional import cached_property
 from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
@@ -152,7 +151,7 @@ class Field:
                     id='fields.E001',
                 )
             ]
-        elif LOOKUP_SEP in self.name:
+        if LOOKUP_SEP in self.name:
             return [
                 checks.Error(
                     'Field names must not contain "%s".' % (LOOKUP_SEP,),
@@ -160,7 +159,7 @@ class Field:
                     id='fields.E002',
                 )
             ]
-        elif self.name == 'pk':
+        if self.name == 'pk':
             return [
                 checks.Error(
                     "'pk' is a reserved word that cannot be used as a field name.",
@@ -168,8 +167,7 @@ class Field:
                     id='fields.E003',
                 )
             ]
-        else:
-            return []
+        return []
 
     def _check_choices(self):
         if not self.choices:
@@ -232,8 +230,7 @@ class Field:
                     id='fields.E007',
                 )
             ]
-        else:
-            return []
+        return []
 
     def _check_validators(self):
         errors = []
@@ -323,6 +320,10 @@ class Field:
         if not self.blank and value in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
 
+    def pre_save(self, model_instance, add):
+        """Return field's value just before saving."""
+        return getattr(model_instance, self.attname)
+
     def clean(self, value, model_instance):
         """
         Convert the value's type and run validation. Validation errors
@@ -336,14 +337,17 @@ class Field:
 
     def set_attributes_from_name(self, name):
         self.name = self.name or name
+        self.attname = self.name
         if self.verbose_name is None and self.name:
             self.verbose_name = self.name.replace('_', ' ')
 
-    def get_choices(self, include_blank=True, blank_choice=BLANK_CHOICE_DASH, limit_choices_to=None):
+    def get_choices(self, include_blank=True, blank_choice=None, limit_choices_to=None):
         """
         Return choices with a default blank choices included, for use
         as <select> choices for this field.
         """
+        if not blank_choice:
+            blank_choice = BLANK_CHOICE_DASH
         if self.choices:
             choices = list(self.choices)
             if include_blank:
@@ -351,13 +355,7 @@ class Field:
                 if not blank_defined:
                     choices = blank_choice + choices
             return choices
-        rel_model = self.remote_field.model
-        limit_choices_to = limit_choices_to or self.get_limit_choices_to()
-        choice_func = operator.attrgetter('pk')
-        return (blank_choice if include_blank else []) + [
-            (choice_func(x), smart_text(x))
-            for x in rel_model._default_manager.complex_filter(limit_choices_to)
-        ]
+        return blank_choice
 
     def limit_choices_to(self):
         raise NotImplementedError
@@ -518,14 +516,13 @@ class BooleanField(Field):
             return False
         if value == [self.LDAP_TRUE]:
             return True
-        elif value == [self.LDAP_FALSE]:
+        if value == [self.LDAP_FALSE]:
             return False
-        else:
-            raise ValueError('Field "{}" (BooleanField) on model {} got got unexpected data from LDAP: {}'.format(
-                self.name,
-                self.model._meta.object_name,
-                value
-            ))
+        raise ValueError('Field "{}" (BooleanField) on model {} got got unexpected data from LDAP: {}'.format(
+            self.name,
+            self.model._meta.object_name,
+            value
+        ))
 
     def to_db_value(self, value):
         if value is not None:
@@ -535,7 +532,7 @@ class BooleanField(Field):
                 value = self.LDAP_FALSE
         return super().to_db_value(value)
 
-    def formfield(self, **kwargs):
+    def formfield(self, form_class=None, choices_form_class=None, **kwargs):
         if self.choices:
             include_blank = not (self.has_default() or 'initial' in kwargs)
             defaults = {'choices': self.get_choices(include_blank=include_blank)}
@@ -573,7 +570,7 @@ class CharField(Field):
             return None
         return value[0]
 
-    def formfield(self, **kwargs):
+    def formfield(self, form_class=None, choices_form_class=None, **kwargs):
         # Passing max_length to forms.CharField means that the value's length
         # will be validated twice. This is considered acceptable since we want
         # the value in the form field (to pass into widget for example).
@@ -686,8 +683,7 @@ class DateField(Field):
             value = datetime.date.today()
             setattr(model_instance, self.attname, value)
             return value
-        else:
-            return super().pre_save(model_instance, add)
+        return super().pre_save(model_instance, add)
 
     def contribute_to_class(self, cls, name, **kwargs):
         super().contribute_to_class(cls, name, **kwargs)
@@ -703,7 +699,7 @@ class DateField(Field):
 
     def from_db_value(self, value):
         value = super().from_db_value(value)
-        if value is []:
+        if not value:
             return None
         value = value[0]
         ts = datetime.datetime.strptime(value, self.LDAP_DATETIME_FORMAT)
@@ -718,7 +714,7 @@ class DateField(Field):
         val = self.value_from_object(obj)
         return '' if val is None else val.isoformat()
 
-    def formfield(self, **kwargs):
+    def formfield(self, form_class=None, choices_form_class=None, **kwargs):
         return super().formfield(**{
             'form_class': forms.DateField,
             **kwargs,
@@ -870,8 +866,7 @@ class DateTimeField(DateField):
             value = timezone.now()
             setattr(model_instance, self.attname, value)
             return value
-        else:
-            return super().pre_save(model_instance, add)
+        return super().pre_save(model_instance, add)
 
     def formfield(self, **kwargs):
         return super().formfield(**{
@@ -943,7 +938,7 @@ class IntegerField(Field):
 
     def from_db_value(self, value):
         value = super().from_db_value(value)
-        if value is []:
+        if not value:
             return None
         return self.to_python(value[0])
 
@@ -981,9 +976,8 @@ class CharListField(CharField):
 
     def get_default(self):
         if self.default is None:
-            return list()
-        else:
-            self._get_default()
+            return []
+        return self._get_default()
 
     def from_db_value(self, value):
         return Field.from_db_value(self, value)
@@ -991,7 +985,7 @@ class CharListField(CharField):
     def to_python(self, value):
         if not value:
             return []
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return value
         return value.splitlines()
 

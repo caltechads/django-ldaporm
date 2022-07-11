@@ -1,0 +1,38 @@
+[TYPECHECK]
+max-line-length = 120
+generated-members=ldap.MOD*,
+                  ldap.OPT*,
+                  ldap.SCOPE*,
+                  ldap.INVALID_CREDENTIALS,
+                  ldap.connect
+
+[MESSAGES CONTROL]
+disable=unused-argument,
+        abstract-method,
+        missing-function-docstring,
+        missing-module-docstring,
+        missing-class-docstring,
+        missing-function-docstring,
+        raise-missing-from,
+        too-many-lines,
+        invalid-name,
+        wrong-import-order,
+        import-outside-toplevel,
+        consider-using-f-string,
+        assignment-from-no-return,
+        attribute-defined-outside-init,
+        unnecessary-pass,
+        too-many-ancestors,
+        too-few-public-methods,
+        protected-access
+
+[VARIABLES]
+good-names=i,
+           j,
+           k,
+           ex,
+           e,
+           _,
+           m
+
+

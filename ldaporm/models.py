@@ -4,7 +4,10 @@ import inspect
 import os
 
 from django.core.exceptions import ValidationError, FieldDoesNotExist
-from django.utils.encoding import force_text
+try:
+    from django.utils.encoding import force_text
+except ImportError:
+    from django.utils.encoding import force_str as force_text
 from django.db.models.signals import (
     class_prepared,
     post_init,
@@ -71,7 +74,7 @@ class LdapModelBase(type):
                 "field named 'objects'." % cls.__name__
             )
         manager = opts.manager_class()
-        cls.add_to_class('objects', manager)
+        cls.add_to_class('objects', manager)  # pylint: disable=no-value-for-parameter
         class_prepared.send(sender=cls)
 
 
@@ -85,6 +88,9 @@ class Model(metaclass=LdapModelBase):
 
     class MultipleObjectsReturned(Exception):
         pass
+
+    _meta = None
+    objects = None
 
     def __init__(self, *args, **kwargs):
         cls = self.__class__
@@ -157,7 +163,7 @@ class Model(metaclass=LdapModelBase):
                 )
         rows = []
         for obj in objects:
-            if not type(obj[1]) == dict:
+            if not isinstance(obj[1], dict):
                 continue
             # Case sensitivity does not matter in LDAP, but it does when we're looking up keys in our dict here.  Deal
             # with the case for when we have a different case on our field name than what LDAP returns
@@ -179,8 +185,8 @@ class Model(metaclass=LdapModelBase):
         return rows
 
     @classmethod
-    def _default_manager(self):
-        return self.objects
+    def _default_manager(cls):
+        return cls.objects
 
     def to_db(self):
         """

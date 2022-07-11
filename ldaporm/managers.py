@@ -56,19 +56,18 @@ def atomic(key='read'):
             if self.has_connection():
                 # Ensure we're not currently in a wrapped function
                 return func(self, *args, **kwargs)
-            else:
-                old_log_method = self.logger._log
-                self.logger._log = log_prefix(f"ldap_url={self.config[key]['url']}")(old_log_method)
-                self.connect(key)
-                try:
-                    retval = func(self, *args, **kwargs)
-                finally:
-                    # We do this in a finally: branch so that the ldap
-                    # connection and logger gets cleaned up no matter what
-                    # happens in func()
-                    self.disconnect()
-                    self.logger._log = old_log_method
-                return retval
+            old_log_method = self.logger._log
+            self.logger._log = log_prefix(f"ldap_url={self.config[key]['url']}")(old_log_method)
+            self.connect(key)
+            try:
+                retval = func(self, *args, **kwargs)
+            finally:
+                # We do this in a finally: branch so that the ldap
+                # connection and logger gets cleaned up no matter what
+                # happens in func()
+                self.disconnect()
+                self.logger._log = old_log_method
+            return retval
         return wrapper
     return real_decorator
 
@@ -132,7 +131,7 @@ class Modlist:
         self.manager = manager
 
     def _get_modlist(self, data, modtype=ldap.MOD_REPLACE):
-        modlist = []
+        _modlist = []
         for key in data.keys():
             if modtype == ldap.MOD_DELETE:
                 val = None
@@ -142,7 +141,7 @@ class Modlist:
                 ntup = tuple([key, val])
             else:
                 ntup = tuple([modtype, key, val])
-            modlist.append(ntup)
+            _modlist.append(ntup)
         return modlist
 
     def add(self, obj):
@@ -262,10 +261,9 @@ class F:
         """
         if len(self.chain) == 0:
             raise self.NoFilterSpecified('You need to at least specify one filter in order to do LDAP searches.')
-        elif len(self.chain) == 1:
+        if len(self.chain) == 1:
             return self.chain[0]
-        else:
-            return Filter.AND(self.chain).simplify()
+        return Filter.AND(self.chain).simplify()
 
     @needs_manager
     def __sort(self, objects):
@@ -284,30 +282,33 @@ class F:
         """
         if not self._order_by:
             return objects
-        if not any([k.startswith('-') for k in self._order_by]):
+        if not any(k.startswith('-') for k in self._order_by):
             # if none of the keys are reversed, just sort directly
             return sorted(objects, key=lambda obj: tuple(getattr(obj, k) for k in self._order_by))
-        else:
-            # At least one key was reversed. now we have to do it the hard way,
-            # with sequential sorts, starting from the last sort key and working
-            # our way back to the first
-            keys = list(self._order_by)
-            keys.reverse()
-            for k in keys:
-                key = k
-                reverse = False
-                if key.startswith('-'):
-                    key = k[1:]
-                    reverse = True
-                data = sorted(objects, key=lambda obj: getattr(obj, key), reverse=reverse)
-            return data
+        # At least one key was reversed. now we have to do it the hard way,
+        # with sequential sorts, starting from the last sort key and working
+        # our way back to the first
+        keys = list(self._order_by)
+        keys.reverse()
+        for k in keys:
+            key = k
+            reverse = False
+            if key.startswith('-'):
+                key = k[1:]
+                reverse = True
+            data = sorted(
+                objects,
+                key=lambda obj: getattr(obj, key),  # pylint: disable=cell-var-from-loop
+                reverse=reverse
+            )
+        return data
 
     def __validate_positional_args(self, args):
         if args:
             for arg in args:
                 if not isinstance(arg, F):
                     raise ValueError(
-                        "F.filter() positional arguments must all be F() objects.".format(self.manager.model.__name__)
+                        "F.filter() positional arguments must all be F() objects."
                     )
             steps = all(args)
         else:
@@ -459,12 +460,10 @@ class F:
         if len(objects) == 0:
             raise self.manager.model.DoesNotExist(
                 'A {} object matching query does not exist.'.format(self.manager.model.__name__))
-        else:
-            objects = self.manager.model.from_db(self._attributes, objects)
+        objects = self.manager.model.from_db(self._attributes, objects)
         if not self._order_by:
             return objects[0]
-        else:
-            return self.__sort(objects)[0]
+        return self.__sort(objects)[0]
 
     @needs_manager
     @needs_pk
@@ -476,7 +475,7 @@ class F:
         if len(objects) > 1:
             raise self.model.MultipleObjectsReturned(
                 'More than one {} object matched query.'.format(self.model.__name__))
-        return(self.manager.model.from_db(self._attributes, objects))
+        return self.manager.model.from_db(self._attributes, objects)
 
     @needs_manager
     @needs_pk
@@ -499,8 +498,7 @@ class F:
         objects = self.manager.search(str(self), self._attributes)
         if len(objects) > 0:
             return True
-        else:
-            return False
+        return False
 
     @needs_manager
     @needs_pk
@@ -526,7 +524,7 @@ class F:
             We do this to protect LDAP itself from our bugs.
         """
         obj = self.get()
-        self.connection.delete_s(obj.dn)
+        self.manager.connection.delete_s(obj.dn)
 
     @needs_manager
     def order_by(self, *args):
@@ -626,18 +624,16 @@ class F:
         if 'flat' in kwargs and kwargs['flat']:
             if len(attrs) > 1:
                 raise ValueError("Cannot use flat=True when asking for more than one field")
-            else:
-                return [getattr(obj, attrs[0]) for obj in objects]
-        elif 'named' in kwargs and kwargs['named']:
+            return [getattr(obj, attrs[0]) for obj in objects]
+        if 'named' in kwargs and kwargs['named']:
             for obj in objects:
                 Row = namedtuple('Row', attrs)
                 # the keys here should be field names, not attribute names
 
                 data.append(Row(**{self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in attrs}))
             return data
-        else:
-            for obj in objects:
-                data.append(tuple(getattr(obj, attr) for attr in attrs))
+        for obj in objects:
+            data.append(tuple(getattr(obj, attr) for attr in attrs))
         return data
 
     def __or__(self, other):
@@ -709,7 +705,7 @@ class LdapManager:
                 serverctrls=[controls],
                 sizelimit=sizelimit
             )
-            rtype, rdata, rmsgid, serverctrls = self.connection.result3(msgid)
+            rtype, rdata, rmsgid, serverctrls = self.connection.result3(msgid)  # pylint: disable=unused-variable
             # Each "rdata" is a tuple of the form (dn, attrs), where dn is
             # a string containing the DN (distinguished name) of the entry,
             # and attrs is a dictionary containing the attributes associated
@@ -718,16 +714,18 @@ class LdapManager:
             for dn, attrs in rdata:
 
                 # AD returns an rdata at the end that is a reference that we want to ignore
-                if type(attrs) == dict:
+                if isinstance(attrs, dict):
                     results.append((dn, attrs))
-
 
             # Get cookie for the next request.
             paged_controls = self._get_pctrls(serverctrls)
             if not paged_controls:
                 self.logger.warning(
-                    f'paged_search.rfc2696_control_ignored searchfilter={searchfilter}'
-                    f'attrlist={",".join(attrlist)} pagesize={pagesize} sizelimit={sizelimit}'
+                    'paged_search.rfc2696_control_ignored searchfilter=%s'
+                    'attrlist={",".join(attrlist)} pagesize=%s sizelimit=%s',
+                    searchfilter,
+                    pagesize,
+                    sizelimit
                 )
                 break
 
@@ -751,11 +749,9 @@ class LdapManager:
             raise ImproperlyConfigured("settings.LDAP_SERVERS does not exist!")
         except KeyError:
             raise ImproperlyConfigured(
-                "'{}::{}': settings.LDAP_SERVERS has no key '{}', which was named by {}.service".format(
+                "{}: settings.LDAP_SERVERS has no key '{}'".format(
                     cls.__name__,
-                    self.__name__,
-                    self.service,
-                    self.__name__
+                    cls._meta.ldap_server,
                 )
             )
 
@@ -764,10 +760,9 @@ class LdapManager:
                 self.basedn = self.config['basedn']
             except KeyError:
                 raise ImproperlyConfigured(
-                    "'{}::{}': no ``Meta.basedn`` and settings.LDAP_SERVERS['{}'] has no 'basedn' key".format(
+                    "{}: no ``Meta.basedn`` and settings.LDAP_SERVERS['{}'] has no 'basedn' key".format(
                         cls.__name__,
-                        self.__name__,
-                        self.service
+                        cls._meta.ldap_server
                     )
                 )
         self.model = cls
@@ -838,19 +833,18 @@ class LdapManager:
                 attrlist=attributes,
                 sizelimit=sizelimit
             )
-        else:
-            # We have to filter out and references that AD puts in
-            data = self.connection.search_s(
-                self.basedn,
-                ldap.SCOPE_SUBTREE,
-                filterstr=searchfilter,
-                attrlist=attributes
-            )
-            objects = []
-            for obj in data:
-                if type(obj[1]) == dict:
-                    objects.append(obj)
-            return objects
+        # We have to filter out and references that AD puts in
+        data = self.connection.search_s(
+            self.basedn,
+            ldap.SCOPE_SUBTREE,
+            filterstr=searchfilter,
+            attrlist=attributes
+        )
+        objects = []
+        for obj in data:
+            if isinstance(obj[1], dict):
+                objects.append(obj)
+        return objects
 
     @atomic(key='write')
     def add(self, obj):
@@ -858,8 +852,8 @@ class LdapManager:
         for objectclass in self.extra_objectclasses:
             obj.objectclass.append(objectclass.encode())
         obj.objectclass.append(self.objectclass.encode())
-        modlist = Modlist(self).add(obj)
-        self.connection.add_s(self.dn(obj), modlist)
+        _modlist = Modlist(self).add(obj)
+        self.connection.add_s(self.dn(obj), _modlist)
 
     @atomic(key='write')
     @substitute_pk
@@ -918,12 +912,12 @@ class LdapManager:
         # Now update the non-PK attributes
         if not old:
             old = self.get(**{self.pk: getattr(obj, self.pk)})
-        modlist = Modlist(self).update(obj, old)
-        if modlist:
+        _modlist = Modlist(self).update(obj, old)
+        if _modlist:
             # Only issue the modify_s if we actually have changes
-            self.connection.modify_s(obj.dn, modlist)
+            self.connection.modify_s(obj.dn, _modlist)
         else:
-            self.logger.debug(f'ldaporm.manager.modify.no-changes dn={obj.dn}')
+            self.logger.debug('ldaporm.manager.modify.no-changes dn=%s', obj.dn)
 
     def only(self, *names):
         return F(manager=self).attributes(names)
@@ -938,8 +932,7 @@ class LdapManager:
     def wildcard(self, name, value):
         if value:
             return self.__filter().wildcard(name, value)
-        else:
-            return self
+        return self
 
     @substitute_pk
     def filter(self, *args, **kwargs):
@@ -968,11 +961,13 @@ class LdapManager:
     def order_by(self, *args):
         return self.__filter().order_by(*args)
 
-    def reset_password(self, username, new_password, attributes={}):
+    def reset_password(self, username, new_password, attributes=None):
+        if not attributes:
+            attributes = {}
         try:
             user = self.filter(**{'uid': username}).only('uid').get()
         except self.model.DoesNotExist:
-            self.logger.warning(f'auth.no_such_user user={username}')
+            self.logger.warning('auth.no_such_user user=%s', username)
             return False
 
         if not attributes:
@@ -980,19 +975,19 @@ class LdapManager:
 
         password_attribute = getattr(self.model, 'password_attribute', None)
         if not password_attribute:
-            return
+            return False
 
         pwhash = self.model.get_password_hash(new_password)
         attr = {password_attribute: [pwhash]}
         attributes.update(attr)
 
-        modlist = Modlist(self)._get_modlist(attr, ldap.MOD_REPLACE)
+        _modlist = Modlist(self)._get_modlist(attr, ldap.MOD_REPLACE)
 
         self.connect('write')
-        self.connection.modify_s(user.dn, modlist)
+        self.connection.modify_s(user.dn, _modlist)
         self.disconnect()
         service = getattr(self.model._meta, 'ldap_server', 'ldap')
-        self.logger.info(f'{service}.password_reset.success dn={user.dn}')
+        self.logger.info('%s.password_reset.success dn=%s', service, user.dn)
         return True
 
     def authenticate(self, username, password):
@@ -1019,12 +1014,12 @@ class LdapManager:
             # user = self.filter(**{self.pk: username}).only(self.pk).get()
             user = self.filter(**{'uid': username}).only('uid').get()
         except self.model.DoesNotExist:
-            self.logger.warning(f'auth.no_such_user user={username}')
+            self.logger.warning('auth.no_such_user user=%s', username)
             return False
         try:
             self.connect('read', user.dn, password)
         except ldap.INVALID_CREDENTIALS:
-            self.logger.warning('auth.invalid_credentials user={username}')
+            self.logger.warning('auth.invalid_credentials user=%s', username)
             return False
         self.disconnect()
         self.logger.info('auth.success user={username}')
