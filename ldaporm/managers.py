@@ -142,7 +142,7 @@ class Modlist:
             else:
                 ntup = tuple([modtype, key, val])
             _modlist.append(ntup)
-        return modlist
+        return _modlist
 
     def add(self, obj):
         """
