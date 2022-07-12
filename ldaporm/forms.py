@@ -1,3 +1,4 @@
+from typing import List, Optional, Union, Callable
 from django import forms
 from django.forms.widgets import Textarea
 from django.core.exceptions import ValidationError
@@ -6,13 +7,17 @@ from django.core import validators
 
 class CharListWidget(Textarea):
 
-    is_hidden = False
+    is_hidden: bool = False
 
-    def render(self, name, value, attrs=None, renderer=None):
+    def render(
+        self,
+        name: str,
+        value: Optional[Union[str, List[str]]],
+        attrs: List[str] = None,
+        renderer: Callable = None
+    ):
         if value in self.attrs['empty_values']:
             value = ""
-        elif isinstance(value, str):
-            value = value
         elif isinstance(value, list):
             value = "\n".join(value)
         return super().render(name, value, attrs)

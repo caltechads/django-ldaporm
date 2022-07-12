@@ -2,6 +2,7 @@ from base64 import b64encode as encode
 import hashlib
 import inspect
 import os
+from typing import Any, List, Optional, Sequence, Type
 
 from django.core.exceptions import ValidationError, FieldDoesNotExist
 try:
@@ -13,6 +14,10 @@ from django.db.models.signals import (
     post_init,
     pre_init
 )
+from ldaporm.fields import Field
+from ldaporm.managers import LdapManager
+from ldaporm.typing import LDAPData
+
 from .options import Options
 
 
@@ -48,14 +53,14 @@ class LdapModelBase(type):
 
         return new_class
 
-    def add_to_class(cls, name, value):
+    def add_to_class(cls: Type["Model"], name: str, value: Any) -> None:
         # We should call the contribute_to_class method only if it's bound
         if not inspect.isclass(value) and hasattr(value, 'contribute_to_class'):
             value.contribute_to_class(cls, name)
         else:
             setattr(cls, name, value)
 
-    def _prepare(cls):
+    def _prepare(cls) -> None:
         """
         Create some methods once self._meta has been populated.
 
@@ -89,14 +94,14 @@ class Model(metaclass=LdapModelBase):
     class MultipleObjectsReturned(Exception):
         pass
 
-    _meta = None
-    objects = None
+    _meta: Optional[Options] = None
+    objects: Optional[LdapManager] = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         cls = self.__class__
         opts = self._meta
         _setattr = setattr
-        self._dn = None
+        self._dn: str = None
 
         pre_init.send(sender=cls, args=args, kwargs=kwargs)
 
@@ -143,7 +148,7 @@ class Model(metaclass=LdapModelBase):
         post_init.send(sender=cls, instance=self)
 
     @classmethod
-    def from_db(cls, attributes, objects, many=False):
+    def from_db(cls, attributes: List[str], objects: Sequence[LDAPData], many: bool = False) -> Sequence["Model"]:
         """
         ``objects`` is a list of raw LDAP data objects
         ``attributes`` is a
@@ -185,10 +190,10 @@ class Model(metaclass=LdapModelBase):
         return rows
 
     @classmethod
-    def _default_manager(cls):
+    def _default_manager(cls) -> "LdapManager":
         return cls.objects
 
-    def to_db(self):
+    def to_db(self) -> LDAPData:
         """
         ``to_db`` produces 2-tuple similar to what we would get from
         python-ldap's .search_s().::
@@ -208,13 +213,13 @@ class Model(metaclass=LdapModelBase):
             attrs.update(field.to_db_value(field.value_from_object(self)))
         return (self.dn, attrs)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s: %s>' % (self.__class__.__name__, self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '%s object (%s)' % (self.__class__.__name__, self.pk)
 
-    def __eq__(self, other):
+    def __eq__(self, other: "Model") -> bool:
         if not isinstance(other, Model):
             return False
         if self._meta.concrete_model != other._meta.concrete_model:
@@ -224,31 +229,31 @@ class Model(metaclass=LdapModelBase):
             return self is other
         return my_pk == other.pk
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         if self.pk is None:
             raise TypeError("LdapModel instances without primary key value are unhashable")
         return hash(self.pk)
 
-    def _get_pk_val(self, meta=None):
+    def _get_pk_val(self, meta: Options = None) -> Any:
         meta = meta or self._meta
         return getattr(self, meta.pk.name)
 
-    def _set_pk_val(self, value):
+    def _set_pk_val(self, value: Any) -> None:
         return setattr(self, self._meta.pk.name, value)
 
     pk = property(_get_pk_val, _set_pk_val)
 
-    def _get_FIELD_display(self, field):
+    def _get_FIELD_display(self, field: Field) -> str:
         value = getattr(self, field.name)
         return force_text(dict(field.flatchoices).get(value, value), strings_only=True)
 
     @property
-    def dn(self):
+    def dn(self) -> str:
         if self._dn:
             return self._dn
         return self._meta.base_manager.dn(self)
 
-    def save(self, commit=True):
+    def save(self, commit: bool = True) -> None:
         # need to do the pre_save signal here
         try:
             self._meta.base_manager.get(**{self._meta.pk.name: self.pk})
@@ -257,10 +262,10 @@ class Model(metaclass=LdapModelBase):
         else:
             self._meta.base_manager.modify(self)
 
-    def delete(self):
+    def delete(self) -> None:
         self._meta.base_manager.delete_obj(self)
 
-    def clean(self):
+    def clean(self) -> None:
         """
         Hook for doing any extra model-wide validation after clean() has been
         called on every field by self.clean_fields. Any ValidationError raised
@@ -269,7 +274,7 @@ class Model(metaclass=LdapModelBase):
         """
         pass
 
-    def full_clean(self, exclude=None, validate_unique=True):
+    def full_clean(self, exclude: List[str] = None, validate_unique: bool = True) -> None:
         """
         validate_unique is here to fool ModelForm into thinking we're a Django ORM Model
         """
@@ -294,7 +299,7 @@ class Model(metaclass=LdapModelBase):
         if errors:
             raise ValidationError(errors)
 
-    def clean_fields(self, exclude=None):
+    def clean_fields(self, exclude: List[str] = None) -> None:
         if exclude is None:
             exclude = []
 
@@ -313,10 +318,10 @@ class Model(metaclass=LdapModelBase):
         if errors:
             raise ValidationError(errors)
 
-    def validate_unique(self, exclude=None):
+    def validate_unique(self, exclude: List[str] = None) -> None:
         pass
 
-    def get_password_hash(self, new_password):
+    def get_password_hash(self, new_password: str) -> str:
         salt = os.urandom(8)
         h = hashlib.sha1(new_password)
         h.update(salt)

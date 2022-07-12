@@ -1,4 +1,5 @@
 from bisect import bisect
+from typing import TYPE_CHECKING, Dict, List, Tuple
 
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.utils.functional import cached_property
@@ -8,6 +9,9 @@ from django.utils.translation import override
 from .managers import LdapManager
 from .fields import CharListField
 
+if TYPE_CHECKING:
+    from .models import Model
+    from .fields import Field
 
 DEFAULT_NAMES = (
     'ldap_server', 'ldap_options', 'manager_class', 'basedn', 'objectclass',
@@ -18,55 +22,53 @@ DEFAULT_NAMES = (
 
 class Options:
 
-    def __init__(self, meta):
+    def __init__(self, meta) -> None:
         # LDAP related
-        self.ldap_server = 'default'
+        self.ldap_server: str = 'default'
         self.ldap_options = []
-        self.manager_class = LdapManager
-        self.basedn = None
-        self.objectclass = None
-        self.extra_objectclasses = []
+        self.manager_class: "LdapManager" = LdapManager
+        self.basedn: str = None
+        self.objectclass: str = None
+        self.extra_objectclasses: List[str] = []
 
         # other
-        self.verbose_name = None
-        self.verbose_name_plural = None
-        self.ordering = []
-        self.default_permissions = ('add', 'change', 'delete', 'view')
-        self.permissions = []
+        self.verbose_name: str = None
+        self.verbose_name_plural: str = None
+        self.ordering: List[str] = []
+        self.default_permissions: Tuple[str] = ('add', 'change', 'delete', 'view')
+        self.permissions: List[str] = []
 
         # these are set up by the LdapModelBase metaclass
-        self.model_name = None
-        self.object_name = None
+        self.model_name: str = None
+        self.object_name: str = None
         self.meta = meta
-        self.pk = None
-        self.concrete_model = None
-        self.base_manager = None
-        self.local_fields = []
+        self.pk: str = None
+        self.concrete_model: "Model" = None
+        self.base_manager: "LdapManager" = None
+        self.local_fields: List["Field"] = []
 
         # self.get_latest_by = None
 
         # these need to be here to fool ModelForm
-        self.local_many_to_many = []
-        self.private_fields = []
-        self.many_to_many = []
+        self.local_many_to_many: List["Field"] = []
+        self.private_fields: List["Field"] = []
+        self.many_to_many: List["Field"] = []
 
     @property
-    def label(self):
+    def label(self) -> str:
         return self.object_name
-        # return '%s.%s' % (self.app_label, self.object_name)
 
     @property
-    def label_lower(self):
+    def label_lower(self) -> str:
         return self.model_name
-        # return '%s.%s' % (self.app_label, self.model_name)
 
     @property
-    def verbose_name_raw(self):
+    def verbose_name_raw(self) -> str:
         """Return the untranslated verbose name."""
         with override(None):
             return str(self.verbose_name)
 
-    def contribute_to_class(self, cls, name):
+    def contribute_to_class(self, cls: "Model", name: str) -> None:
         cls._meta = self
         self.model = cls
         # First, construct the default values for these options.
@@ -77,11 +79,11 @@ class Options:
         # Next, apply any overridden values from 'class Meta'.
         if self.meta:
             meta_attrs = self.meta.__dict__.copy()
-            for name in self.meta.__dict__:
+            for attr in self.meta.__dict__:
                 # NOTE: We can't modify a dictionary's contents while looping
                 # over it, so we loop over the *original* dictionary instead.
-                if name.startswith('_'):
-                    del meta_attrs[name]
+                if attr.startswith('_'):
+                    del meta_attrs[attr]
             for attr_name in DEFAULT_NAMES:
                 if attr_name in meta_attrs:
                     setattr(self, attr_name, meta_attrs.pop(attr_name))
@@ -100,7 +102,7 @@ class Options:
             self.verbose_name_plural = format_lazy('{}s', self.verbose_name)
         del self.meta
 
-    def _prepare(self, model):
+    def _prepare(self, model: "Model") -> None:
         if self.pk is None:
             raise ImproperlyConfigured("'{}' model doesn't have a primary key".format(self.object_name))
         # Always make sure we have objectclass in our model, so we can filter by it
@@ -114,35 +116,35 @@ class Options:
         objectclass = CharListField('objectclass', editable=False, max_length=255)
         model.add_to_class('objectclass', objectclass)
 
-    def add_field(self, field):
+    def add_field(self, field: "Field") -> None:
         self.local_fields.insert(bisect(self.local_fields, field), field)
         self.setup_pk(field)
 
-    def setup_pk(self, field):
+    def setup_pk(self, field: "Field") -> None:
         if not self.pk and field.primary_key:
             self.pk = field
             field.serialize = False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<Options for %s>' % self.object_name
 
     @cached_property
-    def fields(self):
+    def fields(self) -> List["Field"]:
         return self._get_fields()
 
     @property
-    def concrete_fields(self):
+    def concrete_fields(self) -> List["Field"]:
         # this is here to fool ModelForm
         return self.fields
 
-    def get_fields(self, include_parents=True, include_hidden=False):
+    def get_fields(self, include_parents: bool = True, include_hidden: bool = False) -> List["Field"]:
         return self._get_fields()
 
-    def _get_fields(self):
+    def _get_fields(self) -> List["Field"]:
         return self.local_fields
 
     @cached_property
-    def fields_map(self):
+    def fields_map(self) -> Dict[str, "Field"]:
         res = {}
         fields = self._get_fields()
         for field in fields:
@@ -150,7 +152,7 @@ class Options:
         return res
 
     @cached_property
-    def attributes_map(self):
+    def attributes_map(self) -> Dict[str, str]:
         res = {}
         fields = self._get_fields()
         for field in fields:
@@ -158,14 +160,14 @@ class Options:
         return res
 
     @cached_property
-    def attribute_to_field_name_map(self):
+    def attribute_to_field_name_map(self) -> Dict[str, str]:
         return {f.ldap_attribute: f.name for f in self._get_fields()}
 
     @cached_property
-    def attributes(self):
+    def attributes(self) -> List[str]:
         return [f.ldap_attribute for f in self._get_fields()]
 
-    def get_field(self, field_name):
+    def get_field(self, field_name: str) -> "Field":
         """
         Return a field instance given the name of a forward or reverse field.
         """

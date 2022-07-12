@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Sequence
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -16,6 +17,10 @@ from ldap import modlist
 from ldap.controls import SimplePagedResultsControl
 from ldap_filter import Filter
 
+from .typing import ModifyDeleteModList, AddModlist, LDAPData
+
+if TYPE_CHECKING:
+    from .models import Model
 
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion('2.4')
 logger = logging.getLogger('django-ldaporm')
@@ -25,18 +30,18 @@ logger = logging.getLogger('django-ldaporm')
 # Decorators
 # -----------------------
 
-def log_prefix(prefix):
+def log_prefix(prefix: str) -> Callable:
 
-    def real_decorator(func):
+    def real_decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, level, msg, args, **kwargs):
+        def wrapper(self, level, msg, args, **kwargs) -> Callable:
             msg = prefix + " " + msg
             return func(level, msg, args, **kwargs)
         return wrapper
     return real_decorator
 
 
-def atomic(key='read'):
+def atomic(key: str = 'read') -> Callable:
     """
     Use this decorator to wrap methods that actually need to talk to an LDAP
     server.
@@ -49,9 +54,9 @@ def atomic(key='read'):
     If 'key' is "write", do this operation on the LDAP server we've designated
     as our read-write server.
     """
-    def real_decorator(func):
+    def real_decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *args, **kwargs) -> Callable:
             # add the LDAP server url to our logging context
             if self.has_connection():
                 # Ensure we're not currently in a wrapped function
@@ -72,13 +77,13 @@ def atomic(key='read'):
     return real_decorator
 
 
-def substitute_pk(func):
+def substitute_pk(func: Callable) -> Callable:
     """
     Certain LdapManager() methods allow you to use the kwarg "pk".  Replace
     that with self.pk before passing into the method.
     """
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args, **kwargs) -> Callable:
         kw = {}
         for key, value in kwargs.items():
             if key == 'pk':
@@ -88,7 +93,7 @@ def substitute_pk(func):
     return wrapper
 
 
-def needs_manager(func):
+def needs_manager(func: Callable) -> Callable:
     """
     Certain F() methods need an LdapManager class in order to function correctly.
 
@@ -102,7 +107,7 @@ def needs_manager(func):
     return wrapper
 
 
-def needs_pk(func):
+def needs_pk(func: Callable) -> Callable:
     """
     When we retrieve data from LDAP, in most cases we want to ensure we include
     the primary key for the object in our returned attributes so that we can
@@ -112,7 +117,7 @@ def needs_pk(func):
     executing the LDAP search.
     """
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args, **kwargs) -> Callable:
         pk_attr = self.get_attribute(self.manager.pk)
         if pk_attr not in self._attributes:
             self._attributes.append(pk_attr)
@@ -127,12 +132,12 @@ def needs_pk(func):
 
 class Modlist:
 
-    def __init__(self, manager):
+    def __init__(self, manager: "LdapManager") -> None:
         self.manager = manager
 
-    def _get_modlist(self, data, modtype=ldap.MOD_REPLACE):
-        _modlist = []
-        for key in data.keys():
+    def _get_modlist(self, data: Dict[str, Any], modtype: int = ldap.MOD_REPLACE) -> ModifyDeleteModList:
+        _modlist: ModifyDeleteModList = []
+        for key in data:
             if modtype == ldap.MOD_DELETE:
                 val = None
             else:
@@ -144,7 +149,7 @@ class Modlist:
             _modlist.append(ntup)
         return _modlist
 
-    def add(self, obj):
+    def add(self, obj: LDAPData) -> AddModlist:
         """
         Convert an LDAP DAO object to a modlist suitable for passing to
         `add_s` and return it.
@@ -164,10 +169,9 @@ class Modlist:
                 continue
             if value != []:
                 new[key] = value
-        # return modlist.addModlist((data[0], new))
         return modlist.addModlist(new)
 
-    def update(self, new, old, force=False):
+    def update(self, new: "Model", old: "Model", force: bool = False) -> ModifyDeleteModList:
         """
         We do our own implementation of `ldap.modify.modifyModlist` here because
         python-ldap explicitly says:
@@ -237,7 +241,7 @@ class F:
     class UnboundFilter(Exception):
         pass
 
-    def __init__(self, manager=None, f=None):
+    def __init__(self, manager: "LdapManager" = None, f: "F" = None) -> None:
         self.manager = manager
         self.model = manager.model
         self.fields_map = self.manager.model._meta.fields_map
@@ -252,7 +256,7 @@ class F:
             self.chain = []
 
     @property
-    def _filter(self):
+    def _filter(self) -> "F":
         """
         Return a list of filters ready to be converted to a filter string.
 
@@ -266,10 +270,10 @@ class F:
         return Filter.AND(self.chain).simplify()
 
     @needs_manager
-    def __sort(self, objects):
+    def __sort(self, objects: Sequence["Model"]) -> Sequence["Model"]:
         """
         This is called by methods that return lists of results.  Sort our
-        ``objects``, a list of objects of class ``self.mangaer.model`` based
+        ``objects``, a list of objects of class ``self.manager.model`` based
         on ``self._order_by``.
 
         Example::
@@ -303,19 +307,16 @@ class F:
             )
         return data
 
-    def __validate_positional_args(self, args):
+    def __validate_positional_args(self, args: List["F"]) -> List["F"]:
         if args:
             for arg in args:
                 if not isinstance(arg, F):
                     raise ValueError(
                         "F.filter() positional arguments must all be F() objects."
                     )
-            steps = all(args)
-        else:
-            steps = []
-        return steps
+        return list(args)
 
-    def get_attribute(self, name):
+    def get_attribute(self, name: str) -> str:
         try:
             return self.attributes_map[name]
         except KeyError:
@@ -323,7 +324,7 @@ class F:
                 '"{}" is not a valid field on model {}'.format(name, self.manager.model.__name__)
             )
 
-    def wildcard(self, name, value):
+    def wildcard(self, name: str, value: str) -> "F":
         """
         Convert ``value`` with some "*" in it (beginning, end or both) to
         appropriate LDAP filters ("__iendswith", "__istartswith" or
@@ -356,7 +357,7 @@ class F:
             f = self.filter(**d)
         return f
 
-    def filter(self, *args, **kwargs):
+    def filter(self, *args, **kwargs) -> "F":
         """
         If there are positional arguments, they must all be F() objects.  This
         allows us to preconstruct an unbound filter and then use it later.
@@ -414,7 +415,7 @@ class F:
         self.chain.append(Filter.AND(steps))
         return self
 
-    def only(self, *names):
+    def only(self, *names) -> "F":
         """
         Return an object with only these attributes.  Any attribute in the list which
         is not in the set of known attributes for our model will cause us to raise
@@ -430,7 +431,7 @@ class F:
 
     @needs_manager
     @needs_pk
-    def first(self):
+    def first(self) -> "Model":
         """
         The difference between .first() and .get() is that with .first() we know
         we might get more than one result, but we just want the first one.
@@ -467,7 +468,7 @@ class F:
 
     @needs_manager
     @needs_pk
-    def get(self):
+    def get(self) -> "Model":
         objects = self.manager.search(str(self), self._attributes)
         if len(objects) == 0:
             raise self.manager.model.DoesNotExist(
@@ -479,7 +480,7 @@ class F:
 
     @needs_manager
     @needs_pk
-    def update(self, **kwargs):
+    def update(self, **kwargs) -> None:
         obj = self.get()
         new = self.manager.model.from_db(self._attributes, obj.dump())
         for key, value in kwargs.items():
@@ -488,7 +489,7 @@ class F:
         self.manager.modify(new, old=obj)
 
     @needs_manager
-    def exists(self):
+    def exists(self) -> bool:
         """
         Return ``True`` if the LDAP search with the filter we've built returns
         any results, ``False`` if not.
@@ -502,7 +503,7 @@ class F:
 
     @needs_manager
     @needs_pk
-    def all(self):
+    def all(self) -> Sequence["Model"]:
         objects = self.manager.model.from_db(
             self._attributes,
             self.manager.search(str(self), self._attributes),
@@ -511,7 +512,7 @@ class F:
         return self.__sort(objects)
 
     @needs_manager
-    def delete(self):
+    def delete(self) -> None:
         """
         Delete an object that matches our filters.
 
@@ -527,7 +528,7 @@ class F:
         self.manager.connection.delete_s(obj.dn)
 
     @needs_manager
-    def order_by(self, *args):
+    def order_by(self, *args: str) -> "F":
         """
         When we return results, order them by the positional arguments
         Example::
@@ -547,7 +548,7 @@ class F:
         self._order_by = args
         return self
 
-    def values(self, *attrs):
+    def values(self, *attrs: str) -> List[Dict[str, Any]]:
         """
         Returns a a list of dictionaries, rather than of model instances.  Each
         of those dictionaries represents an object, with the keys corresponding
@@ -582,7 +583,7 @@ class F:
             data.append({self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in attrs})
         return data
 
-    def values_list(self, *attrs, **kwargs):
+    def values_list(self, *attrs: str, **kwargs) -> List[Tuple[Any, ...]]:
         """
         This is similar to values() except that instead of returning
         dictionaries, it returns a list of tuples.  Each tuple contains
@@ -636,15 +637,15 @@ class F:
             data.append(tuple(getattr(obj, attr) for attr in attrs))
         return data
 
-    def __or__(self, other):
+    def __or__(self, other: "F") -> "F":
         self.chain = Filter.OR([self._filter, other._filter])
         return F(manager=self.manager, f=self)
 
-    def __and__(self, other):
+    def __and__(self, other: "F") -> "F":
         self.chain = Filter.AND([self._filter, other._filter])
         return F(manager=self.manager, f=self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._filter.to_string()
 
 
@@ -655,21 +656,22 @@ class F:
 
 class LdapManager:
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         This class does all of the direct interactions with LDAP and should be
         the only one that calls the ``ldap`` library functions.
         """
         self.logger = logger
-        self.pagesize = 100
+        self.pagesize: int = 100
 
         # These get set during contribute_to_class()
-        self.config = None
-        self.model = None
-        self.pk = None
+        # self.config is the part of settings.LDAP_SERVERS that we need for our Model
+        self.config: Dict[str, Any] = None
+        self.model: Optional[Type["Model"]] = None
+        self.pk: Optional[str] = None
         self.ldap_options = []
-        self.objectclass = None
-        self.extra_objectclasses = []
+        self.objectclass: Optional[str] = None
+        self.extra_objectclasses: List[str] = []
 
         # keys in this dictionary get manipulated by .connect() and
         # .disconnect()
@@ -684,7 +686,14 @@ class LdapManager:
         # the next search request.
         return [c for c in serverctrls if c.controlType == SimplePagedResultsControl.controlType]
 
-    def _paged_search(self, basedn, searchfilter, attrlist=None, pagesize=100, sizelimit=0):
+    def _paged_search(
+        self,
+        basedn: str,
+        searchfilter: str,
+        attrlist: List[str] = None,
+        pagesize: int = 100,
+        sizelimit: int = 0
+    ) -> List[LDAPData]:
         """
         Performs a pages search against the LDAP server. Code lifted from:
         https://gist.github.com/mattfahrner/c228ead9c516fc322d3a
@@ -694,7 +703,7 @@ class LdapManager:
         controls = SimplePagedResultsControl(True, size=pagesize, cookie='')
 
         # Do searches until we run out of pages to get from the LDAP server.
-        results = []
+        results: List[LDAPData] = []
         while True:
             # Send search request.
             msgid = self.connection.search_ext(
@@ -769,7 +778,7 @@ class LdapManager:
         cls._meta.base_manager = self
         setattr(cls, accessor_name, self)
 
-    def dn(self, obj):
+    def dn(self, obj: "Model") -> str:
         if not obj._dn:
             _attribute_lookup = obj._meta.attribute_to_field_name_map
             dn_key = self.pk
@@ -786,38 +795,38 @@ class LdapManager:
                 obj._dn = None
         return obj._dn
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         self.connection.unbind_s()
         self.remove_connection()
 
-    def has_connection(self):
+    def has_connection(self) -> bool:
         return threading.current_thread() in self._ldap_objects
 
-    def set_connection(self, obj):
+    def set_connection(self, obj: ldap.ldapobject.LDAPObject) -> None:
         self._ldap_objects[threading.current_thread()] = obj
 
-    def remove_connection(self):
+    def remove_connection(self) -> None:
         del self._ldap_objects[threading.current_thread()]
 
-    def connect(self, key, dn=None, password=None):
+    def connect(self, key: str, dn: str = None, password: str = None) -> None:
         config = self.config[key]
         if not dn:
             dn = config['user']
             password = config['password']
-        ldap_object = ldap.initialize(config['url'])
+        ldap_object: ldap.ldapobject.LDAPObject = ldap.initialize(config['url'])
         ldap_object.set_option(ldap.OPT_REFERRALS, 0)
         ldap_object.set_option(ldap.OPT_NETWORK_TIMEOUT, 15.0)
-        ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-        ldap.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
+        ldap_object.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+        ldap_object.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
         ldap_object.start_tls_s()
         ldap_object.simple_bind_s(dn, password)
         self._ldap_objects[threading.current_thread()] = ldap_object
 
     @property
-    def connection(self):
+    def connection(self) -> ldap.ldapobject.LDAPObject:
         return self._ldap_objects[threading.current_thread()]
 
-    def _get_ssha_hash(self, password):
+    def _get_ssha_hash(self, password: str) -> str:
         salt = os.urandom(8)
         h = hashlib.sha1(password)
         h.update(salt)
@@ -825,7 +834,7 @@ class LdapManager:
         return pwhash
 
     @atomic(key='read')
-    def search(self, searchfilter, attributes, sizelimit=0):
+    def search(self, searchfilter: str, attributes: List[str], sizelimit: int = 0) -> List[LDAPData]:
         if 'paged_search' in self.ldap_options:
             return self._paged_search(
                 self.basedn,
@@ -847,7 +856,7 @@ class LdapManager:
         return objects
 
     @atomic(key='write')
-    def add(self, obj):
+    def add(self, obj: "Model") -> None:
         obj.objectclass = []
         for objectclass in self.extra_objectclasses:
             obj.objectclass.append(objectclass.encode())
@@ -857,7 +866,7 @@ class LdapManager:
 
     @atomic(key='write')
     @substitute_pk
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, **kwargs) -> None:
         """
         Delete an object that matches our filters.
 
@@ -873,7 +882,7 @@ class LdapManager:
         self.connection.delete_s(obj.dn)
 
     @atomic(key='write')
-    def delete_obj(self, obj):
+    def delete_obj(self, obj: "Model") -> None:
         """
         Delete a specified object.
         """
@@ -881,7 +890,7 @@ class LdapManager:
         self.connection.delete_s(obj.dn)
 
     @atomic(key='write')
-    def rename(self, old_dn, new_dn):
+    def rename(self, old_dn: str, new_dn: str) -> None:
         """
         Update an object's dn, keeping it within the same basedn.
         """
@@ -894,7 +903,7 @@ class LdapManager:
         self.connection.rename_s(old_dn, newrdn, newsuperior)
 
     @atomic(key='write')
-    def modify(self, obj, old=None):
+    def modify(self, obj: "Model", old: "Model" = None) -> None:
         # First check to see whether we updated our primary key.  If so, we need to rename
         # the object in LDAP, and its obj._dn.  The old obj._dn should reference the old PK.
         old_pk_value = obj.dn.split(',')[0].split('=')[1]
@@ -919,30 +928,30 @@ class LdapManager:
         else:
             self.logger.debug('ldaporm.manager.modify.no-changes dn=%s', obj.dn)
 
-    def only(self, *names):
+    def only(self, *names: str) -> "F":
         return F(manager=self).attributes(names)
 
-    def __filter(self):
+    def __filter(self) -> "F":
         f = F(manager=self)
         if self.objectclass:
             f = f.filter(objectclass=self.objectclass)
         return f
 
     @substitute_pk
-    def wildcard(self, name, value):
+    def wildcard(self, name: str, value: str) -> "F":
         if value:
             return self.__filter().wildcard(name, value)
         return self
 
     @substitute_pk
-    def filter(self, *args, **kwargs):
+    def filter(self, *args, **kwargs) -> "F":
         return self.__filter().filter(*args, **kwargs)
 
     @substitute_pk
-    def get(self, *args, **kwargs):
+    def get(self, *args, **kwargs) -> "Model":
         return self.__filter().filter(*args, **kwargs).get()
 
-    def all(self):
+    def all(self) -> Sequence["Model"]:
         """
         .. note::
 
@@ -952,16 +961,16 @@ class LdapManager:
         """
         return self.__filter().all()
 
-    def values(self, *args):
+    def values(self, *args: str) -> List[Tuple[Any, ...]]:
         return self.__filter().values(*args)
 
-    def values_list(self, *args, **kwargs):
+    def values_list(self, *args: str, **kwargs) -> List[Tuple[Any, ...]]:
         return self.__filter().values_list(*args, **kwargs)
 
-    def order_by(self, *args):
+    def order_by(self, *args: str) -> "F":
         return self.__filter().order_by(*args)
 
-    def reset_password(self, username, new_password, attributes=None):
+    def reset_password(self, username: str, new_password: str, attributes: List[str] = None) -> bool:
         if not attributes:
             attributes = {}
         try:
@@ -990,7 +999,7 @@ class LdapManager:
         self.logger.info('%s.password_reset.success dn=%s', service, user.dn)
         return True
 
-    def authenticate(self, username, password):
+    def authenticate(self, username: str, password: str) -> bool:
         """
         Try to authenticate a username/password vs our LDAP server.
 
@@ -1011,7 +1020,6 @@ class LdapManager:
         """
 
         try:
-            # user = self.filter(**{self.pk: username}).only(self.pk).get()
             user = self.filter(**{'uid': username}).only('uid').get()
         except self.model.DoesNotExist:
             self.logger.warning('auth.no_such_user user=%s', username)
@@ -1025,7 +1033,7 @@ class LdapManager:
         self.logger.info('auth.success user={username}')
         return True
 
-    def create(self, **kwargs):
+    def create(self, **kwargs) -> "Model":
         """
         This differs from Django's QuerySet .create() in that it does not actually save
         the object to LDAP before returning it.

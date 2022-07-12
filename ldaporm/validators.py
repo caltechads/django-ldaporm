@@ -1,4 +1,5 @@
 import re
+from typing import Any, List
 
 from django.core import validators
 
@@ -14,18 +15,18 @@ class EmailForwardValidator:
 
         foo@example.com
     """
-    message = 'Enter a valid email address.'
-    code = 'invalid'
+    message: str = 'Enter a valid email address.'
+    code: str = 'invalid'
     NAME_REGEX = re.compile("^[a-z][-a-z0-9]*$")
-    empty_values = list(validators.EMPTY_VALUES)
+    empty_values: List[Any] = list(validators.EMPTY_VALUES)
 
-    def __init__(self, message=None, code=None):
+    def __init__(self, message: str = None, code: str = None) -> None:
         if message is not None:
             self.message = message
         if code is not None:
             self.code = code
 
-    def __call__(self, value):
+    def __call__(self, value: Any) -> None:
         """
         Validate that the input contains either a username or a valid email address.
         """
@@ -37,7 +38,7 @@ class EmailForwardValidator:
 
         validators.validate_email(value)
 
-    def __eq__(self, other):
+    def __eq__(self, other: "EmailForwardValidator") -> bool:
         return (
             isinstance(other, EmailForwardValidator) and
             (self.message == other.message) and
