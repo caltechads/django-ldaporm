@@ -1,5 +1,8 @@
 from typing import Dict, List, Tuple, Union
 
-ModifyDeleteModList = List[Union[Tuple[int, str, str], Tuple[int, str]]]
+DeleteModListEntry = Tuple[int, str, None]
+ModifyModListEntry = Tuple[int, str, str]
+AddModlistEntry = Tuple[str, str]
+ModifyDeleteModList = List[Union[DeleteModListEntry, ModifyModListEntry, AddModlistEntry]]
 AddModlist = List[Tuple[str, str]]
-LDAPData = Tuple(str, Dict[str, List[str]])
+LDAPData = Tuple[str, Dict[str, List[bytes]]]

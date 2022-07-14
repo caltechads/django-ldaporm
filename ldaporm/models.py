@@ -2,13 +2,13 @@ from base64 import b64encode as encode
 import hashlib
 import inspect
 import os
-from typing import Any, List, Optional, Sequence, Type
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 from django.core.exceptions import ValidationError, FieldDoesNotExist
 try:
     from django.utils.encoding import force_text
 except ImportError:
-    from django.utils.encoding import force_str as force_text
+    from django.utils.encoding import force_str as force_text  # type: ignore
 from django.db.models.signals import (
     class_prepared,
     post_init,
@@ -53,7 +53,7 @@ class LdapModelBase(type):
 
         return new_class
 
-    def add_to_class(cls: Type["Model"], name: str, value: Any) -> None:
+    def add_to_class(cls, name: str, value: Any) -> None:
         # We should call the contribute_to_class method only if it's bound
         if not inspect.isclass(value) and hasattr(value, 'contribute_to_class'):
             value.contribute_to_class(cls, name)
@@ -66,7 +66,7 @@ class LdapModelBase(type):
 
         Importantly, this is where the Manager class gets added.
         """
-        opts = cls._meta
+        opts = cls._meta   # type: ignore
         opts._prepare(cls)
 
         # Give the class a docstring -- its definition.
@@ -99,9 +99,9 @@ class Model(metaclass=LdapModelBase):
 
     def __init__(self, *args, **kwargs) -> None:
         cls = self.__class__
-        opts = self._meta
+        opts = cast(Options, self._meta)
         _setattr = setattr
-        self._dn: str = None
+        self._dn: Optional[str] = None
 
         pre_init.send(sender=cls, args=args, kwargs=kwargs)
 
@@ -112,13 +112,13 @@ class Model(metaclass=LdapModelBase):
         if not kwargs:
             fields_iter = iter(opts.fields)
             for val, field in zip(args, fields_iter):
-                _setattr(self, field.name, val)
+                _setattr(self, cast(str, field.name), val)
         else:
             # Slower, kwargs-ready version.
             fields_iter = iter(opts.fields)
             for val, field in zip(args, fields_iter):
-                _setattr(self, field.name, val)
-                kwargs.pop(field.name, None)
+                _setattr(self, cast(str, field.name), val)
+                kwargs.pop(cast(str, field.name), None)
 
         # Now we're left with the unprocessed fields that *must* come from
         # keywords, or default.
@@ -126,7 +126,7 @@ class Model(metaclass=LdapModelBase):
         for field in fields_iter:
             if kwargs:
                 try:
-                    val = kwargs.pop(field.name)
+                    val = kwargs.pop(cast(str, field.name))
                 except KeyError:
                     # This is done with an exception rather than the
                     # default argument on pop because we don't want
@@ -135,7 +135,7 @@ class Model(metaclass=LdapModelBase):
                     val = field.get_default()
             else:
                 val = field.get_default()
-            _setattr(self, field.name, val)
+            _setattr(self, cast(str, field.name), val)
 
         if kwargs and '_dn' in kwargs:
             _setattr(self, '_dn', kwargs['_dn'])
@@ -148,7 +148,12 @@ class Model(metaclass=LdapModelBase):
         post_init.send(sender=cls, instance=self)
 
     @classmethod
-    def from_db(cls, attributes: List[str], objects: Sequence[LDAPData], many: bool = False) -> Sequence["Model"]:
+    def from_db(
+        cls,
+        attributes: List[str],
+        objects: Union[LDAPData, Sequence[LDAPData]],
+        many: bool = False
+    ) -> Union["Model", Sequence["Model"]]:
         """
         ``objects`` is a list of raw LDAP data objects
         ``attributes`` is a
@@ -156,15 +161,19 @@ class Model(metaclass=LdapModelBase):
 
         """
         if not isinstance(objects, list):
-            objects = [objects]
+            objects = [cast(LDAPData, objects)]
         if not many and len(objects) > 1:
-            raise RuntimeError('Called {}.from_db() with many=False but len(objects) > 1'.format(cls._meta.object_name))
-        _attr_lookup = cls._meta.attribute_to_field_name_map
-        _field_lookup = cls._meta.fields_map
+            raise RuntimeError('Called {}.from_db() with many=False but len(objects) > 1'.format(
+                cast(Options, cls._meta).object_name)
+            )
+        _attr_lookup = cast(Options, cls._meta).attribute_to_field_name_map
+        _field_lookup = cast(Options, cls._meta).fields_map
         for attr in attributes:
             if attr not in _attr_lookup:
                 raise FieldDoesNotExist(
-                    'No field on model {} corresponding to LDAP attribute "{}"'.format(cls._meta.object_name, attr)
+                    'No field on model {} corresponding to LDAP attribute "{}"'.format(
+                        cast(Options, cls._meta).object_name, attr
+                    )
                 )
         rows = []
         for obj in objects:
@@ -178,7 +187,7 @@ class Model(metaclass=LdapModelBase):
             for attr in attributes:
                 name = _attr_lookup[attr]
                 try:
-                    value = obj[1][obj_attr_lookup[attr.lower()]]
+                    value: Any = obj[1][obj_attr_lookup[attr.lower()]]
                 except KeyError:
                     # if the object in LDAP doesn't have that data, the
                     # attribute won't be present in the response
@@ -191,7 +200,7 @@ class Model(metaclass=LdapModelBase):
 
     @classmethod
     def _default_manager(cls) -> "LdapManager":
-        return cls.objects
+        return cast("LdapManager", cls.objects)
 
     @classmethod
     def get_password_hash(cls, password: str) -> bytes:
@@ -212,14 +221,14 @@ class Model(metaclass=LdapModelBase):
         attributes that have no value attached to them.  Those attributes will
         have value `[]`.
 
-        We do this so that when core.ldap.managers.Modlist.modify() gets
+        We do this so that when ldaporm.managers.Modlist.modify() gets
         called, it can determine easily which attributes need to be deleted from
         the object in LDAP.
         """
         attrs = {}
-        for field in self._meta.fields:
+        for field in cast(Options, self._meta).fields:
             attrs.update(field.to_db_value(field.value_from_object(self)))
-        return (self.dn, attrs)
+        return (cast(str, self.dn), attrs)
 
     def __repr__(self) -> str:
         return '<%s: %s>' % (self.__class__.__name__, self)
@@ -227,10 +236,10 @@ class Model(metaclass=LdapModelBase):
     def __str__(self) -> str:
         return '%s object (%s)' % (self.__class__.__name__, self.pk)
 
-    def __eq__(self, other: "Model") -> bool:
+    def __eq__(self, other) -> bool:
         if not isinstance(other, Model):
             return False
-        if self._meta.concrete_model != other._meta.concrete_model:
+        if cast(Options, self._meta).concrete_model != cast(Options, other._meta).concrete_model:
             return False
         my_pk = self.pk
         if my_pk is None:
@@ -243,35 +252,45 @@ class Model(metaclass=LdapModelBase):
         return hash(self.pk)
 
     def _get_pk_val(self, meta: Options = None) -> Any:
-        meta = meta or self._meta
-        return getattr(self, meta.pk.name)
+        _meta: Options = meta or cast(Options, self._meta)
+        field = cast(Field, _meta.pk)
+        return getattr(self, cast(str, field.name))
 
     def _set_pk_val(self, value: Any) -> None:
-        return setattr(self, self._meta.pk.name, value)
+        _meta = cast(Options, self._meta)
+        field = cast(Field, _meta.pk)
+        return setattr(self, cast(str, field.name), value)
 
     pk = property(_get_pk_val, _set_pk_val)
 
     def _get_FIELD_display(self, field: Field) -> str:
-        value = getattr(self, field.name)
+        value = getattr(self, cast(str, field.name))
         return force_text(dict(field.flatchoices).get(value, value), strings_only=True)
 
     @property
-    def dn(self) -> str:
+    def dn(self) -> Optional[str]:
         if self._dn:
             return self._dn
-        return self._meta.base_manager.dn(self)
+        _meta = cast(Options, self._meta)
+        manager = cast(LdapManager, _meta.base_manager)
+        return manager.dn(self)
 
     def save(self, commit: bool = True) -> None:
         # need to do the pre_save signal here
+        _meta = cast(Options, self._meta)
+        pk_field = cast(Field, _meta.pk)
+        manager = cast(LdapManager, _meta.base_manager)
         try:
-            self._meta.base_manager.get(**{self._meta.pk.name: self.pk})
+            manager.get(**{cast(str, pk_field.name): self.pk})
         except self.DoesNotExist:
-            self._meta.base_manager.add(self)
+            manager.add(self)
         else:
-            self._meta.base_manager.modify(self)
+            manager.modify(self)
 
     def delete(self) -> None:
-        self._meta.base_manager.delete_obj(self)
+        _meta = cast(Options, self._meta)
+        manager = cast(LdapManager, _meta.base_manager)
+        manager.delete_obj(self)
 
     def clean(self) -> None:
         """
@@ -286,7 +305,7 @@ class Model(metaclass=LdapModelBase):
         """
         validate_unique is here to fool ModelForm into thinking we're a Django ORM Model
         """
-        errors = {}
+        errors: Dict[str, Any] = {}
         if exclude is None:
             exclude = []
         else:
@@ -308,20 +327,21 @@ class Model(metaclass=LdapModelBase):
             raise ValidationError(errors)
 
     def clean_fields(self, exclude: List[str] = None) -> None:
+        _meta = cast(Options, self._meta)
         if exclude is None:
             exclude = []
 
-        errors = {}
-        for f in self._meta.fields:
+        errors: Dict[str, Any] = {}
+        for f in _meta.fields:
             if f.name in exclude:
                 continue
-            raw_value = getattr(self, f.name)
+            raw_value = getattr(self, cast(str, f.name))
             if f.blank and raw_value == f.empty_values:
                 continue
             try:
-                setattr(self, f.name, f.clean(raw_value, self))
+                setattr(self, cast(str, f.name), f.clean(raw_value, self))
             except ValidationError as e:
-                errors[f.name] = e.error_list
+                errors[cast(str, f.name)] = e.error_list
 
         if errors:
             raise ValidationError(errors)

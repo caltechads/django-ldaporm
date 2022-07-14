@@ -38,7 +38,7 @@ class EmailForwardValidator:
 
         validators.validate_email(value)
 
-    def __eq__(self, other: "EmailForwardValidator") -> bool:
+    def __eq__(self, other) -> bool:
         return (
             isinstance(other, EmailForwardValidator) and
             (self.message == other.message) and

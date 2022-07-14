@@ -10,13 +10,13 @@ from .managers import LdapManager
 from .fields import CharListField
 
 if TYPE_CHECKING:
-    from .models import Model
+    from .models import Model  # type: ignore  # noqa:F401
     from .fields import Field
 
 DEFAULT_NAMES = (
     'ldap_server', 'ldap_options', 'manager_class', 'basedn', 'objectclass',
     'extra_objectclasses', 'verbose_name', 'verbose_name_plural', 'ordering',
-    'permissions', 'default_permissions',
+    'permissions', 'default_permissions', 'password_attribute', 'userid_attribute'
 )
 
 
@@ -25,28 +25,28 @@ class Options:
     def __init__(self, meta) -> None:
         # LDAP related
         self.ldap_server: str = 'default'
-        self.ldap_options = []
-        self.manager_class: "LdapManager" = LdapManager
-        self.basedn: str = None
-        self.objectclass: str = None
+        self.ldap_options: List[str] = []
+        self.manager_class: Type["LdapManager"] = LdapManager
+        self.basedn: Optional[str] = None
+        self.objectclass: Optional[str] = None
         self.extra_objectclasses: List[str] = []
         self.userid_attribute: str = 'uid'
         self.password_attribute: Optional[str] = None
 
         # other
-        self.verbose_name: str = None
-        self.verbose_name_plural: str = None
+        self.verbose_name: Optional[str] = None
+        self.verbose_name_plural: Optional[str] = None
         self.ordering: List[str] = []
-        self.default_permissions: Tuple[str] = ('add', 'change', 'delete', 'view')
+        self.default_permissions: Tuple[str, ...] = ('add', 'change', 'delete', 'view')
         self.permissions: List[str] = []
 
         # these are set up by the LdapModelBase metaclass
-        self.model_name: str = None
-        self.object_name: str = None
+        self.model_name: Optional[str] = None
+        self.object_name: Optional[str] = None
         self.meta = meta
-        self.pk: str = None
-        self.concrete_model: "Model" = None
-        self.base_manager: "LdapManager" = None
+        self.pk: Optional["Field"] = None
+        self.concrete_model: Optional["Model"] = None
+        self.base_manager: Optional["LdapManager"] = None
         self.local_fields: List["Field"] = []
 
         # self.get_latest_by = None
@@ -58,11 +58,11 @@ class Options:
 
     @property
     def label(self) -> str:
-        return self.object_name
+        return cast(str, self.object_name)
 
     @property
     def label_lower(self) -> str:
-        return self.model_name
+        return cast(str, self.model_name)
 
     @property
     def verbose_name_raw(self) -> str:
@@ -70,7 +70,7 @@ class Options:
         with override(None):
             return str(self.verbose_name)
 
-    def contribute_to_class(self, cls: "Model", name: str) -> None:
+    def contribute_to_class(self, cls: Type["Model"], name: str) -> None:
         cls._meta = self
         self.model = cls
         # First, construct the default values for these options.
@@ -104,7 +104,7 @@ class Options:
             self.verbose_name_plural = format_lazy('{}s', self.verbose_name)
         del self.meta
 
-    def _prepare(self, model: "Model") -> None:
+    def _prepare(self, model: Type["Model"]) -> None:
         if self.pk is None:
             raise ImproperlyConfigured("'{}' model doesn't have a primary key".format(self.object_name))
         # Always make sure we have objectclass in our model, so we can filter by it
@@ -125,7 +125,6 @@ class Options:
     def setup_pk(self, field: "Field") -> None:
         if not self.pk and field.primary_key:
             self.pk = field
-            field.serialize = False
 
     def __repr__(self) -> str:
         return '<Options for %s>' % self.object_name
@@ -150,7 +149,7 @@ class Options:
         res = {}
         fields = self._get_fields()
         for field in fields:
-            res[field.name] = field
+            res[cast(str, field.name)] = field
         return res
 
     @cached_property
@@ -158,12 +157,12 @@ class Options:
         res = {}
         fields = self._get_fields()
         for field in fields:
-            res[field.name] = field.ldap_attribute
+            res[cast(str, field.name)] = field.ldap_attribute
         return res
 
     @cached_property
     def attribute_to_field_name_map(self) -> Dict[str, str]:
-        return {f.ldap_attribute: f.name for f in self._get_fields()}
+        return {f.ldap_attribute: cast(str, f.name) for f in self._get_fields()}
 
     @cached_property
     def attributes(self) -> List[str]:

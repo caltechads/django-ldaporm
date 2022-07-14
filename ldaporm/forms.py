@@ -1,6 +1,7 @@
-from typing import List, Optional, Union, Callable
+from typing import Any, Dict, List, Optional, Type, Union, cast
 from django import forms
-from django.forms.widgets import Textarea
+from django.forms.widgets import Textarea, Widget
+from django.forms.renderers import BaseRenderer
 from django.core.exceptions import ValidationError
 from django.core import validators
 
@@ -13,8 +14,8 @@ class CharListWidget(Textarea):
         self,
         name: str,
         value: Optional[Union[str, List[str]]],
-        attrs: List[str] = None,
-        renderer: Callable = None
+        attrs: Dict[str, Any] = None,
+        renderer: BaseRenderer = None
     ):
         if value in self.attrs['empty_values']:
             value = ""
@@ -25,14 +26,14 @@ class CharListWidget(Textarea):
 
 class CharListField(forms.CharField):
 
-    widget = CharListWidget
-    empty_values = list(validators.EMPTY_VALUES) + ['[]']
+    widget: Type[Widget] = CharListWidget
+    empty_values: List[Any] = list(validators.EMPTY_VALUES) + ['[]']
 
-    def to_python(self, value):
+    def to_python(self, value: Optional[str]) -> List[str]:  # type: ignore
         if value in self.empty_values:
             return []
         res = []
-        for v in value.splitlines():
+        for v in cast(str, value).splitlines():
             if self.strip:
                 v = v.strip()
             if v == "":
