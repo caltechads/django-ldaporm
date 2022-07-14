@@ -5,16 +5,16 @@ import datetime
 from functools import partialmethod, total_ordering
 import hashlib
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Tuple, Type, TypeVar, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Sequence, Tuple, Type, Optional, Union, cast
 import warnings
 
 import pytz
 
 from django import forms
 from django.conf import settings
-from django.core import checks, exceptions, validators
+from django.core import checks, exceptions, validators as dj_validators
 from django.db.models.constants import LOOKUP_SEP
-from django.db.models.fields import BLANK_CHOICE_DASH, NOT_PROVIDED, return_None
+from django.db.models.fields import BLANK_CHOICE_DASH, NOT_PROVIDED, return_None  # type: ignore
 from django.utils import timezone
 from django.utils.dateparse import (
     parse_date,
@@ -31,8 +31,7 @@ if TYPE_CHECKING:
     from .models import Model
 
 
-FieldValue = TypeVar("FieldValue")
-Validator = Callable[[FieldValue], None]
+Validator = Callable[[Any], None]
 
 
 @total_ordering
@@ -44,7 +43,7 @@ class Field:
     """
 
     empty_strings_allowed: bool = True
-    empty_values: List[Any] = list(validators.EMPTY_VALUES)
+    empty_values: List[Any] = list(dj_validators.EMPTY_VALUES)
     creation_counter: int = 0
 
     default_validators: List[Validator] = []  # Default set of validators
@@ -56,11 +55,11 @@ class Field:
 
     # These are here to fool ModelForm into thinking we're a Django ORM Field. We
     # don't actually use them.
-    many_to_many = None
-    many_to_one = None
-    one_to_many = None
-    one_to_one = None
-    related_model = None
+    many_to_many: Any = None
+    many_to_one: Any = None
+    one_to_many: Any = None
+    one_to_one: Any = None
+    related_model: Any = None
 
     # Field flags
     hidden: bool = False
@@ -76,16 +75,16 @@ class Field:
         self,
         verbose_name: str = None,
         name: str = None,
-        primary_key: str = False,
+        primary_key: bool = False,
         max_length: int = None,
         blank: bool = False,
         null: bool = False,
-        default: FieldValue = NOT_PROVIDED,
+        default: Any = NOT_PROVIDED,
         editable: bool = True,
-        choices: bool = None,
+        choices: List[Any] = None,
         help_text: str = '',
-        validators=(),
-        error_messages: List[str] = None,
+        validators: Sequence[Validator] = (),
+        error_messages: Dict[str, str] = None,
         db_column: str = None
     ) -> None:
         self.name = name
@@ -97,19 +96,19 @@ class Field:
         self.editable = editable
         if isinstance(choices, collections.abc.Iterator):
             choices = list(choices)
-        self.choices = choices or []
+        self.choices: List[Any] = choices or []
         self.help_text = help_text
         self.blank = True
         self.db_column = db_column
 
-        self.model: Type["Model"] = None
+        self.model: Optional[Type["Model"]] = None
 
         self.creation_counter = Field.creation_counter
         Field.creation_counter += 1
 
         self._validators = list(validators)  # Store for deconstruction later
 
-        messages = {}
+        messages: Dict[str, str] = {}
         for c in reversed(self.__class__.__mro__):
             messages.update(getattr(c, 'default_error_messages', {}))
         messages.update(error_messages or {})
@@ -133,10 +132,10 @@ class Field:
             return self.creation_counter < other.creation_counter
         raise NotImplementedError
 
-    def __eq__(self, other: "Field") -> bool:
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, Field):
             return self.creation_counter == other.creation_counter
-        return NotImplementedError
+        raise NotImplementedError
 
     def __hash__(self) -> int:
         return hash(self.creation_counter)
@@ -145,7 +144,7 @@ class Field:
         """Return a boolean of whether this field has a default value."""
         return self.default is not NOT_PROVIDED
 
-    def get_default(self) -> FieldValue:
+    def get_default(self) -> Any:
         """Return the default value for this field."""
         return self._get_default()
 
@@ -162,7 +161,7 @@ class Field:
         Check if field name is valid, i.e. 1) does not end with an
         underscore, 2) does not contain "__" and 3) is not "pk".
         """
-        if self.name.endswith('_'):
+        if cast(str, self.name).endswith('_'):
             return [
                 checks.Error(
                     'Field names must not end with an underscore.',
@@ -170,7 +169,7 @@ class Field:
                     id='fields.E001',
                 )
             ]
-        if LOOKUP_SEP in self.name:
+        if LOOKUP_SEP in cast(str, self.name):
             return [
                 checks.Error(
                     'Field names must not contain "%s".' % (LOOKUP_SEP,),
@@ -252,7 +251,7 @@ class Field:
         return []
 
     def _check_validators(self) -> List[checks.Error]:
-        errors = []
+        errors: List[checks.Error] = []
         for i, validator in enumerate(self.validators):
             if not callable(validator):
                 errors.append(
@@ -272,10 +271,10 @@ class Field:
 
     @property
     def ldap_attribute(self) -> str:
-        return self.db_column or self.name
+        return cast(str, self.db_column or self.name)
 
     @cached_property
-    def _get_default(self) -> FieldValue:
+    def _get_default(self) -> Callable[[], Any]:
         if self.has_default():
             if callable(self.default):
                 return self.default
@@ -285,14 +284,14 @@ class Field:
             return return_None
         return str  # return empty string
 
-    def to_python(self, value: FieldValue) -> FieldValue:
+    def to_python(self, value: Any) -> Any:
         return value
 
     @cached_property
     def validators(self) -> List[Validator]:
         return [*self.default_validators, *self._validators]
 
-    def run_validators(self, value: FieldValue) -> None:
+    def run_validators(self, value: Any) -> None:
         if value in self.empty_values:
             return
 
@@ -308,7 +307,7 @@ class Field:
         if errors:
             raise exceptions.ValidationError(errors)
 
-    def validate(self, value: FieldValue, model_instance: "Model") -> None:
+    def validate(self, value: Any, model_instance: "Model") -> None:
         """
         Validate value and raise ValidationError if necessary. Subclasses
         should override this to provide validation logic.
@@ -339,11 +338,11 @@ class Field:
         if not self.blank and value in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
 
-    def pre_save(self, model_instance: "Model", add: bool) -> FieldValue:
+    def pre_save(self, model_instance: "Model", add: bool) -> Any:
         """Return field's value just before saving."""
         return getattr(model_instance, self.attname)
 
-    def clean(self, value: FieldValue, model_instance: "Model") -> FieldValue:
+    def clean(self, value: Any, model_instance: "Model") -> Any:
         """
         Convert the value's type and run validation. Validation errors
         from to_python() and validate() are propagated. Return the correct
@@ -363,7 +362,7 @@ class Field:
     def get_choices(
         self,
         include_blank: bool = True,
-        blank_choice: str = None,
+        blank_choice: List[Tuple[str, str]] = None,
         limit_choices_to: Any = None
     ):
         """
@@ -384,9 +383,9 @@ class Field:
     def limit_choices_to(self):
         raise NotImplementedError
 
-    def _get_flatchoices(self) -> List[Tuple[str, Any]]:
+    def _get_flatchoices(self) -> List[Tuple[str, str]]:
         """Flattened version of choices tuple."""
-        flat = []
+        flat: List[Tuple[str, str]] = []
         for choice, value in self.choices:
             if isinstance(value, (list, tuple)):
                 flat.extend(value)
@@ -402,9 +401,11 @@ class Field:
         **kwargs
     ) -> forms.Field:
         """Return a django.forms.Field instance for this field."""
-        defaults = {'required': not self.blank,
-                    'label': capfirst(self.verbose_name),
-                    'help_text': self.help_text}
+        defaults: Dict[str, Any] = {
+            'required': not self.blank,
+            'label': capfirst(self.verbose_name),
+            'help_text': self.help_text
+        }
         if self.has_default():
             if callable(self.default):
                 defaults['initial'] = self.default
@@ -436,10 +437,10 @@ class Field:
             form_class = forms.CharField
         return form_class(**defaults)
 
-    def value_from_object(self, obj: "Model") -> FieldValue:
-        return getattr(obj, self.name)
+    def value_from_object(self, obj: "Model") -> Any:
+        return getattr(obj, cast(str, self.name))
 
-    def from_db_value(self, value: List[bytes]) -> List[str]:
+    def from_db_value(self, value: List[bytes]) -> Union[List[str], Optional[Any]]:
         """
         Take data for one attribute from LDAP and convert it to our internal
         python format.
@@ -454,7 +455,7 @@ class Field:
         """
         return [b.decode('utf-8') for b in value]
 
-    def to_db_value(self, value: List[FieldValue]) -> Dict[str, List[bytes]]:
+    def to_db_value(self, value: Any) -> Dict[str, List[bytes]]:
         # Subclasses should implement this and do proper casting of the value
         # from our internal data type to the appropriate value to stuff into LDAP
         # and then call super().to_db_value(value)
@@ -476,12 +477,12 @@ class Field:
     def value_to_string(self, obj: "Model") -> str:
         return str(self.value_from_object(obj))
 
-    def save_form_data(self, obj: "Model", value: FieldValue) -> None:
+    def save_form_data(self, obj: "Model", value: Any) -> None:
         """
         This is what django.forms.models.ModelForm calls to save data to our
         LdapModel instance.
         """
-        setattr(obj, self.name, value)
+        setattr(obj, cast(str, self.name), value)
 
     def contribute_to_class(self, cls, name: str) -> None:
         """
@@ -509,7 +510,7 @@ class BooleanField(Field):
         'invalid_nullable': _("'%(value)s' value must be either True, False, or None."),
     }
 
-    description: str = _("Boolean (Either True or False)")
+    description: str = _("Boolean (Either True or False)")  # type: ignore
 
     LDAP_TRUE: str = 'true'
     LDAP_FALSE: str = 'false'
@@ -536,30 +537,31 @@ class BooleanField(Field):
         )
 
     def from_db_value(self, value: List[bytes]) -> Optional[bool]:
-        value = super().from_db_value(value)
-        if value == []:
+        db_value = cast(List[str], super().from_db_value(value))
+        if db_value == []:
             return None
-        if value[0].lower() == self.LDAP_TRUE:
+        if db_value[0].lower() == self.LDAP_TRUE:
             return True
-        if value[0].lower() == self.LDAP_FALSE:
+        if db_value[0].lower() == self.LDAP_FALSE:
             return False
-        if value == [self.LDAP_TRUE]:
+        if db_value == [self.LDAP_TRUE]:
             return True
-        if value == [self.LDAP_FALSE]:
+        if db_value == [self.LDAP_FALSE]:
             return False
         raise ValueError('Field "{}" (BooleanField) on model {} got got unexpected data from LDAP: {}'.format(
             self.name,
-            self.model._meta.object_name,
-            value
+            self.model._meta.object_name,  # type: ignore
+            db_value
         ))
 
     def to_db_value(self, value: Optional[bool]) -> Dict[str, List[bytes]]:
+        db_value: Optional[str] = None
         if value is not None:
             if value:
-                value = self.LDAP_TRUE
+                db_value = self.LDAP_TRUE
             else:
-                value = self.LDAP_FALSE
-        return super().to_db_value(value)
+                db_value = self.LDAP_FALSE
+        return super().to_db_value([db_value])
 
     def formfield(
         self,
@@ -575,7 +577,10 @@ class BooleanField(Field):
             # In HTML checkboxes, 'required' means "must be checked" which is
             # different from the choices case ("must select some value").
             # required=False allows unchecked checkboxes.
-            defaults = {'form_class': form_class, 'required': False}
+            defaults = {
+                'form_class': form_class,
+                'required': False
+            }
         return super().formfield(**{**defaults, **kwargs})
 
 
@@ -587,22 +592,22 @@ class AllCapsBooleanField(BooleanField):
 
 class CharField(Field):
 
-    description: str = _("String (up to %(max_length)s)")
+    description: str = _("String (up to %(max_length)s)")  # type: ignore
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.validators.append(validators.MaxLengthValidator(self.max_length))
+        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))
 
     def to_python(self, value: Optional[str]) -> Optional[str]:
         if isinstance(value, str) or value is None:
             return value
         return str(value)
 
-    def from_db_value(self, value: List[str]) -> str:
-        value = super().from_db_value(value)
-        if value == []:
+    def from_db_value(self, value: List[bytes]) -> Optional[str]:
+        db_value = cast(List[str], super().from_db_value(value))
+        if db_value == []:
             return None
-        return value[0]
+        return db_value[0]
 
     def formfield(
         self,
@@ -613,7 +618,11 @@ class CharField(Field):
         # Passing max_length to forms.CharField means that the value's length
         # will be validated twice. This is considered acceptable since we want
         # the value in the form field (to pass into widget for example).
-        defaults = {'max_length': self.max_length}
+        defaults: Dict[str, Any] = {
+            'form_class': form_class,
+            'choices_form_class': choices_form_class,
+            'max_length': self.max_length
+        }
         if self.null:
             defaults['empty_value'] = None
         defaults.update(kwargs)
@@ -629,7 +638,7 @@ class DateField(Field):
         'invalid_date': _("'%(value)s' value has the correct format (YYYY-MM-DD) "
                           "but it is an invalid date."),
     }
-    description: str = _("Date (without time)")
+    description: str = _("Date (without time)")  # type: ignore
 
     LDAP_DATETIME_FORMAT: str = "%Y%m%d"
 
@@ -653,7 +662,7 @@ class DateField(Field):
             *self._check_fix_default_value(),
         ]
 
-    def _check_fix_default_value(self) -> List[checks.Error]:
+    def _check_fix_default_value(self) -> List[checks.Warning]:
         """
         Warn that using an actual date or datetime value is probably wrong;
         it's only evaluated on server startup.
@@ -743,17 +752,17 @@ class DateField(Field):
             )
 
     def from_db_value(self, value: List[bytes]) -> Optional[datetime.date]:
-        value = super().from_db_value(value)
-        if not value:
+        db_value = super().from_db_value(value)
+        if not db_value:
             return None
-        value = value[0]
-        ts = datetime.datetime.strptime(value, self.LDAP_DATETIME_FORMAT)
+        dt = db_value[0]
+        ts = datetime.datetime.strptime(dt, self.LDAP_DATETIME_FORMAT)
         return datetime.date(year=ts.year, month=ts.month, day=ts.day)
 
-    def to_db_value(self, value: Optional[datetime.date]) -> Dict[str, List[bytes]]:
+    def to_db_value(self, value: Optional[Union[datetime.date, datetime.datetime]]) -> Dict[str, List[bytes]]:
         if value:
-            value = value.strftime(self.LDAP_DATETIME_FORMAT)
-        return super().to_db_value(value)
+            db_value = value.strftime(self.LDAP_DATETIME_FORMAT)
+        return super().to_db_value(db_value)
 
     def value_to_string(self, obj: "Model") -> str:
         val = self.value_from_object(obj)
@@ -765,10 +774,13 @@ class DateField(Field):
         choices_form_class: Type[forms.Field] = None,
         **kwargs
     ) -> forms.Field:
-        return super().formfield(**{
-            'form_class': forms.DateField,
+        if not form_class:
+            form_class = forms.DateField
+        return super().formfield(
+            form_class=form_class,
+            choices_form_class=choices_form_class,
             **kwargs,
-        })
+        )
 
 
 class DateTimeField(DateField):
@@ -849,7 +861,7 @@ class DateTimeField(DateField):
                 # call stack.
                 warnings.warn("DateTimeField %s.%s received a naive datetime "
                               "(%s) while time zone support is active." %
-                              (self.model.__name__, self.name, value),
+                              (cast(Type["Model"], self.model).__name__, self.name, value),
                               RuntimeWarning)
                 default_timezone = timezone.get_default_timezone()
                 value = timezone.make_aware(value, default_timezone)
@@ -867,9 +879,9 @@ class DateTimeField(DateField):
             )
 
         try:
-            parsed = parse_date(value)
-            if parsed is not None:
-                return datetime.datetime(parsed.year, parsed.month, parsed.day)
+            parsed_date = parse_date(value)
+            if parsed_date is not None:
+                return datetime.datetime(parsed_date.year, parsed_date.month, parsed_date.day)
         except ValueError:
             raise exceptions.ValidationError(
                 self.error_messages['invalid_date'],
@@ -884,49 +896,57 @@ class DateTimeField(DateField):
         )
 
     def from_db_value(self, value: List[bytes]) -> Optional[datetime.datetime]:
-        value = Field.from_db_value(self, value)
-        if not value:
+        db_value = Field.from_db_value(self, value)
+        if not db_value:
             return None
-        value = value[0]
+        dt_str = db_value[0]
+        dt: Optional[datetime.datetime] = None
         for fmt in self.LDAP_DATETIME_FORMATS:
             try:
-                value = datetime.datetime.strptime(value, fmt)
+                dt = datetime.datetime.strptime(dt_str, fmt)
             except ValueError:
                 pass
             else:
                 break
-        if not isinstance(value, datetime.datetime):
+        if not isinstance(dt, datetime.datetime):
             raise exceptions.ValidationError(
                 self.error_messages['invalid_ldap_datetime'],
                 code='invalid_ldap_datetime',
                 params={'value': value},
             )
-        value = pytz.utc.localize(value)
-        return value
+        dt = pytz.utc.localize(dt)
+        return dt
 
-    def to_db_value(self, value: Optional[datetime.datetime]) -> Dict[str, List[bytes]]:
+    def to_db_value(self, value: Optional[Union[datetime.datetime, datetime.date]]) -> Dict[str, List[bytes]]:
         if value:
             utc = pytz.utc
-            value = value.astimezone(utc)
-            value = value.strftime(self.LDAP_DATETIME_FORMAT)
-        return Field.to_db_value(self, value)
+            dt_str = cast(datetime.datetime, value).astimezone(utc).strftime(self.LDAP_DATETIME_FORMAT)
+        return Field.to_db_value(self, dt_str)
 
-    def pre_save(self, model_instance: "Model", add: bool) -> FieldValue:
+    def pre_save(self, model_instance: "Model", add: bool) -> Any:
         if self.auto_now or (self.auto_now_add and add):
             value = timezone.now()
             setattr(model_instance, self.attname, value)
             return value
         return super().pre_save(model_instance, add)
 
-    def formfield(self, **kwargs) -> forms.Field:
-        return super().formfield(**{
-            'form_class': forms.DateTimeField,
+    def formfield(
+        self,
+        form_class: Type[forms.Field] = None,
+        choices_form_class: Type[forms.Field] = None,
+        **kwargs
+    ) -> forms.Field:
+        if not form_class:
+            form_class = forms.DateTimeField
+        return super().formfield(
+            form_class=form_class,
+            choices_form_class=choices_form_class,
             **kwargs,
-        })
+        )
 
 
 class EmailField(CharField):
-    default_validators: List[Validator] = [validators.validate_email]
+    default_validators: List[Validator] = [dj_validators.validate_email]
     description: str = _("Email address")
 
     def __init__(self, *args, **kwargs):
@@ -934,13 +954,21 @@ class EmailField(CharField):
         kwargs.setdefault('max_length', 254)
         super().__init__(*args, **kwargs)
 
-    def formfield(self, **kwargs) -> forms.Field:
+    def formfield(
+        self,
+        form_class: Type[forms.Field] = None,
+        choices_form_class: Type[forms.Field] = None,
+        **kwargs
+    ) -> forms.Field:
         # As with CharField, this will cause email validation to be performed
         # twice.
-        return super().formfield(**{
-            'form_class': forms.EmailField,
+        if not form_class:
+            form_class = forms.EmailField
+        return super().formfield(
+            form_class=form_class,
+            choices_form_class=choices_form_class,
             **kwargs,
-        })
+        )
 
 
 class EmailForwardField(CharField):
@@ -953,7 +981,7 @@ class IntegerField(Field):
     default_error_messages: Dict[str, str] = {
         'invalid': _("'%(value)s' value must be an integer."),
     }
-    description: str = _("Integer")
+    description: str = _("Integer")  # type: ignore
 
     def check(self, **kwargs) -> List[Union[checks.Error, checks.Warning]]:
         return [
@@ -973,16 +1001,15 @@ class IntegerField(Field):
             ]
         return []
 
-    def from_db_value(self, value: List[bytes]) -> int:
-        value = super().from_db_value(value)
-        if not value:
+    def from_db_value(self, value: List[bytes]) -> Optional[int]:
+        db_value = super().from_db_value(value)
+        if not db_value:
             return None
-        return self.to_python(value[0])
+        return self.to_python(db_value[0])
 
     def to_db_value(self, value: Optional[int]) -> Dict[str, List[bytes]]:
-        if value:
-            value = str(value)
-        return super().to_db_value(value)
+        db_value: Optional[str] = str(value) if value else None
+        return super().to_db_value(db_value)
 
     def to_python(self, value: str) -> int:
         if value is None:
@@ -996,11 +1023,19 @@ class IntegerField(Field):
                 params={'value': value},
             )
 
-    def formfield(self, **kwargs) -> forms.Field:
-        return super().formfield(**{
-            'form_class': forms.IntegerField,
+    def formfield(
+        self,
+        form_class: Type[forms.Field] = None,
+        choices_form_class: Type[forms.Field] = None,
+        **kwargs
+    ) -> forms.Field:
+        if not form_class:
+            form_class = forms.IntegerField
+        return super().formfield(
+            form_class=form_class,
+            choices_form_class=choices_form_class,
             **kwargs,
-        })
+        )
 
 
 class CharListField(CharField):
@@ -1009,25 +1044,30 @@ class CharListField(CharField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.empty_values += ('[]', )
-        self.validators.append(validators.MaxLengthValidator(self.max_length))
+        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))
 
     def get_default(self) -> List[str]:
         if self.default is None:
             return []
         return self._get_default()
 
-    def to_python(self, value: Optional[List[str]]) -> List[str]:
+    def to_python(self, value: Optional[Union[str, List[str]]]) -> List[str]:  # type: ignore
         if not value:
             return []
         if isinstance(value, list):
             return value
         return value.splitlines()
 
-    def formfield(self, **kwargs) -> forms.Field:
+    def formfield(
+        self,
+        form_class: Type[forms.Field] = None,
+        choices_form_class: Type[forms.Field] = None,
+        **kwargs
+    ) -> forms.Field:
         # Passing max_length to forms.CharField means that the value's length
         # will be validated twice. This is considered acceptable since we want
         # the value in the form field (to pass into widget for example).
-        defaults = {
+        defaults: Dict[str, Any] = {
             'max_length': self.max_length,
             'form_class': ldap_forms.CharListField,
         }

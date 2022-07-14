@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Sequence, cast
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -17,10 +17,13 @@ from ldap import modlist
 from ldap.controls import SimplePagedResultsControl
 from ldap_filter import Filter
 
+from ldaporm.options import Options
+
 from .typing import ModifyDeleteModList, AddModlist, LDAPData
 
 if TYPE_CHECKING:
     from .models import Model
+    from ldap_filter.filter import GroupAnd
 
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion('2.4')
 logger = logging.getLogger('django-ldaporm')
@@ -125,29 +128,32 @@ class Modlist:
         _modlist: ModifyDeleteModList = []
         for key in data:
             if modtype == ldap.MOD_DELETE:
-                val = None
+                _modlist.append((ldap.MOD_DELETE, key, None))
+            elif modtype == ldap.MOD_ADD:
+                _modlist.append((key, data[key]))
             else:
-                val = data[key]
-            if modtype == ldap.MOD_ADD:
-                ntup = tuple([key, val])
-            else:
-                ntup = tuple([modtype, key, val])
-            _modlist.append(ntup)
+                _modlist.append((cast(int, modtype), key, data[key]))
         return _modlist
 
-    def add(self, obj: LDAPData) -> AddModlist:
+    def add(self, obj: "Model") -> AddModlist:
         """
         Convert an LDAP DAO object to a modlist suitable for passing to
         `add_s` and return it.
         """
         data = obj.to_db()
         if hasattr(obj, 'objectclass'):
-            data[1]['objectclass'] = obj.objectclass
+            data[1]['objectclass'] = obj.objectclass  # type: ignore
         else:
             raise ImproperlyConfigured("Tried to add an object with no objectclasses defined.")
+        # We have to do these two casts because LdapManager.model and
+        # Model._meta start out as None.  By the time we get here the metaclass
+        # has filled in those two so we know they're not None, but mypy has no
+        # way of knowing that
+        model = cast("Model", self.manager.model)
+        _meta = cast(Options, model._meta)
+        _attribute_lookup = _meta.attribute_to_field_name_map
+        _fields_map = _meta.fields_map
         # purge the empty fields
-        _attribute_lookup = self.manager.model._meta.attribute_to_field_name_map
-        _fields_map = self.manager.model._meta.fields_map
         new = {}
         for key, value in data[1].items():
             field = _fields_map[_attribute_lookup[key]]
@@ -182,9 +188,15 @@ class Modlist:
 
         :rtype: list
         """
+        # We have to do these two casts because LdapManager.model and
+        # Model._meta start out as None.  By the time we get here the metaclass
+        # has filled in those two so we know they're not None, but mypy has no
+        # way of knowing that
+        model = cast("Model", self.manager.model)
+        _meta = cast(Options, model._meta)
+        _attribute_lookup = _meta.attribute_to_field_name_map
+        _fields_map = _meta.fields_map
         # first build the changed attributes
-        _attribute_lookup = self.manager.model._meta.attribute_to_field_name_map
-        _fields_map = self.manager.model._meta.fields_map
         old_data = old.to_db()
         new_data = new.to_db()
         changes = {}
@@ -197,8 +209,8 @@ class Modlist:
                 changes[key] = value
 
         # Now build the ldap.MOD_DELETE and ldap.MOD_REPLACE modlists
-        deletes = {}
-        replacements = {}
+        deletes: Dict[str, Any] = {}
+        replacements: Dict[str, Any] = {}
         for key, value in changes.items():
             if value == []:
                 deletes[key] = None
@@ -229,20 +241,21 @@ class F:
 
     def __init__(self, manager: "LdapManager", f: "F" = None) -> None:
         self.manager = manager
-        self.model = manager.model
-        self.fields_map = self.manager.model._meta.fields_map
-        self.attributes_map = self.manager.model._meta.attributes_map
-        self.attribute_to_field_name_map = self.manager.model._meta.attribute_to_field_name_map
-        self.attributes = self.manager.model._meta.attributes
+        self.model = cast(Type["Model"], manager.model)
+        self._meta = cast(Options, self.model._meta)
+        self.fields_map = self._meta.fields_map
+        self.attributes_map = self._meta.attributes_map
+        self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
+        self.attributes = self._meta.attributes
         self._attributes = self.attributes
-        self._order_by = self.manager.model._meta.ordering
+        self._order_by = self._meta.ordering
         if f:
-            self.chain = f.chain
+            self.chain: List["F"] = f.chain
         else:
             self.chain = []
 
     @property
-    def _filter(self) -> "F":
+    def _filter(self) -> "GroupAnd":
         """
         Return a list of filters ready to be converted to a filter string.
 
@@ -292,7 +305,7 @@ class F:
             )
         return data
 
-    def __validate_positional_args(self, args: List["F"]) -> List["F"]:
+    def __validate_positional_args(self, args: Sequence["F"]) -> List["F"]:
         if args:
             for arg in args:
                 if not isinstance(arg, F):
@@ -305,8 +318,8 @@ class F:
         try:
             return self.attributes_map[name]
         except KeyError:
-            raise self.manager.model.InvalidField(
-                '"{}" is not a valid field on model {}'.format(name, self.manager.model.__name__)
+            raise self.model.InvalidField(
+                '"{}" is not a valid field on model {}'.format(name, self.model.__name__)
             )
 
     def wildcard(self, name: str, value: str) -> "F":
@@ -342,7 +355,7 @@ class F:
             f = self.filter(**d)
         return f
 
-    def filter(self, *args, **kwargs) -> "F":
+    def filter(self, *args: "F", **kwargs) -> "F":
         """
         If there are positional arguments, they must all be F() objects.  This
         allows us to preconstruct an unbound filter and then use it later.
@@ -443,9 +456,9 @@ class F:
             sizelimit = 1
         objects = self.manager.search(str(self), self._attributes, sizelimit=sizelimit)
         if len(objects) == 0:
-            raise self.manager.model.DoesNotExist(
-                'A {} object matching query does not exist.'.format(self.manager.model.__name__))
-        objects = self.manager.model.from_db(self._attributes, objects)
+            raise self.model.DoesNotExist(
+                'A {} object matching query does not exist.'.format(self.model.__name__))
+        objects = self.model.from_db(self._attributes, objects)
         if not self._order_by:
             return objects[0]
         return self.__sort(objects)[0]
@@ -454,19 +467,19 @@ class F:
     def get(self) -> "Model":
         objects = self.manager.search(str(self), self._attributes)
         if len(objects) == 0:
-            raise self.manager.model.DoesNotExist(
-                'A {} object matching query does not exist.'.format(self.manager.model.__name__))
+            raise self.model.DoesNotExist(
+                'A {} object matching query does not exist.'.format(self.model.__name__))
         if len(objects) > 1:
             raise self.model.MultipleObjectsReturned(
                 'More than one {} object matched query.'.format(self.model.__name__))
-        return self.manager.model.from_db(self._attributes, objects)
+        return cast("Model", self.model.from_db(self._attributes, objects))
 
     @needs_pk
     def update(self, **kwargs) -> None:
         obj = self.get()
-        new = self.manager.model.from_db(self._attributes, obj.dump())
+        new = self.model.from_db(self._attributes, obj.dump())
         for key, value in kwargs.items():
-            if key in self.manager.model.attributes:
+            if key in self.attributes:
                 setattr(new, key, value)
         self.manager.modify(new, old=obj)
 
@@ -484,12 +497,12 @@ class F:
 
     @needs_pk
     def all(self) -> Sequence["Model"]:
-        objects = self.manager.model.from_db(
+        objects = self.model.from_db(
             self._attributes,
             self.manager.search(str(self), self._attributes),
             many=True
         )
-        return self.__sort(objects)
+        return self.__sort(cast(Sequence["Model"], objects))
 
     def delete(self) -> None:
         """
@@ -520,10 +533,10 @@ class F:
         for key in args:
             _key = key[1:] if key.startswith('-') else key
             if _key not in self.attributes_map:
-                raise self.manager.model.InvalidField(
-                    '"{}" is not a valid field on model {}'.format(_key, self.manager.model.__name__)
+                raise self.model.InvalidField(
+                    '"{}" is not a valid field on model {}'.format(_key, self.model.__name__)
                 )
-        self._order_by = args
+        self._order_by = list(args)
         return self
 
     def values(self, *attrs: str) -> List[Dict[str, Any]]:
@@ -552,13 +565,14 @@ class F:
         """
         if self._attributes != self.attributes:
             raise NotImplementedError("Don't use .only() with .values()")
+        _attrs = []
         if not attrs:
-            attrs = self.attributes
-        objects = self.manager.model.from_db(attrs, self.manager.search(str(self), attrs), many=True)
-        objects = self.__sort(objects)
+            _attrs = self.attributes
+        objects = self.model.from_db(_attrs, self.manager.search(str(self), _attrs), many=True)
+        objects = self.__sort(cast(Sequence["Model"], objects))
         data = []
         for obj in objects:
-            data.append({self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in attrs})
+            data.append({self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in _attrs})
         return data
 
     def values_list(self, *attrs: str, **kwargs) -> List[Tuple[Any, ...]]:
@@ -595,33 +609,34 @@ class F:
         """
         if self._attributes != self.attributes:
             raise NotImplementedError("Don't use .only() with .values_list()")
+        _attrs = []
         if not attrs:
-            attrs = self.attributes
-        objects = self.manager.model.from_db(attrs, self.manager.search(str(self), attrs), many=True)
-        objects = self.__sort(objects)
-        data = []
+            _attrs = self.attributes
+        objects = self.model.from_db(_attrs, self.manager.search(str(self), _attrs), many=True)
+        objects = self.__sort(cast(Sequence["Model"], objects))
         if 'flat' in kwargs and kwargs['flat']:
-            if len(attrs) > 1:
+            if len(_attrs) > 1:
                 raise ValueError("Cannot use flat=True when asking for more than one field")
-            return [getattr(obj, attrs[0]) for obj in objects]
+            return [getattr(obj, _attrs[0]) for obj in objects]
         if 'named' in kwargs and kwargs['named']:
+            rows: List[Any] = []
             for obj in objects:
-                Row = namedtuple('Row', attrs)
+                Row = namedtuple('Row', _attrs)  # type: ignore
                 # the keys here should be field names, not attribute names
-
-                data.append(Row(**{self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in attrs}))
-            return data
+                rows.append(Row(**{self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in _attrs}))
+            return rows
+        data: List[Tuple[str, ...]] = []
         for obj in objects:
-            data.append(tuple(getattr(obj, attr) for attr in attrs))
+            data.append(tuple(getattr(obj, attr) for attr in _attrs))
         return data
 
     def __or__(self, other: "F") -> "F":
         self.chain = Filter.OR([self._filter, other._filter])
-        return F(manager=self.manager, f=self)
+        return F(self.manager, f=self)
 
     def __and__(self, other: "F") -> "F":
         self.chain = Filter.AND([self._filter, other._filter])
-        return F(manager=self.manager, f=self)
+        return F(self.manager, f=self)
 
     def __str__(self) -> str:
         return self._filter.to_string()
@@ -644,16 +659,16 @@ class LdapManager:
 
         # These get set during contribute_to_class()
         # self.config is the part of settings.LDAP_SERVERS that we need for our Model
-        self.config: Dict[str, Any] = None
+        self.config: Optional[Dict[str, Any]] = None
         self.model: Optional[Type["Model"]] = None
         self.pk: Optional[str] = None
-        self.ldap_options = []
+        self.ldap_options: List[str] = []
         self.objectclass: Optional[str] = None
         self.extra_objectclasses: List[str] = []
 
         # keys in this dictionary get manipulated by .connect() and
         # .disconnect()
-        self._ldap_objects = {}
+        self._ldap_objects: Dict[threading.Thread, ldap.ldapobject.LDAPObject] = {}
 
     def _get_pctrls(self, serverctrls):
         """
@@ -756,17 +771,17 @@ class LdapManager:
         cls._meta.base_manager = self
         setattr(cls, accessor_name, self)
 
-    def dn(self, obj: "Model") -> str:
+    def dn(self, obj: "Model") -> Optional[str]:
         if not obj._dn:
-            _attribute_lookup = obj._meta.attribute_to_field_name_map
+            _attribute_lookup = cast(Options, obj._meta).attribute_to_field_name_map
             dn_key = self.pk
             for k, v in _attribute_lookup.items():
                 if v == self.pk:
                     dn_key = k
                     break
-            pk_value = getattr(obj, self.pk)
+            pk_value = getattr(obj, cast(str, self.pk))
             if pk_value:
-                obj._dn = "{}={},{}".format(dn_key, getattr(obj, self.pk), self.basedn)
+                obj._dn = "{}={},{}".format(dn_key, getattr(obj, cast(str, self.pk)), self.basedn)
             else:
                 # If our pk_value is None or '', we're in the middle of creating a new record and haven't set
                 # it yet.
@@ -787,7 +802,7 @@ class LdapManager:
         del self._ldap_objects[threading.current_thread()]
 
     def connect(self, key: str, dn: str = None, password: str = None) -> None:
-        config = self.config[key]
+        config = cast(Dict[str, Any], self.config)[key]
         if not dn:
             dn = config['user']
             password = config['password']
@@ -835,10 +850,12 @@ class LdapManager:
 
     @atomic(key='write')
     def add(self, obj: "Model") -> None:
-        obj.objectclass = []
+        # This is a bit weird here because the objectclass CharListField gets
+        # secretly added during class construction on Model
+        obj.objectclass = []  # type: ignore
         for objectclass in self.extra_objectclasses:
-            obj.objectclass.append(objectclass.encode())
-        obj.objectclass.append(self.objectclass.encode())
+            obj.objectclass.append(objectclass.encode())  # type: ignore
+        obj.objectclass.append(self.objectclass.encode())  # type: ignore
         _modlist = Modlist(self).add(obj)
         self.connection.add_s(self.dn(obj), _modlist)
 
@@ -884,13 +901,13 @@ class LdapManager:
     def modify(self, obj: "Model", old: "Model" = None) -> None:
         # First check to see whether we updated our primary key.  If so, we need to rename
         # the object in LDAP, and its obj._dn.  The old obj._dn should reference the old PK.
-        old_pk_value = obj.dn.split(',')[0].split('=')[1]
-        new_pk_value = getattr(obj, self.pk)
+        old_pk_value = cast(str, obj.dn).split(',')[0].split('=')[1]
+        new_pk_value = getattr(obj, cast(str, self.pk))
         if new_pk_value != old_pk_value:
             # We need to do a modrdn_s if we change pk, to cause the dn to be updated also
             self.connection.modrdn_s(obj.dn, f'{self.pk}={new_pk_value}')
             # And update our object's _dn to the new one
-            basedn = ','.join(obj.dn.split(',')[1:])
+            basedn = ','.join(cast(str, obj.dn).split(',')[1:])
             new_dn = f'{self.pk}={new_pk_value},{basedn}'
             obj._dn = new_dn
             # force reload old, if it was passed in so that we get the new pk value and dn
@@ -898,8 +915,9 @@ class LdapManager:
 
         # Now update the non-PK attributes
         if not old:
-            old = self.get(**{self.pk: getattr(obj, self.pk)})
-        _modlist = Modlist(self).update(obj, old)
+            pk_val = cast(str, self.pk)
+            old = self.get(**{pk_val: getattr(obj, pk_val)})
+        _modlist = Modlist(self).update(obj, cast("Model", old))
         if _modlist:
             # Only issue the modify_s if we actually have changes
             self.connection.modify_s(obj.dn, _modlist)
@@ -917,9 +935,7 @@ class LdapManager:
 
     @substitute_pk
     def wildcard(self, name: str, value: str) -> "F":
-        if value:
-            return self.__filter().wildcard(name, value)
-        return self
+        return self.__filter().wildcard(name, value)
 
     @substitute_pk
     def filter(self, *args, **kwargs) -> "F":
@@ -939,7 +955,7 @@ class LdapManager:
         """
         return self.__filter().all()
 
-    def values(self, *args: str) -> List[Tuple[Any, ...]]:
+    def values(self, *args: str) -> List[Dict[str, Any]]:
         return self.__filter().values(*args)
 
     def values_list(self, *args: str, **kwargs) -> List[Tuple[Any, ...]]:
@@ -993,10 +1009,11 @@ class LdapManager:
 
         :rtype: boolean
         """
-
+        model = cast(Type["Model"], self.model)
+        uid_attr = cast(Options, model._meta).userid_attribute
         try:
-            user = self.filter(**{'uid': username}).only('uid').get()
-        except self.model.DoesNotExist:
+            user = self.filter(**{uid_attr: username}).only(uid_attr).get()
+        except model.DoesNotExist:
             self.logger.warning('auth.no_such_user user=%s', username)
             return False
         try:
@@ -1013,4 +1030,4 @@ class LdapManager:
         This differs from Django's QuerySet .create() in that it does not actually save
         the object to LDAP before returning it.
         """
-        return self.model(**kwargs)
+        return cast(Type["Model"], self.model)(**kwargs)
