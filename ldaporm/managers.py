@@ -93,20 +93,6 @@ def substitute_pk(func: Callable) -> Callable:
     return wrapper
 
 
-def needs_manager(func: Callable) -> Callable:
-    """
-    Certain F() methods need an LdapManager class in order to function correctly.
-
-    Raise an exception if we our F() instance has no LdapManager class.
-    """
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if not self.manager:
-            raise self.UnboundFilter('This F() instance is not bound to an LdapManager.')
-        return func(self, *args, **kwargs)
-    return wrapper
-
-
 def needs_pk(func: Callable) -> Callable:
     """
     When we retrieve data from LDAP, in most cases we want to ensure we include
@@ -241,7 +227,7 @@ class F:
     class UnboundFilter(Exception):
         pass
 
-    def __init__(self, manager: "LdapManager" = None, f: "F" = None) -> None:
+    def __init__(self, manager: "LdapManager", f: "F" = None) -> None:
         self.manager = manager
         self.model = manager.model
         self.fields_map = self.manager.model._meta.fields_map
@@ -269,7 +255,6 @@ class F:
             return self.chain[0]
         return Filter.AND(self.chain).simplify()
 
-    @needs_manager
     def __sort(self, objects: Sequence["Model"]) -> Sequence["Model"]:
         """
         This is called by methods that return lists of results.  Sort our
@@ -429,7 +414,6 @@ class F:
         self._attributes = [self.get_attribute(name) for name in names]
         return self
 
-    @needs_manager
     @needs_pk
     def first(self) -> "Model":
         """
@@ -466,7 +450,6 @@ class F:
             return objects[0]
         return self.__sort(objects)[0]
 
-    @needs_manager
     @needs_pk
     def get(self) -> "Model":
         objects = self.manager.search(str(self), self._attributes)
@@ -478,7 +461,6 @@ class F:
                 'More than one {} object matched query.'.format(self.model.__name__))
         return self.manager.model.from_db(self._attributes, objects)
 
-    @needs_manager
     @needs_pk
     def update(self, **kwargs) -> None:
         obj = self.get()
@@ -488,7 +470,6 @@ class F:
                 setattr(new, key, value)
         self.manager.modify(new, old=obj)
 
-    @needs_manager
     def exists(self) -> bool:
         """
         Return ``True`` if the LDAP search with the filter we've built returns
@@ -501,7 +482,6 @@ class F:
             return True
         return False
 
-    @needs_manager
     @needs_pk
     def all(self) -> Sequence["Model"]:
         objects = self.manager.model.from_db(
@@ -511,7 +491,6 @@ class F:
         )
         return self.__sort(objects)
 
-    @needs_manager
     def delete(self) -> None:
         """
         Delete an object that matches our filters.
@@ -527,7 +506,6 @@ class F:
         obj = self.get()
         self.manager.connection.delete_s(obj.dn)
 
-    @needs_manager
     def order_by(self, *args: str) -> "F":
         """
         When we return results, order them by the positional arguments
@@ -929,10 +907,10 @@ class LdapManager:
             self.logger.debug('ldaporm.manager.modify.no-changes dn=%s', obj.dn)
 
     def only(self, *names: str) -> "F":
-        return F(manager=self).attributes(names)
+        return F(self).only(*names)
 
     def __filter(self) -> "F":
-        f = F(manager=self)
+        f = F(self)
         if self.objectclass:
             f = f.filter(objectclass=self.objectclass)
         return f
