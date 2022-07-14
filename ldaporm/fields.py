@@ -760,6 +760,7 @@ class DateField(Field):
         return datetime.date(year=ts.year, month=ts.month, day=ts.day)
 
     def to_db_value(self, value: Optional[Union[datetime.date, datetime.datetime]]) -> Dict[str, List[bytes]]:
+        db_value = None
         if value:
             db_value = value.strftime(self.LDAP_DATETIME_FORMAT)
         return super().to_db_value(db_value)
@@ -1050,6 +1051,17 @@ class CharListField(CharField):
         if self.default is None:
             return []
         return self._get_default()
+
+    def from_db_value(self, value):
+        """
+        .. note::
+
+            This is important because we don't want CharField.from_db_value() to
+            execute; we only want Field.from_db_value().  CharField.from_db_value()
+            turns the list that Field.from_db_value() returns into a string.  We
+            actually want the list.
+        """
+        return Field.from_db_value(self, value)
 
     def to_python(self, value: Optional[Union[str, List[str]]]) -> List[str]:  # type: ignore
         if not value:
