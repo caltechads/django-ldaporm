@@ -970,30 +970,29 @@ class LdapManager:
     def order_by(self, *args: str) -> "F":
         return self.__filter().order_by(*args)
 
-    def reset_password(self, username: str, new_password: str, attributes: List[str] = None) -> bool:
+    def reset_password(self, username: str, new_password: str, attributes: Dict[str, Any] = None) -> bool:
+        model = cast(Type["Model"], self.model)
+        password_attribute = cast(Options, model._meta).password_attribute
+        if not password_attribute:
+            return False
         if not attributes:
             attributes = {}
         try:
             user = self.filter(**{'uid': username}).only('uid').get()
-        except self.model.DoesNotExist:
+        except model.DoesNotExist:
             self.logger.warning('auth.no_such_user user=%s', username)
             return False
 
-
-        password_attribute = getattr(self.model, 'password_attribute', None)
-        if not password_attribute:
-            return False
-
-        pwhash = self.model.get_password_hash(new_password)
+        pwhash = model.get_password_hash(new_password)
         attr = {password_attribute: [pwhash]}
-        attributes.update(attr)
+        cast(Dict[str, Any], attributes).update(attr)
 
         _modlist = Modlist(self)._get_modlist(attr, ldap.MOD_REPLACE)
 
         self.connect('write')
         self.connection.modify_s(user.dn, _modlist)
         self.disconnect()
-        service = getattr(self.model._meta, 'ldap_server', 'ldap')
+        service = getattr(model._meta, 'ldap_server', 'ldap')
         self.logger.info('%s.password_reset.success dn=%s', service, user.dn)
         return True
 

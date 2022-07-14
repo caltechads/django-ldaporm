@@ -1,5 +1,5 @@
 from bisect import bisect
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, cast
 
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.utils.functional import cached_property
@@ -30,6 +30,8 @@ class Options:
         self.basedn: str = None
         self.objectclass: str = None
         self.extra_objectclasses: List[str] = []
+        self.userid_attribute: str = 'uid'
+        self.password_attribute: Optional[str] = None
 
         # other
         self.verbose_name: str = None
