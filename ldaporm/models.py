@@ -193,6 +193,14 @@ class Model(metaclass=LdapModelBase):
     def _default_manager(cls) -> "LdapManager":
         return cls.objects
 
+    @classmethod
+    def get_password_hash(cls, password: str) -> bytes:
+        salt = os.urandom(8)
+        h = hashlib.sha1(password.encode('utf-8'))
+        h.update(salt)
+        pwhash = "{SSHA}".encode('utf-8') + encode(h.digest() + salt)
+        return pwhash
+
     def to_db(self) -> LDAPData:
         """
         ``to_db`` produces 2-tuple similar to what we would get from
@@ -320,10 +328,3 @@ class Model(metaclass=LdapModelBase):
 
     def validate_unique(self, exclude: List[str] = None) -> None:
         pass
-
-    def get_password_hash(self, new_password: str) -> str:
-        salt = os.urandom(8)
-        h = hashlib.sha1(new_password)
-        h.update(salt)
-        pwhash = "{SSHA}" + encode(h.digest() + salt)
-        return pwhash

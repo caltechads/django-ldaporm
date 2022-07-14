@@ -1039,8 +1039,8 @@ class CharListField(CharField):
 
 class PasswordField(CharField):
 
-    def hash_password(self, password: str) -> str:
-        return password
+    def hash_password(self, password: str) -> bytes:
+        return password.encode('utf-8')
 
     def to_db_value(self, value: str) -> Dict[str, List[bytes]]:
         hashed_password = self.hash_password(value)
@@ -1049,14 +1049,15 @@ class PasswordField(CharField):
 
 class LDAPPasswordField(PasswordField):
 
-    def hash_password(self, password: str) -> str:
+    def hash_password(self, password: str) -> bytes:
         salt = os.urandom(8)
-        h = hashlib.sha1(password)
+        h = hashlib.sha1(password.encode('utf-8'))
         h.update(salt)
-        return "{SSHA}" + encode(h.digest() + salt)
+        pwhash = "{SSHA}".encode('utf-8') + encode(h.digest() + salt)
+        return pwhash
 
 
 class ADPasswordField(PasswordField):
 
-    def hash_password(self, password: str) -> str:
+    def hash_password(self, password: str) -> bytes:
         return "\"{}\"".format(password).encode("utf-16-le")

@@ -826,11 +826,11 @@ class LdapManager:
     def connection(self) -> ldap.ldapobject.LDAPObject:
         return self._ldap_objects[threading.current_thread()]
 
-    def _get_ssha_hash(self, password: str) -> str:
+    def _get_ssha_hash(self, password: str) -> bytes:
         salt = os.urandom(8)
-        h = hashlib.sha1(password)
+        h = hashlib.sha1(password.encode('utf-8'))
         h.update(salt)
-        pwhash = "{SSHA}" + encode(h.digest() + salt)
+        pwhash = "{SSHA}".encode('utf-8') + encode(h.digest() + salt)
         return pwhash
 
     @atomic(key='read')
