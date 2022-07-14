@@ -979,8 +979,6 @@ class LdapManager:
             self.logger.warning('auth.no_such_user user=%s', username)
             return False
 
-        if not attributes:
-            attributes = self.model.get_reset_password_extra_attributes()
 
         password_attribute = getattr(self.model, 'password_attribute', None)
         if not password_attribute:
