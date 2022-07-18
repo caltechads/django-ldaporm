@@ -1022,7 +1022,7 @@ class LdapManager:
             self.logger.warning('auth.invalid_credentials user=%s', username)
             return False
         self.disconnect()
-        self.logger.info('auth.success user={username}')
+        self.logger.info('auth.success user=%s', username)
         return True
 
     def create(self, **kwargs) -> "Model":

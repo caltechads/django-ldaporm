@@ -1089,6 +1089,23 @@ class CharListField(CharField):
         return super().formfield(**defaults)
 
 
+class CaseInsensitiveSHA1Field(CharField):
+    """
+    This is a readonly field that stores its value as a lowercased SHA1 hash.
+    Use this when you want to store a secret value that you will only ever
+    compare to a similar hashed value.
+    """
+
+    @staticmethod
+    def hash_value(value: Optional[str]) -> Optional[str]:
+        if value:
+            return hashlib.sha1(value.lower().encode('utf-8')).hexdigest()
+        return None
+
+    def to_db_value(self, value: str) -> Dict[str, List[bytes]]:
+        return super().to_db_value(self.hash_value(value))
+
+
 class PasswordField(CharField):
 
     def hash_password(self, password: str) -> bytes:
