@@ -919,6 +919,7 @@ class DateTimeField(DateField):
         return dt
 
     def to_db_value(self, value: Optional[Union[datetime.datetime, datetime.date]]) -> Dict[str, List[bytes]]:
+        dt_str = None
         if value:
             utc = pytz.utc
             dt_str = cast(datetime.datetime, value).astimezone(utc).strftime(self.LDAP_DATETIME_FORMAT)
