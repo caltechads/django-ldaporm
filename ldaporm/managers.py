@@ -491,9 +491,7 @@ class F:
         :rtype: boolean
         """
         objects = self.manager.search(str(self), self._attributes)
-        if len(objects) > 0:
-            return True
-        return False
+        return len(objects) > 0
 
     @needs_pk
     def all(self) -> Sequence["Model"]:
@@ -1027,7 +1025,8 @@ class LdapManager:
 
     def create(self, **kwargs) -> "Model":
         """
-        This differs from Django's QuerySet .create() in that it does not actually save
-        the object to LDAP before returning it.
+        Create a model object based on **kwargs, then LDAP_ADD it to LDAP.
         """
-        return cast(Type["Model"], self.model)(**kwargs)
+        obj = cast(Type["Model"], self.model)(**kwargs)
+        self.add(obj)
+        return self.get(pk=getattr(obj, cast(str, self.pk)))
