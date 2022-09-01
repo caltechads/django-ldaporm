@@ -16,6 +16,7 @@ setup(
     url='https://github.com/caltechads/django-ldaporm',
     packages=find_packages(exclude=['bin']),
     include_package_data=True,
+    package_data={'deployfish': ["py.typed"]},
     install_requires=[
         'pytz',
         'ldap_filter',
