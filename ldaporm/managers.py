@@ -23,7 +23,7 @@ from .typing import ModifyDeleteModList, AddModlist, LDAPData
 if TYPE_CHECKING:
     from ldap_filter.filter import GroupAnd
     from .models import Model
-    from .options import Options
+    from .options import Options  # noqa:F401
 
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion('2.4')
 logger = logging.getLogger('django-ldaporm')
@@ -769,14 +769,18 @@ class LdapManager:
         cls._meta.base_manager = self
         setattr(cls, accessor_name, self)
 
+    def __get_dn_key(self, meta: "Options"):
+        _attribute_lookup = meta.attribute_to_field_name_map
+        dn_key = self.pk
+        for k, v in _attribute_lookup.items():
+            if v == self.pk:
+                dn_key = k
+                break
+        return dn_key
+
     def dn(self, obj: "Model") -> Optional[str]:
         if not obj._dn:
-            _attribute_lookup = cast("Options", obj._meta).attribute_to_field_name_map
-            dn_key = self.pk
-            for k, v in _attribute_lookup.items():
-                if v == self.pk:
-                    dn_key = k
-                    break
+            dn_key = self.__get_dn_key(cast("Options", obj._meta))
             pk_value = getattr(obj, cast(str, self.pk))
             if pk_value:
                 obj._dn = "{}={},{}".format(dn_key, getattr(obj, cast(str, self.pk)), self.basedn)
@@ -785,6 +789,21 @@ class LdapManager:
                 # it yet.
                 obj._dn = None
         return obj._dn
+
+    def get_dn(self, pk: str) -> str:
+        """
+        Given a value for an object primary key, return what the dn for that
+        object would look like.
+
+        Args:
+            pk: the value for the primary key for our model
+
+        Returns:
+            A fully qualified dn.
+        """
+        meta = cast("Options", cast("Model", self.model)._meta)
+        dn_key = self.__get_dn_key(meta)
+        return "{}={},{}".format(dn_key, pk, self.basedn)
 
     def disconnect(self) -> None:
         self.connection.unbind_s()
