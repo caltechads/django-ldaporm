@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()
 
 setup(
@@ -16,7 +16,7 @@ setup(
     url='https://github.com/caltechads/django-ldaporm',
     packages=find_packages(exclude=['bin']),
     include_package_data=True,
-    package_data={'deployfish': ["py.typed"]},
+    package_data={'ldaporm': ["py.typed"]},
     install_requires=[
         'pytz',
         'ldap_filter',
