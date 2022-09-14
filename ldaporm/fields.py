@@ -561,7 +561,7 @@ class BooleanField(Field):
                 db_value = self.LDAP_TRUE
             else:
                 db_value = self.LDAP_FALSE
-        return super().to_db_value([db_value])
+        return super().to_db_value(db_value)
 
     def formfield(
         self,

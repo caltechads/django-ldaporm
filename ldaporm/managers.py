@@ -212,7 +212,7 @@ class Modlist:
         deletes: Dict[str, Any] = {}
         replacements: Dict[str, Any] = {}
         for key, value in changes.items():
-            if value == []:
+            if value == [] or all(x is None for x in value):
                 deletes[key] = None
             else:
                 replacements[key] = value
