@@ -18,8 +18,8 @@ global python environment.
 
 Download a release from [Github](https://github.com/caltechads/deployfish/releases), then:
 
-    unzip django-ldaporm-1.0.12.zip
-    cd django-ldaporm-1.0.12
+    unzip django-ldaporm-1.0.13.zip
+    cd django-ldaporm-1.0.13
     python setup.py install
 
 Or:
