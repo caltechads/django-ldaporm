@@ -607,25 +607,28 @@ class F:
         """
         if self._attributes != self.attributes:
             raise NotImplementedError("Don't use .only() with .values_list()")
-        _attrs = []
+        _attrs: List[str] = []
         if not attrs:
             _attrs = self.attributes
+            attrs = tuple(self.attribute_to_field_name_map[attr] for attr in _attrs)
+        else:
+            _attrs = [self.get_attribute(attr) for attr in attrs]
         objects = self.model.from_db(_attrs, self.manager.search(str(self), _attrs), many=True)
         objects = self.__sort(cast(Sequence["Model"], objects))
         if 'flat' in kwargs and kwargs['flat']:
-            if len(_attrs) > 1:
+            if len(attrs) > 1:
                 raise ValueError("Cannot use flat=True when asking for more than one field")
-            return [getattr(obj, _attrs[0]) for obj in objects]
+            return [getattr(obj, attrs[0]) for obj in objects]
         if 'named' in kwargs and kwargs['named']:
             rows: List[Any] = []
             for obj in objects:
-                Row = namedtuple('Row', _attrs)  # type: ignore
+                Row = namedtuple('Row', attrs)  # type: ignore
                 # the keys here should be field names, not attribute names
-                rows.append(Row(**{self.attribute_to_field_name_map[attr]: getattr(obj, attr) for attr in _attrs}))
+                rows.append(Row(**{attr: getattr(obj, attr) for attr in attrs}))
             return rows
         data: List[Tuple[str, ...]] = []
         for obj in objects:
-            data.append(tuple(getattr(obj, attr) for attr in _attrs))
+            data.append(tuple(getattr(obj, attr) for attr in attrs))
         return data
 
     def __or__(self, other: "F") -> "F":
