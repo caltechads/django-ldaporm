@@ -821,7 +821,12 @@ class LdapManager:
     def remove_connection(self) -> None:
         del self._ldap_objects[threading.current_thread()]
 
-    def connect(self, key: str, dn: str = None, password: str = None) -> None:
+    def _connect(
+        self,
+        key: str,
+        dn: str = None,
+        password: str = None
+    ) -> ldap.ldapobject.LDAPObject:
         config = cast(Dict[str, Any], self.config)[key]
         if not dn:
             dn = config['user']
@@ -833,7 +838,55 @@ class LdapManager:
         ldap_object.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
         ldap_object.start_tls_s()
         ldap_object.simple_bind_s(dn, password)
-        self._ldap_objects[threading.current_thread()] = ldap_object
+        return ldap_object
+
+    def connect(
+        self,
+        key: str,
+        dn: str = None,
+        password: str = None
+    ) -> None:
+        """
+        This is used internally to set our per-thread connection object.  It is primarily used by
+        the ``@atomic`` decorator.
+
+        Args:
+            key: A key into our ``self.settings`` configuration object.  This
+                holds has hostname, bind dn, password and basedn for our read-only
+                and read-write servers.
+
+        Keyword Args:
+            dn: If provided, use this as our bind dn instead of the dn in our ``self.settings``
+                configuration object.
+            password: If provided, use this as our password instead of the
+                password in our ``self.settings`` configuration object.
+
+        """
+        self._ldap_objects[threading.current_thread()] = self._connect(key, dn=dn, password=password)
+
+    def new_connection(
+        self,
+        key: str = 'read',
+        dn: str = None,
+        password: str = None
+    ) -> ldap.ldapobject.LDAPObject:
+        """
+        This is used internally to set our per-thread connection object.  It is primarily used by
+        the ``@atomic`` decorator.
+
+        Keyword Args:
+            key: A key into our ``self.settings`` configuration object.  This
+                holds has hostname, bind dn, password and basedn for our read-only
+                and read-write servers.
+            dn: If provided, use this as our bind dn instead of the dn in our ``self.settings``
+                configuration object.
+            password: If provided, use this as our password instead of the
+                password in our ``self.settings`` configuration object.
+
+        Returns:
+            A properly connected python-ldap ``LDAPObject``.
+        """
+        return self._connect(key, dn=dn, password=password)
 
     @property
     def connection(self) -> ldap.ldapobject.LDAPObject:
