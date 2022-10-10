@@ -477,6 +477,7 @@ class F:
     @needs_pk
     def update(self, **kwargs) -> None:
         obj = self.get()
+        # FIXME: obj.dump() does not exist;
         new = self.model.from_db(self._attributes, obj.dump())
         for key, value in kwargs.items():
             if key in self.attributes:
@@ -607,6 +608,7 @@ class F:
         """
         if self._attributes != self.attributes:
             raise NotImplementedError("Don't use .only() with .values_list()")
+
         _attrs: List[str] = []
         if not attrs:
             _attrs = self.attributes
@@ -686,7 +688,8 @@ class LdapManager:
         searchfilter: str,
         attrlist: List[str] = None,
         pagesize: int = 100,
-        sizelimit: int = 0
+        sizelimit: int = 0,
+        scope: int = ldap.SCOPE_SUBTREE
     ) -> List[LDAPData]:
         """
         Performs a pages search against the LDAP server. Code lifted from:
@@ -702,7 +705,7 @@ class LdapManager:
             # Send search request.
             msgid = self.connection.search_ext(
                 basedn,
-                ldap.SCOPE_SUBTREE,
+                scope,
                 searchfilter,
                 attrlist,
                 serverctrls=[controls],
@@ -900,18 +903,28 @@ class LdapManager:
         return pwhash
 
     @atomic(key='read')
-    def search(self, searchfilter: str, attributes: List[str], sizelimit: int = 0) -> List[LDAPData]:
+    def search(
+        self,
+        searchfilter: str,
+        attributes: List[str],
+        sizelimit: int = 0,
+        basedn: str = None,
+        scope: int = ldap.SCOPE_SUBTREE
+    ) -> List[LDAPData]:
+        if basedn is None:
+            basedn = self.basedn
         if 'paged_search' in self.ldap_options:
             return self._paged_search(
-                self.basedn,
+                basedn,
                 searchfilter,
                 attrlist=attributes,
-                sizelimit=sizelimit
+                sizelimit=sizelimit,
+                scope=scope
             )
         # We have to filter out and references that AD puts in
         data = self.connection.search_s(
-            self.basedn,
-            ldap.SCOPE_SUBTREE,
+            basedn,
+            scope,
             filterstr=searchfilter,
             attrlist=attributes
         )
@@ -974,8 +987,9 @@ class LdapManager:
     def modify(self, obj: "Model", old: "Model" = None) -> None:
         # First check to see whether we updated our primary key.  If so, we need to rename
         # the object in LDAP, and its obj._dn.  The old obj._dn should reference the old PK.
-        old_pk_value = cast(str, obj.dn).split(',')[0].split('=')[1]
-        new_pk_value = getattr(obj, cast(str, self.pk))
+        # We'll .lower() them to deal with case for the pk in the dn
+        old_pk_value = cast(str, obj.dn).split(',')[0].split('=')[1].lower()
+        new_pk_value = getattr(obj, cast(str, self.pk)).lower()
         if new_pk_value != old_pk_value:
             # We need to do a modrdn_s if we change pk, to cause the dn to be updated also
             self.connection.modrdn_s(obj.dn, f'{self.pk}={new_pk_value}')
@@ -1013,6 +1027,46 @@ class LdapManager:
     @substitute_pk
     def filter(self, *args, **kwargs) -> "F":
         return self.__filter().filter(*args, **kwargs)
+
+    def get_by_dn(self, dn: str) -> "Model":
+        """
+        Get an object specifically by its DN.  To do this we do a search with
+        the basedn set to the dn of the object, with scope ``ldap.SCOPE_BASE``
+        and then get all objects that match.  This will be either the object
+        we're looking for, or nothing.
+
+        Args:
+            dn: the dn to search for
+
+        Raises:
+            ValueError: `dn` is not in our Model's basedn
+            Model.DoesNotExist: no object with this dn exist in our LDAP server
+            Model.MultipleObjectsReturned: something really wrong has happened
+
+        Returns:
+            The ldap object corresponding to the dn
+        """
+        dn = dn.lower()
+        model = cast(Type["Model"], self.model)
+        options = cast("Options", model._meta)
+        if options.basedn and not dn.endswith(options.basedn.lower()):
+            raise ValueError(f"The requested dn '{dn}' is not in our model's basedn '{options.basedn}")
+        try:
+            objects = self.search(
+                '(objectClass=*)',
+                options.attributes,
+                basedn=dn,
+                scope=ldap.SCOPE_BASE
+            )
+        except ldap.NO_SUCH_OBJECT:    # pylint:disable=no-member
+            objects = []
+        if len(objects) == 0:
+            raise model.DoesNotExist(
+                'A {} object matching query does not exist.'.format(model.__name__))
+        if len(objects) > 1:
+            raise model.MultipleObjectsReturned(
+                'More than one {} object matched query.'.format(model.__name__))
+        return cast("Model", model.from_db(options.attributes, objects))
 
     @substitute_pk
     def get(self, *args, **kwargs) -> "Model":

@@ -234,7 +234,7 @@ class Model(metaclass=LdapModelBase):
         return '<%s: %s>' % (self.__class__.__name__, self)
 
     def __str__(self) -> str:
-        return '%s object (%s)' % (self.__class__.__name__, self.pk)
+        return '%s object (%s)' % (self.__class__.__name__, self.dn)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Model):
@@ -247,9 +247,7 @@ class Model(metaclass=LdapModelBase):
         return my_pk == other.pk
 
     def __hash__(self) -> int:
-        if self.pk is None:
-            raise TypeError("LdapModel instances without primary key value are unhashable")
-        return hash(self.pk)
+        return hash(self.dn)
 
     def _get_pk_val(self, meta: Options = None) -> Any:
         _meta: Options = meta or cast(Options, self._meta)
@@ -276,12 +274,10 @@ class Model(metaclass=LdapModelBase):
         return manager.dn(self)
 
     def save(self, commit: bool = True) -> None:
-        # need to do the pre_save signal here
         _meta = cast(Options, self._meta)
-        pk_field = cast(Field, _meta.pk)
         manager = cast(LdapManager, _meta.base_manager)
         try:
-            manager.get(**{cast(str, pk_field.name): self.pk})
+            manager.get_by_dn(cast(str, self.dn))
         except self.DoesNotExist:
             manager.add(self)
         else:
