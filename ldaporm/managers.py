@@ -727,8 +727,7 @@ class LdapManager:
             paged_controls = self._get_pctrls(serverctrls)
             if not paged_controls:
                 self.logger.warning(
-                    'paged_search.rfc2696_control_ignored searchfilter=%s'
-                    'attrlist={",".join(attrlist)} pagesize=%s sizelimit=%s',
+                    'paged_search.rfc2696_control_ignored searchfilter=%s pagesize=%s sizelimit=%s',
                     searchfilter,
                     pagesize,
                     sizelimit
