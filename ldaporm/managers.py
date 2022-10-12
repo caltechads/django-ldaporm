@@ -64,8 +64,8 @@ def atomic(key: str = 'read') -> Callable:
             if self.has_connection():
                 # Ensure we're not currently in a wrapped function
                 return func(self, *args, **kwargs)
-            old_log_method = self.logger._log
-            self.logger._log = log_prefix(f"ldap_url={self.config[key]['url']}")(old_log_method)
+            old_log_method = logging._log
+            logging._log = log_prefix(f"ldap_url={self.config[key]['url']}")(old_log_method)
             self.connect(key)
             try:
                 retval = func(self, *args, **kwargs)
@@ -74,7 +74,7 @@ def atomic(key: str = 'read') -> Callable:
                 # connection and logger gets cleaned up no matter what
                 # happens in func()
                 self.disconnect()
-                self.logger._log = old_log_method
+                logging._log = old_log_method
             return retval
         return wrapper
     return real_decorator
@@ -657,7 +657,7 @@ class LdapManager:
         This class does all of the direct interactions with LDAP and should be
         the only one that calls the ``ldap`` library functions.
         """
-        self.logger = logger
+        logging = logger
         self.pagesize: int = 100
 
         # These get set during contribute_to_class()
@@ -726,10 +726,8 @@ class LdapManager:
             # Get cookie for the next request.
             paged_controls = self._get_pctrls(serverctrls)
             if not paged_controls:
-                self.logger.warning(
-                    f'paged_search.rfc2696_control_ignored searchfilter={searchfilter} '
-                    'pagesize={pagesize]} sizelimit={sizelimit}',
-                )
+                msg = f'paged_search.rfc2696_control_ignored searchfilter={searchfilter} attrlist={attrlist} pagesize={pagesize} sizelimit={sizelimit}'
+                logging.warning(msg)
                 break
 
             # Push cookie back into the main controls.
@@ -1006,7 +1004,7 @@ class LdapManager:
             # Only issue the modify_s if we actually have changes
             self.connection.modify_s(obj.dn, _modlist)
         else:
-            self.logger.debug('ldaporm.manager.modify.no-changes dn=%s', obj.dn)
+            logging.debug('ldaporm.manager.modify.no-changes dn=%s', obj.dn)
 
     def only(self, *names: str) -> "F":
         return F(self).only(*names)
@@ -1098,7 +1096,7 @@ class LdapManager:
         try:
             user = self.filter(**{'uid': username}).only('uid').get()
         except model.DoesNotExist:
-            self.logger.warning('auth.no_such_user user=%s', username)
+            logging.warning('auth.no_such_user user=%s', username)
             return False
 
         pwhash = model.get_password_hash(new_password)
@@ -1111,7 +1109,7 @@ class LdapManager:
         self.connection.modify_s(user.dn, _modlist)
         self.disconnect()
         service = getattr(model._meta, 'ldap_server', 'ldap')
-        self.logger.info('%s.password_reset.success dn=%s', service, user.dn)
+        logging.info('%s.password_reset.success dn=%s', service, user.dn)
         return True
 
     def authenticate(self, username: str, password: str) -> bool:
@@ -1138,15 +1136,15 @@ class LdapManager:
         try:
             user = self.filter(**{uid_attr: username}).only(uid_attr).get()
         except model.DoesNotExist:
-            self.logger.warning('auth.no_such_user user=%s', username)
+            logging.warning('auth.no_such_user user=%s', username)
             return False
         try:
             self.connect('read', user.dn, password)
         except ldap.INVALID_CREDENTIALS:
-            self.logger.warning('auth.invalid_credentials user=%s', username)
+            logging.warning('auth.invalid_credentials user=%s', username)
             return False
         self.disconnect()
-        self.logger.info('auth.success user=%s', username)
+        logging.info('auth.success user=%s', username)
         return True
 
     def create(self, **kwargs) -> "Model":
