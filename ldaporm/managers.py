@@ -33,16 +33,6 @@ logger = logging.getLogger('django-ldaporm')
 # Decorators
 # -----------------------
 
-def log_prefix(prefix: str) -> Callable:
-
-    def real_decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(self, level, msg, args, **kwargs) -> Callable:
-            msg = prefix + " " + msg
-            return func(level, msg, args, **kwargs)
-        return wrapper
-    return real_decorator
-
 
 def atomic(key: str = 'read') -> Callable:
     """
@@ -64,8 +54,6 @@ def atomic(key: str = 'read') -> Callable:
             if self.has_connection():
                 # Ensure we're not currently in a wrapped function
                 return func(self, *args, **kwargs)
-            old_log_method = self.logger._log
-            self.logger._log = log_prefix(f"ldap_url={self.config[key]['url']}")(old_log_method)
             self.connect(key)
             try:
                 retval = func(self, *args, **kwargs)
@@ -74,7 +62,6 @@ def atomic(key: str = 'read') -> Callable:
                 # connection and logger gets cleaned up no matter what
                 # happens in func()
                 self.disconnect()
-                self.logger._log = old_log_method
             return retval
         return wrapper
     return real_decorator
@@ -274,13 +261,21 @@ class F:
         ``objects``, a list of objects of class ``self.manager.model`` based
         on ``self._order_by``.
 
-        Example::
+        Example:
 
-            self.__sort(objects, ('-pub_date', 'headline',))
+            If we do this:
 
-        The result above will be ordered by ``pub_date`` descending, then by
-        ``headline ascending``. The negative sign in front of "-pub_date" indicates
-        descending order.
+                sorted_objects = self.__sort(objects, ('-pub_date', 'headline',))
+
+            ``sorted_objects`` twill be ordered by ``pub_date`` descending, then
+            by ``headline ascending``. The negative sign in front of "-pub_date"
+            indicates descending order.
+
+        Args:
+            objects: the sequence of Model instances to sort
+
+        Returns:
+            The sorted version of ``objects``
         """
         if not self._order_by:
             return objects
@@ -325,20 +320,19 @@ class F:
     def wildcard(self, name: str, value: str) -> "F":
         """
         Convert ``value`` with some "*" in it (beginning, end or both) to
-        appropriate LDAP filters ("__iendswith", "__istartswith" or
-        "__icontains"), apply the the filter to our current state and return the
+        appropriate LDAP filters "``__iendswith``, ``__istartswith`` or
+        ``__icontains``), apply the the filter to our current state and return the
         result.
 
         If there are no "*" characters at the beginning or end of ``value`` do
-        an "__iexact"" filter.
+        an ``__iexact`` filter.
 
-        :param name: the the name of one of the fields on our model
-        :type name: string
+        Args:
+            name: the the name of one of the fields on our model
+            value: the keyword to look for
 
-        :param value: the keyword to look for
-        :type value: string
-
-        :rtype: a core.ldap.managers.F object
+        Returns:
+            A new chained :py:class:`F` object.
         """
         value = value.strip()
         f = self
@@ -357,8 +351,9 @@ class F:
 
     def filter(self, *args: "F", **kwargs) -> "F":
         """
-        If there are positional arguments, they must all be F() objects.  This
-        allows us to preconstruct an unbound filter and then use it later.
+        If there are positional arguments, they must all be :py:class:`F`
+        objects.  This allows us to preconstruct an unbound filter and then use
+        it later.
 
         Of the Django filter suffixes we support the following:
 
@@ -368,15 +363,17 @@ class F:
             * ``__icontains``
             * ``__in``
 
-        Note that only the case insensitive versions of these filters are supported.
-        LDAP searches are case insensitive, so we make you use ``__i*`` versions to
-        remind you of that.
-
         We do support one additional LDAP specific filter: ``__exists``.  This
         will cause a filter to be added that just ensures that the returned
         objects have the associated attribute.  Unlike in SQL, where every row
         contains all available columns, in LDAP, attributes can be absent
         entirely from the record.
+
+        Note:
+            Only the case insensitive versions of these filters are supported.
+            LDAP searches are case insensitive, so we make you use ``__i*``
+            versions to remind you of that.
+
         """
         steps = self.__validate_positional_args(args)
         for key, value in kwargs.items():
@@ -521,13 +518,14 @@ class F:
     def order_by(self, *args: str) -> "F":
         """
         When we return results, order them by the positional arguments
-        Example::
 
-            Entry.objects.order_by('-pub_date', 'headline').all()
+        Example:
 
-        The result above will be ordered by ``pub_date`` descending, then by
-        ``headline ascending``. The negative sign in front of "-pub_date" indicates
-        descending order.
+            >>> Entry.objects.order_by('-pub_date', 'headline').all()
+
+            The result above will be ordered by ``pub_date`` descending, then by
+            ``headline ascending``. The negative sign in front of "-pub_date"
+            indicates descending order.
         """
         for key in args:
             _key = key[1:] if key.startswith('-') else key
@@ -544,22 +542,27 @@ class F:
         of those dictionaries represents an object, with the keys corresponding
         to the attribute names of model objects.
 
+        This method takes optional positional arguments, ``*attrs``, which
+        specify attribute names should be included in the dictionaries.  If you
+        specify the attributes, each dictionary will contain only the attribute
+        keys/values for the fields you specify. If you don't specify the
+        attribute, each dictionary will contain a key and value for every
+        attribute defined on the model.
+
+        Example:
+
             >>> Entry.objects.values('uid', 'sn')
             [{'uid': 'Barney', 'sn': 'Rubble'}, {'uid': 'Fred', 'sn': 'Flintstone'}, ...]
 
-        The ``values()`` method takes optional positional arguments, ``*attrs``,
-        which specify attribute names should be included in the dictionaries.
-        If you specify the attributes, each dictionary will contain only the
-        attribute keys/values for the fields you specify. If you don’t specify
-        the attribute, each dictionary will contain a key and value for every
-        attribute defined on the model.
+        Note:
+            We're trying to model how the Django ORM works here, so
+            ``.values()`` is not compatible with :py:meth:`only`.  If previously
+            in your filter chain you have an :py:meth:`only`, you'll get  a
+            ``NotImplementedError`` exception.
 
-        .. note::
-
-            I'm trying to model how the Django ORM works here, so ``.values()``
-            is not compatible with ``.only()``.  If previously in your filter
-            chain you have an ``.only()``, you'll get  a ``NotImplementedError``
-            exception.
+        Raises:
+            NotImplementedError: you tried to use :py:meth:`only` with
+                :py:meth:`values`
 
         """
         if self._attributes != self.attributes:
@@ -576,7 +579,7 @@ class F:
 
     def values_list(self, *attrs: str, **kwargs) -> List[Tuple[Any, ...]]:
         """
-        This is similar to values() except that instead of returning
+        This is similar to :py:meth:`values` except that instead of returning
         dictionaries, it returns a list of tuples.  Each tuple contains
         the value from the respective field or expression passed into the
         ``values_list()`` call — so the first item is the first field, etc. For
@@ -594,17 +597,22 @@ class F:
 
         It is an error to pass in flat when there is more than one field.
 
-        You can pass named=True to get results as a ``namedtuple()``.
+        You can pass ``named=True`` to get results as a ``namedtuple()``.
 
             >>> Entry.objects.values_list('uid', named=True)
             [Row(uid='barney'), Row(uid='fred'), ...]
 
-        .. note::
-
-            I'm trying to model how the Django ORM works here, so ``.values()``
-            is not compatible with ``.only()``.  If previously in your filter
-            chain you have an ``.only()``, you'll get  a ``NotImplementedError``
+        Note:
+            We're trying to model how the Django ORM works here, so :py:meth:`values_list`
+            is not compatible with :py:meth:`.only()`.  If previously in your filter
+            chain you have an :py:meth:`.only()`, you'll get  a ``NotImplementedError``
             exception.
+
+        Raises:
+            NotImplementedError: you tried to use :py:meth:`only` with
+                :py:meth:`values_list`
+            ValueError: you tried to use ``flat=True`` while asking for more
+                than one field
         """
         if self._attributes != self.attributes:
             raise NotImplementedError("Don't use .only() with .values_list()")
@@ -718,7 +726,6 @@ class LdapManager:
             # with the entry. The keys of attrs are strings, and the associated
             # values are lists of strings.
             for dn, attrs in rdata:
-
                 # AD returns an rdata at the end that is a reference that we want to ignore
                 if isinstance(attrs, dict):
                     results.append((dn, attrs))
@@ -769,7 +776,7 @@ class LdapManager:
         cls._meta.base_manager = self
         setattr(cls, accessor_name, self)
 
-    def __get_dn_key(self, meta: "Options"):
+    def __get_dn_key(self, meta: "Options") -> str:
         _attribute_lookup = meta.attribute_to_field_name_map
         dn_key = self.pk
         for k, v in _attribute_lookup.items():
