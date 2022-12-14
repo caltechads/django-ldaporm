@@ -1004,7 +1004,7 @@ class LdapManager:
         # Now update the non-PK attributes
         if not old:
             pk_val = cast(str, self.pk)
-            old = self.get(**{pk_val: getattr(obj, pk_val)})
+            old = self.get_by_dn(obj._dn)
         _modlist = Modlist(self).update(obj, cast("Model", old))
         if _modlist:
             # Only issue the modify_s if we actually have changes
