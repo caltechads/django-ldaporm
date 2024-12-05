@@ -28,7 +28,7 @@ from django.core import checks, exceptions, validators as dj_validators
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.fields import BLANK_CHOICE_DASH, NOT_PROVIDED, return_None  # type: ignore
 from django.utils import timezone
-from django.utilsarse import parse_date, parse_datetime
+from django.utils.parse import parse_date, parse_datetime
 from django.utils.functional import cached_property
 from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
