@@ -1982,3 +1982,190 @@ class ADPasswordField(PasswordField):
 
         """
         return f'"{password}"'.encode("utf-16-le")
+
+
+class ActiveDirectoryTimestampField(DateTimeField):
+    """
+    A field for storing Active Directory timestamp values as datetime objects.
+
+    This field handles Active Directory timestamps, which are stored as 18-digit
+    integers representing the number of 100-nanosecond intervals since January 1,
+    1601 UTC (also known as Windows NT time format). It converts between these
+    timestamps and Python datetime objects.
+
+    The Active Directory timestamp is the number of 100-nanosecond intervals
+    (1 nanosecond = one billionth of a second) since Jan 1, 1601 UTC.
+
+    """
+
+    #: Human-readable description of the field type.
+    description: str = _("Active Directory DateTime")  # type: ignore[assignment]
+
+    #: Error messages for Active Directory datetime validation.
+    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+        "invalid": _("'%(value)s' value has an invalid format. It must be an 18-digit integer."),
+        "invalid_timestamp": _("'%(value)s' value is not a valid Active Directory timestamp."),
+        "timestamp_out_of_range": _("'%(value)s' value represents a timestamp outside the supported range."),
+    }
+
+    #: The Active Directory epoch (January 1, 1601 UTC).
+    AD_EPOCH: datetime.datetime = datetime.datetime(1601, 1, 1, tzinfo=pytz.UTC)
+    #: The number of 100-nanosecond intervals per second.
+    INTERVALS_PER_SECOND: int = 10_000_000
+    #: The number of 100-nanosecond intervals per day.
+    INTERVALS_PER_DAY: int = 864_000_000_000
+
+    def to_python(self, value: str | datetime.datetime | datetime.date | None) -> datetime.datetime | None:
+        """
+        Convert the value to a Python datetime.
+
+        Args:
+            value: The value to convert. Can be string, integer, datetime, or None.
+
+        Returns:
+            The converted datetime value or None.
+
+        Raises:
+            ValidationError: If the value cannot be converted to a datetime.
+
+        """
+        if value is None:
+            return value
+        if isinstance(value, datetime.datetime):
+            return value
+
+        # Handle string or integer Active Directory timestamp
+        if isinstance(value, (str, int)):
+            try:
+                # Convert to integer
+                timestamp = int(value)
+
+                # Validate it's an 18-digit number
+                if len(str(timestamp)) != 18:  # noqa: PLR2004
+                    raise exceptions.ValidationError(
+                        self.error_messages["invalid"],
+                        code="invalid",
+                        params={"value": value},
+                    )
+
+                # Convert to datetime
+                return self._ad_timestamp_to_datetime(timestamp)
+            except (ValueError, OverflowError) as e:
+                raise exceptions.ValidationError(
+                    self.error_messages["invalid_timestamp"],
+                    code="invalid_timestamp",
+                    params={"value": value},
+                ) from e
+
+        # For other types, use parent's to_python method
+        return super().to_python(value)
+
+    def from_db_value(self, value: list[bytes]) -> datetime.datetime | None:  # type: ignore[override]
+        """
+        Convert LDAP data to Python datetime.
+
+        Args:
+            value: A list of byte strings from LDAP.
+
+        Returns:
+            The parsed datetime value or None if empty.
+
+        Raises:
+            ValidationError: If the LDAP timestamp format is invalid.
+
+        """
+        db_value = Field.from_db_value(self, value)
+        if not db_value:
+            return None
+
+        try:
+            # Convert the string timestamp to integer
+            timestamp = int(db_value[0])
+            return self._ad_timestamp_to_datetime(timestamp)
+        except (ValueError, OverflowError) as e:
+            raise exceptions.ValidationError(
+                self.error_messages["invalid_timestamp"],
+                code="invalid_timestamp",
+                params={"value": db_value[0]},
+            ) from e
+
+    def to_db_value(self, value: datetime.datetime | datetime.date | None) -> dict[str, list[bytes]]:
+        """
+        Convert Python datetime to Active Directory timestamp format.
+
+        Args:
+            value: The datetime value to convert.
+
+        Returns:
+            A dictionary mapping LDAP attribute name to list of bytes.
+
+        """
+        if value is None:
+            return Field.to_db_value(self, None)
+
+        # Convert datetime to Active Directory timestamp
+        timestamp = self._datetime_to_ad_timestamp(value)
+        return Field.to_db_value(self, str(timestamp))
+
+    def _ad_timestamp_to_datetime(self, timestamp: int) -> datetime.datetime:
+        """
+        Convert Active Directory timestamp to Python datetime.
+
+        Args:
+            timestamp: The Active Directory timestamp (18-digit integer).
+
+        Returns:
+            The corresponding datetime object.
+
+        Raises:
+            ValidationError: If the timestamp is out of range.
+
+        """
+        try:
+            # Convert 100-nanosecond intervals to seconds
+            seconds = timestamp / self.INTERVALS_PER_SECOND
+
+            # Add to AD epoch
+            dt = self.AD_EPOCH + datetime.timedelta(seconds=seconds)
+
+            # Validate the result is reasonable (not too far in past)
+            if dt.year < 1601:  # noqa: PLR2004
+                raise exceptions.ValidationError(
+                    self.error_messages["timestamp_out_of_range"],
+                    code="timestamp_out_of_range",
+                    params={"value": timestamp},
+                )
+
+        except (OverflowError, OSError) as e:
+            raise exceptions.ValidationError(
+                self.error_messages["timestamp_out_of_range"],
+                code="timestamp_out_of_range",
+                params={"value": timestamp},
+            ) from e
+        else:
+            return dt
+
+    def _datetime_to_ad_timestamp(self, dt: datetime.datetime | datetime.date) -> int:
+        """
+        Convert Python datetime to Active Directory timestamp.
+
+        Args:
+            dt: The datetime object to convert.
+
+        Returns:
+            The Active Directory timestamp as an 18-digit integer.
+
+        """
+        # Ensure we have a datetime object
+        if isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
+            dt = datetime.datetime.combine(dt, datetime.time.min)
+
+        # Ensure timezone awareness
+        dt = timezone.make_aware(dt, pytz.UTC) if timezone.is_naive(dt) else dt.astimezone(pytz.UTC)
+
+        # Calculate the difference from AD epoch
+        delta = dt - self.AD_EPOCH
+
+        # Convert to 100-nanosecond intervals
+        total_seconds = delta.total_seconds()
+        return int(total_seconds * self.INTERVALS_PER_SECOND)
