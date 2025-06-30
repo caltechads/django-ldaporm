@@ -9,13 +9,13 @@ version:
 clean:
 	rm -rf dist *.egg-info
 	find . -name "*.pyc" -exec rm '{}' ';'
+	find . -name "__pycache__" | xargs rm -rf
 
 dist: clean
-	@python setup.py sdist
-	@python setup.py bdist_wheel --universal
+	@python -m build
 
-pypi: dist
-	@twine upload dist/*
+release: dist
+	@bin/release.sh
 
 tox:
 	# create a tox pyenv virtualenv based on 2.7.x
