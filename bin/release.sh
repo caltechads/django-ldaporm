@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if test $(git rev-parse --abbrev-ref HEAD) = "main"; then
+if test $(git rev-parse --abbrev-ref HEAD) = "master"; then
     if test -z "$(git status --untracked-files=no --porcelain)"; then
         MSG="$(git log -1 --pretty=%B)"
         echo "$MSG" | grep "Bump version"
@@ -11,8 +11,8 @@ if test $(git rev-parse --abbrev-ref HEAD) = "main"; then
             echo "---------------------------------------------------"
             echo
             echo
-            echo "Pushing main to origin ..."
-            git push --tags origin main
+            echo "Pushing master to origin ..."
+            git push --tags origin master
             echo "Uploading to PyPI ..."
             twine upload dist/*
         else
@@ -28,5 +28,5 @@ if test $(git rev-parse --abbrev-ref HEAD) = "main"; then
         echo "------------------------------------------------------"
     fi
 else
-    echo "You're not on main; aborting."
+    echo "You're not on master; aborting."
 fi
