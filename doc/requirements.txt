@@ -1,0 +1,7 @@
+# Documentation
+# ------------------------------------------------------------------------------
+# Some exceptions were thrown when using Sphinx>7
+Sphinx<7                                      # https://github.com/sphinx-doc/sphinx
+sphinx_rtd_theme
+sphinxcontrib-django2                         # https://github.com/timoludwig/sphinxcontrib-django2
+sphinxcontrib-images
