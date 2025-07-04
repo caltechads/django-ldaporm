@@ -1210,7 +1210,7 @@ class LdapManager:
         """
         del self._ldap_objects[threading.current_thread()]
 
-    def _connect(
+    def _connect(  # noqa: PLR0912, PLR0915
         self, key: str, dn: str | None = None, password: str | None = None
     ) -> ldap.ldapobject.LDAPObject:  # type: ignore[attr-defined]
         """
@@ -1221,6 +1221,15 @@ class LdapManager:
             dn: Optional bind DN.
             password: Optional password.
 
+        Raises:
+            ValueError: If the ``tls_verify`` value in the configuration is invalid.
+            OSError: If the CA Certificate file is provided but does not exist
+                or is not a file.
+            OSError: If the SSL Certificate file is provided but does not exist
+                or is not a file.
+            OSError: If the SSL Key file is provided but does not exist or is
+                not a file.
+
         Returns:
             A connected LDAPObject.
 
@@ -1230,11 +1239,53 @@ class LdapManager:
             dn = config["user"]
             password = config["password"]
         ldap_object: ldap.ldapobject.LDAPObject = ldap.initialize(config["url"])  # type: ignore[attr-defined]
-        ldap_object.set_option(ldap.OPT_REFERRALS, 0)  # type: ignore[attr-defined]
-        ldap_object.set_option(ldap.OPT_NETWORK_TIMEOUT, 15.0)  # type: ignore[attr-defined]
-        ldap_object.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)  # type: ignore[attr-defined]
+        if config.get("follow_referrals", False):
+            ldap_object.set_option(ldap.OPT_REFERRALS, 1)  # type: ignore[attr-defined]
+        else:
+            ldap_object.set_option(ldap.OPT_REFERRALS, 0)  # type: ignore[attr-defined]
+        timeout = config.get("timeout", 15.0)
+        ldap_object.set_option(ldap.OPT_NETWORK_TIMEOUT, float(timeout))  # type: ignore[attr-defined]
+        sizelimit = config.get("sizelimit", None)
+        if sizelimit:
+            ldap_object.set_option(ldap.OPT_SIZELIMIT, int(sizelimit))  # type: ignore[attr-defined]
+        tls_verify = config.get("tls_verify", "never")
+        if tls_verify == "never":
+            ldap_object.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)  # type: ignore[attr-defined]
+        elif tls_verify == "always":
+            ldap_object.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)  # type: ignore[attr-defined]
+        else:
+            msg = f"Invalid tls_verify value: {tls_verify}"
+            raise ValueError(msg)
+        if tls_ca_certfile := config.get("tls_ca_certfile", None):
+            ca_certfile = Path(tls_ca_certfile)
+            if not ca_certfile.exists():
+                msg = "CA Certificate file does not exist: {tls_ca_certfile}"
+                raise OSError(msg)
+            if not ca_certfile.is_file():
+                msg = "CA Certificate file is not a file: {tls_ca_certfile}"
+                raise OSError(msg)
+            ldap_object.set_option(ldap.OPT_X_TLS_CACERTFILE, tls_ca_certfile)  # type: ignore[attr-defined]
+        if tls_certfile := config.get("tls_certfile", None):
+            certfile = Path(tls_certfile)
+            if not certfile.exists():
+                msg = "TLS Certificate file does not exist: {tls_certfile}"
+                raise OSError(msg)
+            if not certfile.is_file():
+                msg = "TLS Certificate file is not a file: {tls_certfile}"
+                raise OSError(msg)
+            ldap_object.set_option(ldap.OPT_X_TLS_CERTFILE, tls_certfile)  # type: ignore[attr-defined]
+        if tls_keyfile := config.get("tls_keyfile", None):
+            keyfile = Path(tls_keyfile)
+            if not keyfile.exists():
+                msg = "TLS Key file does not exist: {tls_keyfile}"
+                raise OSError(msg)
+            if not keyfile.is_file():
+                msg = "TLS Key file is not a file: {tls_keyfile}"
+                raise OSError(msg)
+            ldap_object.set_option(ldap.OPT_X_TLS_KEYFILE, tls_keyfile)  # type: ignore[attr-defined]
         ldap_object.set_option(ldap.OPT_X_TLS_NEWCTX, 0)  # type: ignore[attr-defined]
-        ldap_object.start_tls_s()
+        if config.get("use_starttls", True):
+            ldap_object.start_tls_s()
         ldap_object.simple_bind_s(dn, password)
         return ldap_object
 
