@@ -1,8 +1,13 @@
-from typing import Dict, List, Tuple, Union
+"""
+LDAP ORM type definitions.
 
-DeleteModListEntry = Tuple[int, str, None]
-ModifyModListEntry = Tuple[int, str, str]
-AddModlistEntry = Tuple[str, str]
-ModifyDeleteModList = List[Union[DeleteModListEntry, ModifyModListEntry, AddModlistEntry]]
-AddModlist = List[Tuple[str, str]]
-LDAPData = Tuple[str, Dict[str, List[bytes]]]
+This module provides type aliases for LDAP data structures and operations,
+using Python 3.10+ type hinting conventions.
+"""
+
+DeleteModListEntry = tuple[int, str, None]
+ModifyModListEntry = tuple[int, str, str]
+AddModlistEntry = tuple[str, str]
+ModifyDeleteModList = list[DeleteModListEntry | ModifyModListEntry | AddModlistEntry]
+AddModlist = list[tuple[str, str]]
+LDAPData = tuple[str, dict[str, list[bytes]]]

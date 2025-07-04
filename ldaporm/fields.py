@@ -26,7 +26,11 @@ from django.conf import settings
 from django.core import checks, exceptions
 from django.core import validators as dj_validators
 from django.db.models.constants import LOOKUP_SEP
-from django.db.models.fields import BLANK_CHOICE_DASH, NOT_PROVIDED, return_None  # type: ignore[import-untyped]
+from django.db.models.fields import (
+    BLANK_CHOICE_DASH,
+    NOT_PROVIDED,
+    return_None,  # type: ignore[attr-defined]
+)
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.functional import cached_property
@@ -55,18 +59,18 @@ class Field:
 
     Args:
         verbose_name: The human-readable name of the field.
-        name: The name of the field in the LDAP schema.
+        name: The name of the field
         primary_key: If True, this field is the primary key for the model.
         max_length: The maximum length of the field.
-        blank: If True, the field is allowed to be blank.
-        null: If True, the field is allowed to be null.
+        blank: If True, the field is allowed to be blank in forms.
+        null: If True, the field is allowed to be empty in the LDAP server.
         default: The default value for the field.
         editable: If False, the field will not be editable in the admin.
         choices: A list of choices for the field.
         help_text: Help text for the field.
         validators: A list of validators for the field.
         error_messages: A dictionary of error messages for the field.
-        db_column: The column name in the LDAP schema.
+        db_column: The attribute name in the LDAP schema.
 
 
     """
@@ -79,7 +83,9 @@ class Field:
     creation_counter: int = 0
 
     #: Default set of validators for the field.
-    default_validators: list[Validator] = []  # Default set of validators  # noqa: RUF012
+    default_validators: list[
+        Validator
+    ] = []  # Default set of validators  # noqa: RUF012
     #: Default error messages for the field.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
         "invalid_choice": _("Value %(value)r is not a valid choice."),
@@ -111,7 +117,9 @@ class Field:
             A string description of the field type.
 
         """
-        return _("Field of type: %(field_type)s") % {"field_type": self.__class__.__name__}
+        return _("Field of type: %(field_type)s") % {
+            "field_type": self.__class__.__name__
+        }
 
     #: Property that returns a description of the field type.
     description = property(_description)
@@ -331,7 +339,10 @@ class Field:
                 # Containing non-pairs
                 break
             try:
-                if not all(is_value(value) and is_value(human_name) for value, human_name in group_choices):
+                if not all(
+                    is_value(value) and is_value(human_name)
+                    for value, human_name in group_choices
+                ):
                     break
             except (TypeError, ValueError):
                 # No groups, choices in the form [value, display]
@@ -347,7 +358,8 @@ class Field:
 
         return [
             checks.Error(
-                "'choices' must be an iterable containing (actual value, human readable name) tuples.",
+                "'choices' must be an iterable containing (actual value, human "
+                "readable name) tuples.",
                 obj=self,
                 id="fields.E005",
             )
@@ -365,7 +377,10 @@ class Field:
             return [
                 checks.Error(
                     "Primary keys must not have null=True.",
-                    hint=("Set null=False on the field, or remove primary_key=True argument."),
+                    hint=(
+                        "Set null=False on the field, or remove primary_key=True "
+                        "argument."
+                    ),
                     obj=self,
                     id="fields.E007",
                 )
@@ -386,7 +401,10 @@ class Field:
                 errors.append(
                     checks.Error(
                         "All 'validators' must be callable.",
-                        hint=(f"validators[{i}] ({validator!r}) isn't a function or instance of a validator class."),
+                        hint=(
+                            f"validators[{i}] ({validator!r}) isn't a function or "
+                            "instance of a validator class."
+                        ),
                         obj=self,
                         id="fields.E008",
                     )
@@ -585,7 +603,9 @@ class Field:
         if self.choices:
             choices = list(self.choices)
             if include_blank:
-                blank_defined = any(choice in ("", None) for choice, _ in self.flatchoices)
+                blank_defined = any(
+                    choice in ("", None) for choice, _ in self.flatchoices
+                )
                 if not blank_defined:
                     choices = blank_choice + choices  # type: ignore[operator]
             return choices
@@ -651,12 +671,18 @@ class Field:
                 defaults["initial"] = self.get_default()
         if self.choices:
             # Fields with choices get special treatment.
-            include_blank = self.blank or not (self.has_default() or "initial" in kwargs)
+            include_blank = self.blank or not (
+                self.has_default() or "initial" in kwargs
+            )
             defaults["choices"] = self.get_choices(include_blank=include_blank)
             defaults["coerce"] = self.to_python
             if self.null:
                 defaults["empty_value"] = None
-            form_class = choices_form_class if choices_form_class is not None else forms.TypedChoiceField
+            form_class = (
+                choices_form_class
+                if choices_form_class is not None
+                else forms.TypedChoiceField
+            )
             # Many of the subclass-specific formfield arguments (min_value,
             # max_value) don't apply for choice fields, so be sure to only pass
             # the values that TypedChoiceField will understand.
@@ -886,7 +912,8 @@ class BooleanField(Field):
         if db_value == [self.LDAP_FALSE]:
             return False
         msg = (
-            f'Field "{self.name}" (BooleanField) on model {self.model._meta.object_name}'  # type: ignore[union-attr]
+            f'Field "{self.name}" (BooleanField) on model '
+            f"{self.model._meta.object_name}"  # type: ignore[union-attr]
             f" got got unexpected data from LDAP: {db_value}"
         )
         raise ValueError(msg)
@@ -1057,8 +1084,12 @@ class DateField(Field):
     empty_strings_allowed: bool = False
     #: Error messages for date validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
-        "invalid": _("'%(value)s' value has an invalid date format. It must be in YYYY-MM-DD format."),
-        "invalid_date": _("'%(value)s' value has the correct format (YYYY-MM-DD) but it is an invalid date."),
+        "invalid": _(
+            "'%(value)s' value has an invalid date format. It must be in YYYY-MM-DD format."
+        ),
+        "invalid_date": _(
+            "'%(value)s' value has the correct format (YYYY-MM-DD) but it is an invalid date."
+        ),
     }
     #: Human-readable description of the field type.
     description: str = _("Date (without time)")  # type: ignore[assignment]
@@ -1140,7 +1171,9 @@ class DateField(Field):
 
         return []
 
-    def to_python(self, value: str | datetime.date | datetime.datetime | None) -> datetime.date | None:
+    def to_python(
+        self, value: str | datetime.date | datetime.datetime | None
+    ) -> datetime.date | None:
         """
         Convert the value to a Python date.
 
@@ -1216,12 +1249,16 @@ class DateField(Field):
             setattr(
                 cls,
                 f"get_next_by_{self.name}",
-                partialmethod(cls._get_next_or_previous_by_FIELD, field=self, is_next=True),
+                partialmethod(
+                    cls._get_next_or_previous_by_FIELD, field=self, is_next=True
+                ),
             )
             setattr(
                 cls,
                 f"get_previous_by_{self.name}",
-                partialmethod(cls._get_next_or_previous_by_FIELD, field=self, is_next=False),
+                partialmethod(
+                    cls._get_next_or_previous_by_FIELD, field=self, is_next=False
+                ),
             )
 
     def from_db_value(self, value: list[bytes]) -> datetime.date | None:  # type: ignore[override]
@@ -1242,7 +1279,9 @@ class DateField(Field):
         ts = datetime.datetime.strptime(dt, self.LDAP_DATETIME_FORMAT)
         return datetime.date(year=ts.year, month=ts.month, day=ts.day)
 
-    def to_db_value(self, value: datetime.date | datetime.datetime | None) -> dict[str, list[bytes]]:
+    def to_db_value(
+        self, value: datetime.date | datetime.datetime | None
+    ) -> dict[str, list[bytes]]:
         """
         Convert Python date to LDAP format.
 
@@ -1319,15 +1358,21 @@ class DateTimeField(DateField):
     #: Error messages for datetime validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
         "invalid": _(
-            "'%(value)s' value has an invalid format. It must be in YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format."
+            "'%(value)s' value has an invalid format. It must be in "
+            "YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format."
         ),
-        "invalid_date": _("'%(value)s' value has the correct format (YYYY-MM-DD) but it is an invalid date."),
+        "invalid_date": _(
+            "'%(value)s' value has the correct format (YYYY-MM-DD) but it is an "
+            "invalid date."
+        ),
         "invalid_datetime": _(
             "'%(value)s' value has the correct format "
             "(YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ]) "
             "but it is an invalid date/time."
         ),
-        "invalid_ldap_datetime": _("LDAP datetime '%(value)s' value is not in a supported format"),
+        "invalid_ldap_datetime": _(
+            "LDAP datetime '%(value)s' value is not in a supported format"
+        ),
     }
     #: Human-readable description of the field type.
     description: str = _("Date (with time)")  # type: ignore[assignment]
@@ -1382,7 +1427,9 @@ class DateTimeField(DateField):
 
         return []
 
-    def to_python(self, value: str | datetime.datetime | datetime.date | None) -> datetime.datetime | None:
+    def to_python(
+        self, value: str | datetime.datetime | datetime.date | None
+    ) -> datetime.datetime | None:
         """
         Convert the value to a Python datetime.
 
@@ -1408,7 +1455,7 @@ class DateTimeField(DateField):
                 # do much about it, so we let the exceptions percolate up the
                 # call stack.
                 warnings.warn(
-                    "DateTimeField {}.{} received a naive datetime ({}) while time zone support is active.".format(
+                    "DateTimeField {}.{} received a naive datetime ({}) while time zone support is active.".format(  # noqa: E501
                         cast("type[Model]", self.model).__name__, self.name, value
                     ),
                     RuntimeWarning,
@@ -1432,7 +1479,9 @@ class DateTimeField(DateField):
         try:
             parsed_date = parse_date(value)
             if parsed_date is not None:
-                return datetime.datetime(parsed_date.year, parsed_date.month, parsed_date.day)
+                return datetime.datetime(
+                    parsed_date.year, parsed_date.month, parsed_date.day
+                )
         except ValueError as e:
             raise exceptions.ValidationError(
                 self.error_messages["invalid_date"],
@@ -1480,7 +1529,9 @@ class DateTimeField(DateField):
             )
         return pytz.utc.localize(dt)
 
-    def to_db_value(self, value: datetime.datetime | datetime.date | None) -> dict[str, list[bytes]]:
+    def to_db_value(
+        self, value: datetime.datetime | datetime.date | None
+    ) -> dict[str, list[bytes]]:
         """
         Convert Python datetime to LDAP format.
 
@@ -1494,7 +1545,11 @@ class DateTimeField(DateField):
         dt_str = None
         if value:
             utc = pytz.utc
-            dt_str = cast("datetime.datetime", value).astimezone(utc).strftime(self.LDAP_DATETIME_FORMAT)
+            dt_str = (
+                cast("datetime.datetime", value)
+                .astimezone(utc)
+                .strftime(self.LDAP_DATETIME_FORMAT)
+            )
         return Field.to_db_value(self, dt_str)
 
     def pre_save(self, model_instance: "Model", add: bool) -> Any:
@@ -2003,9 +2058,15 @@ class ActiveDirectoryTimestampField(DateTimeField):
 
     #: Error messages for Active Directory datetime validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
-        "invalid": _("'%(value)s' value has an invalid format. It must be an 18-digit integer."),
-        "invalid_timestamp": _("'%(value)s' value is not a valid Active Directory timestamp."),
-        "timestamp_out_of_range": _("'%(value)s' value represents a timestamp outside the supported range."),
+        "invalid": _(
+            "'%(value)s' value has an invalid format. It must be an 18-digit integer."
+        ),
+        "invalid_timestamp": _(
+            "'%(value)s' value is not a valid Active Directory timestamp."
+        ),
+        "timestamp_out_of_range": _(
+            "'%(value)s' value represents a timestamp outside the supported range."
+        ),
     }
 
     #: The Active Directory epoch (January 1, 1601 UTC).
@@ -2015,7 +2076,9 @@ class ActiveDirectoryTimestampField(DateTimeField):
     #: The number of 100-nanosecond intervals per day.
     INTERVALS_PER_DAY: int = 864_000_000_000
 
-    def to_python(self, value: str | datetime.datetime | datetime.date | None) -> datetime.datetime | None:
+    def to_python(
+        self, value: str | datetime.datetime | datetime.date | None
+    ) -> datetime.datetime | None:
         """
         Convert the value to a Python datetime.
 
@@ -2089,7 +2152,9 @@ class ActiveDirectoryTimestampField(DateTimeField):
                 params={"value": db_value[0]},
             ) from e
 
-    def to_db_value(self, value: datetime.datetime | datetime.date | None) -> dict[str, list[bytes]]:
+    def to_db_value(
+        self, value: datetime.datetime | datetime.date | None
+    ) -> dict[str, list[bytes]]:
         """
         Convert Python datetime to Active Directory timestamp format.
 
@@ -2161,7 +2226,11 @@ class ActiveDirectoryTimestampField(DateTimeField):
             dt = datetime.datetime.combine(dt, datetime.time.min)
 
         # Ensure timezone awareness
-        dt = timezone.make_aware(dt, pytz.UTC) if timezone.is_naive(dt) else dt.astimezone(pytz.UTC)
+        dt = (
+            timezone.make_aware(dt, pytz.UTC)
+            if timezone.is_naive(dt)
+            else dt.astimezone(pytz.UTC)
+        )
 
         # Calculate the difference from AD epoch
         delta = dt - self.AD_EPOCH

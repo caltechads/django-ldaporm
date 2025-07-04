@@ -16,7 +16,9 @@ from django.forms.widgets import Textarea, Widget
 
 class CharListWidget(Textarea):
     """
-    A textarea widget for handling lists of character strings.
+    A :py:class:`~django.forms.widgets.Textarea` subclass for handling lists of
+    character strings. This is used as the default widget for the
+    :py:class:`~ldaporm.forms.CharListField` field.
 
     This widget converts between a list of strings and a newline-separated
     text format for display in forms. It handles empty values appropriately
@@ -56,11 +58,14 @@ class CharListWidget(Textarea):
 
 class CharListField(forms.CharField):
     """
-    A form field for handling lists of character strings.
+    A form field for handling lists of character strings.  This is the default
+    field for the :py:class:`~ldaporm.forms.CharListWidget` widget on
+    :py:class:`django.forms.ModelForm`.
 
-    This field extends CharField to handle lists of strings, converting between
-    newline-separated text input and Python lists. It validates each line
-    independently and provides appropriate error handling.
+    This field extends :py:class:`~django.forms.CharField` to handle lists of
+    strings, converting between newline-separated text input and Python lists.
+    It validates each line independently and provides appropriate error
+    handling.
 
     """
 
