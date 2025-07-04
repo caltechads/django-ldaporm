@@ -783,18 +783,14 @@ class F:
         return objects
 
     @needs_pk
-    def get(self) -> "Model":
+    def get(self, *args, **kwargs) -> "Model":
         """
-        Return the single result of the query, or raise if not exactly one found.
-
-        Returns:
-            The model instance matching the query.
-
-        Raises:
-            DoesNotExist: If no objects match the query.
-            MultipleObjectsReturned: If more than one object matches the query.
-
+        Return the single result of the query, or raise DoesNotExist/MultipleObjectsReturned.
+        Accepts kwargs for filtering.
         """
+        if kwargs:
+            return self.filter(**kwargs).get(*args)
+        # No kwargs: use the original logic
         self._require_manager()
         manager = cast("LdapManager", self.manager)
         model = cast("type[Model]", self.model)
@@ -807,6 +803,35 @@ class F:
             msg = f"More than one {model.__name__} object matched query."
             raise model.MultipleObjectsReturned(msg)
         return cast("Model", model.from_db(attributes, objects))
+
+    def get_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return the single result of the query, or None if not exactly one found.
+        Accepts kwargs for filtering.
+        """
+        try:
+            return self.get(*args, **kwargs)
+        except (
+            cast("type[Model]", self.model).DoesNotExist,
+            cast("type[Model]", self.model).MultipleObjectsReturned,
+        ):
+            return None
+
+    def first_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return the first result of the query, or None if no match.
+        Accepts kwargs for filtering.
+        """
+        if kwargs:
+            return self.filter(**kwargs).first_or_none(*args)
+        try:
+            return self.first(*args)
+        except (cast("type[Model]", self.model).DoesNotExist, IndexError):
+            return None
+
+    def _get_single_result(self, *args):
+        # Call the logic directly (no super())
+        return self.get(*args)
 
     @needs_pk
     def update(self, **kwargs) -> None:
@@ -892,43 +917,6 @@ class F:
 
         """
         return self.all()
-
-    def get_or_none(self, *args, **kwargs) -> "Model | None":
-        """
-        Return a single object matching the given filters, or None if not found.
-
-        Args:
-            *args: Positional filter arguments.
-            **kwargs: Keyword filter arguments.
-
-        Returns:
-            The model instance matching the filters, or None if no match.
-
-        """
-        try:
-            return self.get(*args, **kwargs)
-        except (
-            cast("type[Model]", self.model).DoesNotExist,
-            cast("type[Model]", self.model).MultipleObjectsReturned,
-        ):
-            return None
-
-    def first_or_none(self, *args, **kwargs) -> "Model | None":
-        """
-        Return the first object matching the given filters, or None if not found.
-
-        Args:
-            *args: Positional filter arguments.
-            **kwargs: Keyword filter arguments.
-
-        Returns:
-            The first model instance matching the filters, or None if no match.
-
-        """
-        try:
-            return self.filter(*args, **kwargs).first()
-        except cast("type[Model]", self.model).DoesNotExist:
-            return None
 
     def delete(self) -> None:
         """
@@ -1171,8 +1159,67 @@ class F:
             The object at the given index or slice of objects.
 
         """
-        objects = self.all()
-        return objects[key]
+        if isinstance(key, slice):
+            # Handle slicing
+            if (
+                key.start is None
+                and key.step is None
+                and key.stop is not None
+                and (isinstance(key.stop, int) and key.stop >= 0)
+            ):
+                # Efficient case: f[:stop] with non-negative stop
+                print(
+                    f"DEBUG: Using efficient slicing with limit {key.stop}"
+                )  # Debug output
+                return self._fetch_with_sizelimit(key.stop)
+            else:
+                # Inefficient case: fetch all, then slice in Python
+                print(
+                    f"DEBUG: Using inefficient slicing: start={key.start}, stop={key.stop}, step={key.step}"
+                )  # Debug output
+                objects = self.all()
+                return objects[key]
+        else:
+            # Single index: fetch all, then index
+            print(f"DEBUG: Using single index: {key}")  # Debug output
+            objects = self.all()
+            return objects[key]
+
+    def _fetch_with_sizelimit(self, limit: int) -> list["Model"]:
+        """
+        Fetch results with a size limit for efficient slicing.
+
+        Args:
+            limit: Maximum number of results to fetch.
+
+        Returns:
+            List of model instances up to the limit.
+
+        """
+        self._require_manager()
+        sort_control = self._create_sort_control()
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", self._attributes),
+            cast("LdapManager", self.manager).search(
+                str(self),
+                cast("list[str]", self._attributes),
+                sizelimit=0,  # Fetch all, apply limit after sorting if needed
+                sort_control=sort_control,
+            ),
+            many=True,
+        )
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        # Apply the limit after sorting
+        if limit is not None and limit >= 0:
+            objects = cast("list[Model]", objects)[:limit]
+
+        return cast("list[Model]", objects)
 
 
 class FIterator:
@@ -1870,17 +1917,53 @@ class LdapManager:
     @substitute_pk
     def get(self, *args, **kwargs) -> "Model":
         """
-        Return a single object matching the given filters.
-
-        Args:
-            *args: Positional filter arguments.
-            **kwargs: Keyword filter arguments.
-
-        Returns:
-            The model instance matching the filters.
-
+        Return the single result of the query, or raise DoesNotExist/MultipleObjectsReturned.
+        Accepts kwargs for filtering.
         """
-        return self.__filter().filter(*args, **kwargs).get()
+        if kwargs:
+            return self.filter(**kwargs).get(*args)
+        # No kwargs: use the original logic
+        self._require_manager()
+        manager = cast("LdapManager", self.manager)
+        model = cast("type[Model]", self.model)
+        attributes = cast("list[str]", self._attributes)
+        objects = manager.search(str(self), attributes)
+        if len(objects) == 0:
+            msg = f"A {model.__name__} object matching query does not exist."
+            raise model.DoesNotExist(msg)
+        if len(objects) > 1:
+            msg = f"More than one {model.__name__} object matched query."
+            raise model.MultipleObjectsReturned(msg)
+        return cast("Model", model.from_db(attributes, objects))
+
+    def get_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return the single result of the query, or None if not exactly one found.
+        Accepts kwargs for filtering.
+        """
+        try:
+            return self.get(*args, **kwargs)
+        except (
+            cast("type[Model]", self.model).DoesNotExist,
+            cast("type[Model]", self.model).MultipleObjectsReturned,
+        ):
+            return None
+
+    def first_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return the first result of the query, or None if no match.
+        Accepts kwargs for filtering.
+        """
+        if kwargs:
+            return self.filter(**kwargs).first_or_none(*args)
+        try:
+            return self.first(*args)
+        except (cast("type[Model]", self.model).DoesNotExist, IndexError):
+            return None
+
+    def _get_single_result(self, *args):
+        # Call the logic directly (no super())
+        return self.get(*args)
 
     def all(self) -> list["Model"]:
         """
@@ -2118,3 +2201,27 @@ class LdapManager:
             if temp_connection:
                 with suppress(ldap.LDAPError):  # type: ignore[attr-defined]
                     temp_connection.unbind_s()
+
+    def count(self) -> int:
+        """
+        Return the number of objects for this model from LDAP.
+        """
+        return self.__filter().count()
+
+    def as_list(self) -> list["Model"]:
+        """
+        Return a list of all objects for this model from LDAP.
+        """
+        return self.__filter().as_list()
+
+    def get_or_none(self, *args, **kwargs):
+        """
+        Return the single result of the query, or None if not exactly one found.
+        """
+        return self.__filter().get_or_none(*args, **kwargs)
+
+    def first_or_none(self, *args, **kwargs):
+        """
+        Return the first result of the query, or None if no match.
+        """
+        return self.__filter().first_or_none(*args, **kwargs)

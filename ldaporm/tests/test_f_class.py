@@ -893,6 +893,95 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         iter_uids = [user.uid for user in iter_users]
         assert all_uids == iter_uids
 
+    def test_efficient_slicing(self):
+        """Test that f[:limit] uses sizelimit for efficiency."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test efficient slicing with stop only
+        first_three = f[:3]
+        assert len(first_three) == 3
+        assert first_three[0].uid == "alice"
+        assert first_three[1].uid == "bob"
+        assert first_three[2].uid == "charlie"
+
+        # Test with different limit
+        first_two = f[:2]
+        assert len(first_two) == 2
+        assert first_two[0].uid == "alice"
+        assert first_two[1].uid == "bob"
+
+        # Test with limit larger than available results
+        all_users = f[:10]
+        assert len(all_users) == 5  # Should return all available users
+
+    def test_inefficient_slicing(self):
+        """Test that other slice types fall back to fetching all records."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test slice with start (inefficient)
+        skip_first = f[1:3]
+        assert len(skip_first) == 2
+        assert skip_first[0].uid == "bob"
+        assert skip_first[1].uid == "charlie"
+
+        # Test slice with step (inefficient)
+        every_other = f[::2]
+        assert len(every_other) == 3
+        assert every_other[0].uid == "alice"
+        assert every_other[1].uid == "charlie"
+        assert every_other[2].uid == "edward"
+
+        # Test slice with start and stop (inefficient)
+        middle_three = f[1:4]
+        assert len(middle_three) == 3
+        assert middle_three[0].uid == "bob"
+        assert middle_three[1].uid == "charlie"
+        assert middle_three[2].uid == "diana"
+
+    def test_slicing_with_filters(self):
+        """Test that slicing works correctly with filters."""
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash").order_by("uid")
+
+        # Test efficient slicing with filter
+        first_two_bash = f[:2]
+        assert len(first_two_bash) == 2
+        assert first_two_bash[0].uid == "alice"
+        assert first_two_bash[1].uid == "bob"
+
+        # Test inefficient slicing with filter
+        skip_first_bash = f[1:]
+        assert len(skip_first_bash) == 2  # bob and diana
+        assert skip_first_bash[0].uid == "bob"
+        assert skip_first_bash[1].uid == "diana"
+
+    def test_slicing_edge_cases(self):
+        """Test edge cases for slicing."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test with zero limit
+        empty_result = f[:0]
+        assert len(empty_result) == 0
+
+        # Test with negative limit (should return empty)
+        negative_result = f[:-1]
+        assert len(negative_result) == 4  # All except last
+
+        # Test with very large limit
+        large_limit = f[:1000]
+        assert len(large_limit) == 5  # Should return all available
+
+        # Test single index (should fetch all, then index)
+        first_user = f[0]
+        assert first_user.uid == "alice"
+
+        # Test negative index (should fetch all, then index)
+        last_user = f[-1]
+        assert last_user.uid == "edward"
+
 
 if __name__ == "__main__":
     unittest.main()
