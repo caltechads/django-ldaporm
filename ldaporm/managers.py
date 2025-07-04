@@ -577,69 +577,123 @@ class F:
             f = self.filter(**d)
         return f
 
-    def filter(self, *args: "F", **kwargs) -> "F":  # noqa: PLR0912
-        """
-        Apply filters to the query using Django-like filter suffixes.
+    def filter(self, *args, **kwargs) -> "F":  # noqa: PLR0912, PLR0915
+        self._require_manager()
+        manager = cast("LdapManager", self.manager)
 
-        Args:
-            *args: Positional F objects to chain.
-            **kwargs: Field lookups and values.
+        # Handle positional arguments (F objects)
+        bound_args = []
+        for arg in args:
+            if isinstance(arg, F) and arg.manager is None:
+                arg.bind_manager(manager)
+            bound_args.append(arg)
 
-        Returns:
-            A new F object with the filters applied.
+        # Create a new F instance with the current chain
+        new_f = F(manager, self)
 
-        Raises:
-            ValueError: If an __in filter is not given a list.
-            UnknownSuffix: If an unknown filter suffix is used.
+        # Add positional F objects to the chain
+        for arg in bound_args:
+            if isinstance(arg, F):
+                new_f.chain.extend(arg.chain)
 
-        """
-        steps = self.__validate_positional_args(args)
+        # Process keyword arguments to create filters
         for key, value in kwargs.items():
-            _value = value
-            if isinstance(_value, str):
-                _value = _value.strip()
-            if key.endswith("__istartswith"):
-                steps.append(
-                    Filter.attribute(self.get_attribute(key[:-13])).starts_with(_value)  # type: ignore[arg-type]
-                )  # type: ignore[arg-type]
-            elif key.endswith("__iendswith"):
-                steps.append(
-                    Filter.attribute(self.get_attribute(key[:-11])).ends_with(_value)  # type: ignore[arg-type]
-                )  # type: ignore[arg-type]
-            elif key.endswith("__icontains"):
-                steps.append(
-                    Filter.attribute(self.get_attribute(key[:-11])).contains(_value)  # type: ignore[arg-type]
-                )  # type: ignore[arg-type]
-            elif key.endswith("__in"):
+            if "__" in key:
+                field_name, suffix = key.split("__", 1)
+            else:
+                field_name = key
+                suffix = "iexact"
+
+            # Validate field exists
+            if field_name not in cast("dict[str, str]", self.attributes_map):
+                msg = (
+                    f'"{field_name}" is not a valid field on model '
+                    f"{cast('type[Model]', self.model).__name__}"
+                )
+                raise cast("type[Model]", self.model).InvalidField(msg)
+
+            # Get the LDAP attribute name
+            attr_name = self.get_attribute(field_name)
+
+            # Handle different filter suffixes
+            if suffix == "iexact":
+                if value is None:
+                    # Filter for attributes that don't exist
+                    filter_obj = Filter.NOT(Filter.attribute(attr_name).present())
+                else:
+                    filter_obj = Filter.attribute(attr_name).equal_to(value)
+            elif suffix == "icontains":
+                filter_obj = Filter.attribute(attr_name).contains(value)
+            elif suffix == "istartswith":
+                filter_obj = Filter.attribute(attr_name).starts_with(value)
+            elif suffix == "iendswith":
+                filter_obj = Filter.attribute(attr_name).ends_with(value)
+            elif suffix == "exists":
+                if value:
+                    filter_obj = Filter.attribute(attr_name).present()
+                else:
+                    filter_obj = Filter.NOT(Filter.attribute(attr_name).present())
+            elif suffix == "in":
                 if not isinstance(value, list):
                     msg = 'When using the "__in" filter you must supply a list'
                     raise ValueError(msg)
-                in_steps = [
-                    Filter.attribute(self.get_attribute(key[:-4])).equal_to(_v)
-                    for _v in _value
-                ]
-                steps.append(Filter.OR(in_steps))  # type: ignore[arg-type]
-            elif key.endswith("__exists"):
-                # This one doesn't exist as a Django field lookup
-                steps.append(Filter.attribute(self.get_attribute(key[:-8])).present())  # type: ignore[arg-type]
-            elif key.endswith("__iexact") or "__" not in key:
-                # no suffix means do an __exact
-                _key = key
-                if "__" in key:
-                    _key = key[:-8]
-                if _value is None:
-                    # If value is None, we search for the absence of that
-                    # attribute
-                    steps.append(Filter.NOT(Filter.attribute(self.get_attribute(_key))))  # type: ignore[arg-type]
-                else:
-                    steps.append(
-                        Filter.attribute(self.get_attribute(_key)).equal_to(_value)  # type: ignore[arg-type]
-                    )  # type: ignore[arg-type]
+                # OR together equal_to filters for each value
+                filter_obj = Filter.OR(
+                    [Filter.attribute(attr_name).equal_to(v) for v in value]
+                )
+            elif suffix in ["gt", "gte", "lt", "lte"]:
+                # Integer comparisons
+                self._validate_integer_field(field_name)
+                attr_obj = Filter.attribute(attr_name)
+                if suffix == "gt":
+                    # For gt, use gte with value+1
+                    if isinstance(value, int):
+                        filter_obj = attr_obj.gte(value + 1)
+                    else:
+                        msg = f'Filter suffix "{suffix}" requires an integer value'
+                        raise ValueError(msg)
+                elif suffix == "gte":
+                    filter_obj = attr_obj.gte(value)
+                elif suffix == "lt":
+                    # For lt, use lte with value-1
+                    if isinstance(value, int):
+                        filter_obj = attr_obj.lte(value - 1)
+                    else:
+                        msg = f'Filter suffix "{suffix}" requires an integer value'
+                        raise ValueError(msg)
+                elif suffix == "lte":
+                    filter_obj = attr_obj.lte(value)
             else:
-                msg = f'The search filter "{key}" uses an unknown filter suffix'
-                raise F.UnknownSuffix(msg)
-        self.chain.append(Filter.AND(steps))  # type: ignore[arg-type]
-        return self
+                msg = f'Unknown filter suffix: "{suffix}"'
+                raise self.UnknownSuffix(msg)
+
+            # Add the filter to the chain
+            new_f.chain.append(filter_obj)
+
+        return new_f
+
+    def _validate_integer_field(self, field_name: str) -> None:
+        """
+        Validate that a field is an IntegerField or subclass.
+
+        Args:
+            field_name: The name of the field to validate.
+
+        Raises:
+            TypeError: If the field is not an IntegerField or subclass.
+
+        """
+        from .fields import IntegerField
+
+        fields_map = cast("dict[str, Any]", self.fields_map)
+        field = fields_map.get(field_name)
+        if not field or not isinstance(field, IntegerField):
+            msg = (
+                f"Integer comparison methods (__gt, __gte, __lt, __lte) can only be "
+                f'used on IntegerField or its subclasses. Field "{field_name}" is not '
+                "an integer field."
+            )
+            raise TypeError(msg)
 
     def only(self, *names) -> "F":
         """
