@@ -416,20 +416,71 @@ class F:
     class UnboundFilter(Exception):
         """Raised when a filter is not bound to a manager."""
 
-    def __init__(self, manager: "LdapManager", f: Optional["F"] = None) -> None:
-        self.manager = manager
-        self.model = cast("type[Model]", manager.model)
-        self._meta = cast("Options", self.model._meta)
-        self.fields_map = self._meta.fields_map
-        self.attributes_map = self._meta.attributes_map
-        self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
-        self.attributes = self._meta.attributes
-        self._attributes = self.attributes
-        self._order_by = self._meta.ordering
+    def __init__(
+        self, manager: Optional["LdapManager"] = None, f: Optional["F"] = None
+    ) -> None:
+        self.manager: LdapManager | None = manager
+        self.model: type[Model] | None = None
+        self._meta: Options | None = None
+        self.fields_map: dict[str, Any] | None = None
+        self.attributes_map: dict[str, str] | None = None
+        self.attribute_to_field_name_map: dict[str, str] | None = None
+        self.attributes: list[str] | None = None
+        self._attributes: list[str] | None = None
+        self._order_by: list[str] | None = None
+        self.chain: list[
+            Any
+        ] = []  # Changed from list[F] to list[Any] to handle filter objects
+        if manager is not None:
+            self.model = cast("type[Model]", manager.model)
+            self._meta = cast("Options", self.model._meta)
+            self.fields_map = self._meta.fields_map
+            self.attributes_map = self._meta.attributes_map
+            self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
+            self.attributes = self._meta.attributes
+            self._attributes = self.attributes
+            self._order_by = self._meta.ordering
         if f:
-            self.chain: list[F] = f.chain
+            self.chain = list(f.chain)
         else:
             self.chain = []
+
+    def bind_manager(self, manager: "LdapManager") -> None:
+        if manager is None:
+            msg = "Cannot bind F to a None manager."
+            raise F.UnboundFilter(msg)
+        if self.manager is None:
+            self.manager = manager
+            self.model = cast("type[Model]", manager.model)
+            self._meta = cast("Options", self.model._meta)
+            self.fields_map = self._meta.fields_map
+            self.attributes_map = self._meta.attributes_map
+            self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
+            self.attributes = self._meta.attributes
+            self._attributes = self.attributes
+            self._order_by = self._meta.ordering
+
+    def _require_manager(self):
+        if (
+            self.manager is None
+            or self.model is None
+            or self._meta is None
+            or self.fields_map is None
+            or self.attributes_map is None
+            or self.attribute_to_field_name_map is None
+            or self.attributes is None
+            or self._attributes is None
+            or self._order_by is None
+        ):
+            msg = (
+                "F instance is not bound to a manager. Pass it to a manager's "
+                "filter() method or use F(manager)."
+            )
+            raise F.UnboundFilter(msg)
+
+        # Ensure _attributes is not None for type checker
+        if self._attributes is None:
+            self._attributes = []
 
     @property
     def _filter(self) -> "GroupAnd":
@@ -509,12 +560,12 @@ class F:
             )
         return objects
 
-    def __validate_positional_args(self, args: Sequence["F"]) -> list["F"]:
+    def __validate_positional_args(self, args: list["F"]) -> list["F"]:
         """
         Validate that all positional arguments are F instances.
 
         Args:
-            args: Sequence of arguments to validate.
+            args: List of arguments to validate.
 
         Returns:
             List of F instances.
@@ -531,24 +582,8 @@ class F:
         return list(args)
 
     def get_attribute(self, name: str) -> str:
-        """
-        Get the LDAP attribute name for a given model field name.
-
-        Args:
-            name: The model field name.
-
-        Returns:
-            The corresponding LDAP attribute name.
-
-        Raises:
-            InvalidField: If the field name is not valid for the model.
-
-        """
-        try:
-            return self.attributes_map[name]
-        except KeyError as e:
-            msg = f'"{name}" is not a valid field on model {self.model.__name__}'
-            raise self.model.InvalidField(msg) from e
+        self._require_manager()
+        return self.attributes_map[name]  # type: ignore[index]
 
     def wildcard(self, name: str, value: str) -> "F":
         """
@@ -709,6 +744,7 @@ class F:
             InvalidField: If any name is not a valid field for the model.
 
         """
+        self._require_manager()
         self._attributes = [self.get_attribute(name) for name in names]
         return self
 
@@ -724,19 +760,27 @@ class F:
             DoesNotExist: If no objects match the query.
 
         """
-        sizelimit = 0
-        if not self._order_by:
-            # We can just take the default LDAP ordering, so just take the first
-            # result in whatever order the LDAP server keeps it in.
-            sizelimit = 1
-        objects = self.manager.search(str(self), self._attributes, sizelimit=sizelimit)
+        self._require_manager()
+        sizelimit = 1
+        sort_control = self._create_sort_control()
+        objects = cast("LdapManager", self.manager).search(
+            str(self),
+            cast("list[str]", self._attributes),
+            sizelimit=sizelimit,
+            sort_control=sort_control,
+        )
         if len(objects) == 0:
-            msg = f"A {self.model.__name__} object matching query does not exist."
-            raise self.model.DoesNotExist(msg)
-        objects = self.model.from_db(self._attributes, objects)
-        if not self._order_by:
-            return objects[0]  # type: ignore[attr-defined]
-        return self.__sort(objects)[0]  # type: ignore[arg-type]
+            msg = (
+                f"A {cast('type[Model]', self.model).__name__} object matching query "
+                "does not exist."
+            )
+            raise cast("type[Model]", self.model).DoesNotExist(msg)
+        objects = cast("type[Model]", self.model).from_db(
+            cast("list[str]", self._attributes), objects, many=True
+        )
+        if isinstance(objects, list):
+            return objects[0]
+        return objects
 
     @needs_pk
     def get(self) -> "Model":
@@ -751,14 +795,18 @@ class F:
             MultipleObjectsReturned: If more than one object matches the query.
 
         """
-        objects = self.manager.search(str(self), self._attributes)
+        self._require_manager()
+        manager = cast("LdapManager", self.manager)
+        model = cast("type[Model]", self.model)
+        attributes = cast("list[str]", self._attributes)
+        objects = manager.search(str(self), attributes)
         if len(objects) == 0:
-            msg = f"A {self.model.__name__} object matching query does not exist."
-            raise self.model.DoesNotExist(msg)
+            msg = f"A {model.__name__} object matching query does not exist."
+            raise model.DoesNotExist(msg)
         if len(objects) > 1:
-            msg = f"More than one {self.model.__name__} object matched query."
-            raise self.model.MultipleObjectsReturned(msg)
-        return cast("Model", self.model.from_db(self._attributes, objects))
+            msg = f"More than one {model.__name__} object matched query."
+            raise model.MultipleObjectsReturned(msg)
+        return cast("Model", model.from_db(attributes, objects))
 
     @needs_pk
     def update(self, **kwargs) -> None:
@@ -769,13 +817,18 @@ class F:
             **kwargs: Field names and values to update.
 
         """
+        self._require_manager()
         obj = self.get()
-        # TODO: obj.dump() does not exist;
-        new = self.model.from_db(self._attributes, obj.dump())
+        manager = cast("LdapManager", self.manager)
+        model = cast("type[Model]", self.model)
+        attributes = cast("list[str]", self._attributes)
+        attributes_list = cast("list[str]", self.attributes)
+        # Create a new instance with the current data
+        new = model.from_db(attributes, obj.to_db())
         for key, value in kwargs.items():
-            if key in self.attributes:
+            if key in attributes_list:
                 setattr(new, key, value)
-        self.manager.modify(new, old=obj)  # type: ignore[arg-type]
+        manager.modify(new, old=obj)  # type: ignore[arg-type]
 
     def exists(self) -> bool:
         """
@@ -785,10 +838,14 @@ class F:
             True if any objects match the query, False otherwise.
 
         """
-        objects = self.manager.search(str(self), self._attributes)
+        self._require_manager()
+        manager = cast("LdapManager", self.manager)
+        attributes = cast("list[str]", self._attributes)
+        objects = manager.search(str(self), attributes)
         return len(objects) > 0
 
     @needs_pk
+    def all(self) -> list["Model"]:
         """
         Return all results matching the query, sorted if order_by is set.
 
@@ -796,12 +853,21 @@ class F:
             A sequence of model instances matching the query.
 
         """
+        self._require_manager()
+        sort_control = self._create_sort_control()
         objects = self.model.from_db(
             self._attributes,
-            self.manager.search(str(self), self._attributes),
+            self.manager.search(str(self), self._attributes, sort_control=sort_control),
             many=True,
         )
-        return self.__sort(cast("Sequence[Model]", objects))
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        return cast("list[Model]", objects)
 
     def delete(self) -> None:
         """
@@ -812,8 +878,9 @@ class F:
             MultipleObjectsReturned: If more than one object matches the query.
 
         """
+        self._require_manager()
         obj = self.get()
-        self.manager.connection.delete_s(obj.dn)
+        self.manager.delete_obj(obj)
 
     def order_by(self, *args: str) -> "F":
         """
@@ -829,9 +896,10 @@ class F:
             InvalidField: If any field is not valid for the model.
 
         """
+        self._require_manager()
         for key in args:
             _key = key.removeprefix("-")
-            if _key not in self.attributes_map:
+            if self.attributes_map is None or _key not in self.attributes_map:
                 msg = f'"{_key}" is not a valid field on model {self.model.__name__}'
                 raise self.model.InvalidField(msg)
         self._order_by = list(args)
@@ -1021,10 +1089,20 @@ class LdapManager:
     and deleting LDAP objects, as well as utility methods for authentication and
     password management.  It is intended to be used as the main interface for
     LDAP-backed Django ORM models.
+
+    This class handles connecting to the LDAP server, searching, adding,
+    modifying, and deleting LDAP objects.  It also handles authentication and
+    password management.
+
+    This class is thread-safe -- it will use a different LDAP connection for
+    each thread.  This is important because LDAP connections are not thread-safe.
+    If you use the same connection in multiple threads, you will get errors.
+
     """
 
     #: Class-level cache for server-side sorting capability per server configuration
     _server_sorting_supported: ClassVar[dict[str, bool]] = {}
+
     def __init__(self) -> None:
         """
         Initialize the LdapManager instance and set up configuration attributes.
@@ -1135,7 +1213,7 @@ class LdapManager:
                 break
         return results
 
-    def contribute_to_class(self, cls, accessor_name):
+    def contribute_to_class(self, cls, accessor_name) -> None:
         """
         Set up the manager for a model class, configuring attributes from model meta.
 
@@ -1573,8 +1651,11 @@ class LdapManager:
         Returns:
             An F object restricted to the specified attributes.
 
+        Raises:
+            InvalidField: If any name is not a valid field for the model.
+
         """
-        return F(self).only(*names)
+        return self.__filter().only(*names)
 
     def __filter(self) -> "F":
         """
@@ -1679,7 +1760,7 @@ class LdapManager:
         """
         return self.__filter().filter(*args, **kwargs).get()
 
-    def all(self) -> Sequence["Model"]:
+    def all(self) -> list["Model"]:
         """
         Return all objects for this model from LDAP, after applying any filters.
 
@@ -1732,6 +1813,9 @@ class LdapManager:
         Returns:
             An F object with ordering applied.
 
+        Raises:
+            InvalidField: If any field is not valid for the model.
+
         """
         return self.__filter().order_by(*args)
 
@@ -1763,10 +1847,20 @@ class LdapManager:
             return False
 
         pwhash = model.get_password_hash(new_password)
-        attr = {password_attribute: [pwhash]}
-        cast("dict[str, Any]", attributes).update(attr)
+        # Update the password attribute in the attributes dict
+        attributes = dict(attributes)  # make a copy to avoid mutating input
+        attributes[password_attribute] = [pwhash]
 
-        _modlist = Modlist(self)._get_modlist(attr, ldap.MOD_REPLACE)  # type: ignore[attr-defined]
+        # Ensure all attribute values are lists of bytes
+        for key, value in attributes.items():
+            _value = value
+            if not isinstance(value, list):
+                _value = [value]
+            attributes[key] = [
+                v if isinstance(v, bytes) else str(v).encode("utf-8") for v in _value
+            ]
+
+        _modlist = Modlist(self)._get_modlist(attributes, ldap.MOD_REPLACE)  # type: ignore[attr-defined]
 
         self.connect("write")
         self.connection.modify_s(user.dn, _modlist)

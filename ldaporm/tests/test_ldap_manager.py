@@ -10,6 +10,7 @@ providing realistic LDAP behavior for testing the LdapManager functionality.
 
 import json
 import tempfile
+from typing import cast
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -289,7 +290,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_search_basic(self):
         """Test basic LDAP search functionality."""
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(objectClass=posixAccount)",
             ["uid", "cn", "sn"]
         )
@@ -340,7 +341,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             self.server_factory.default.register_object((dn, attrs))  # type: ignore[attr-defined]
 
         # Test with sizelimit - should return at most 2 results
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(objectClass=posixAccount)",
             ["uid"],
             sizelimit=2
@@ -354,11 +355,11 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_search_with_custom_scope(self):
         """Test search with custom scope."""
         # Test base scope
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(objectClass=*)",
             ["uid"],
             basedn="uid=alice,ou=users,dc=example,dc=com",
-            scope=ldap.SCOPE_BASE
+            scope=ldap.SCOPE_BASE  # type: ignore[attr-defined]
         )
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0][1]["uid"][0].decode(), "alice")
@@ -366,16 +367,16 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_paged_search(self):
         """Test paged search functionality."""
         # Add paged_search to ldap_options
-        MyTestUser.objects.ldap_options.append("paged_search")
+        cast("LdapManager", MyTestUser.objects).ldap_options.append("paged_search")
 
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(objectClass=posixAccount)",
             ["uid", "cn"]
         )
         self.assertEqual(len(results), 3)
 
         # Remove paged_search option
-        MyTestUser.objects.ldap_options.remove("paged_search")
+        cast("LdapManager", MyTestUser.objects).ldap_options.remove("paged_search")
 
     def test_add_object(self):
         """Test adding a new object to LDAP."""
@@ -389,10 +390,10 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             loginShell="/bin/bash"
         )
 
-        MyTestUser.objects.add(new_user)
+        cast("LdapManager", MyTestUser.objects).add(new_user)
 
         # Verify the object was added
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(uid=newuser)",
             ["uid", "cn"]
         )
@@ -411,17 +412,17 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             homeDirectory="/home/deleteuser",
             loginShell="/bin/bash"
         )
-        MyTestUser.objects.add(user_to_delete)
+        cast("LdapManager", MyTestUser.objects).add(user_to_delete)
 
         # Verify it exists
-        results = MyTestUser.objects.search("(uid=deleteuser)", ["uid"])
+        results = cast("LdapManager", MyTestUser.objects).search("(uid=deleteuser)", ["uid"])
         self.assertEqual(len(results), 1)
 
         # Delete it
-        MyTestUser.objects.delete_obj(user_to_delete)
+        cast("LdapManager", MyTestUser.objects).delete_obj(user_to_delete)
 
         # Verify it's gone
-        results = MyTestUser.objects.search("(uid=deleteuser)", ["uid"])
+        results = cast("LdapManager", MyTestUser.objects).search("(uid=deleteuser)", ["uid"])
         self.assertEqual(len(results), 0)
 
     def test_delete_by_filter(self):
@@ -436,111 +437,111 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             homeDirectory="/home/filterdelete",
             loginShell="/bin/bash"
         )
-        MyTestUser.objects.add(user_to_delete)
+        cast("LdapManager", MyTestUser.objects).add(user_to_delete)
 
         # Delete by filter
-        MyTestUser.objects.delete(uid="filterdelete")
+        cast("LdapManager", MyTestUser.objects).delete(uid="filterdelete")
 
         # Verify it's gone
-        results = MyTestUser.objects.search("(uid=filterdelete)", ["uid"])
+        results = cast("LdapManager", MyTestUser.objects).search("(uid=filterdelete)", ["uid"])
         self.assertEqual(len(results), 0)
 
     def test_modify_object(self):
         """Test modifying an existing object."""
         # Get an existing user
-        user = MyTestUser.objects.get(uid="alice")
+        user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
         original_shell = user.loginShell
 
         # Modify the user
         user.loginShell = "/bin/zsh"
-        MyTestUser.objects.modify(user)
+        cast("LdapManager", MyTestUser.objects).modify(user)
 
         # Verify the change
-        updated_user = MyTestUser.objects.get(uid="alice")
+        updated_user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
         self.assertEqual(updated_user.loginShell, "/bin/zsh")
         self.assertNotEqual(updated_user.loginShell, original_shell)
 
     def test_modify_with_pk_change(self):
         """Test modifying an object with primary key change."""
         # Get an existing user
-        user = MyTestUser.objects.get(uid="alice")
+        user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
         original_uid = user.uid
 
         # Change the primary key
         user.uid = "alice_new"
-        MyTestUser.objects.modify(user)
+        cast("LdapManager", MyTestUser.objects).modify(user)
 
         # Verify the change
-        updated_user = MyTestUser.objects.get(uid="alice_new")
+        updated_user = cast("LdapManager", MyTestUser.objects).get(uid="alice_new")
         self.assertEqual(updated_user.uid, "alice_new")
 
         # Verify old uid doesn't exist
         with self.assertRaises(MyTestUser.DoesNotExist):
-            MyTestUser.objects.get(uid="alice")
+            cast("LdapManager", MyTestUser.objects).get(uid="alice")
 
     def test_rename_object(self):
         """Test renaming an object's DN."""
         old_dn = "uid=alice,ou=users,dc=example,dc=com"
         new_dn = "uid=alice_new,ou=users,dc=example,dc=com"
 
-        MyTestUser.objects.rename(old_dn, new_dn)
+        cast("LdapManager", MyTestUser.objects).rename(old_dn, new_dn)
 
         # Verify the rename
-        results = MyTestUser.objects.search(
+        results = cast("LdapManager", MyTestUser.objects).search(
             "(uid=alice_new)",
             ["uid"],
             basedn="uid=alice_new,ou=users,dc=example,dc=com",
-            scope=ldap.SCOPE_BASE
+            scope=ldap.SCOPE_BASE  # type: ignore[attr-defined]
         )
         self.assertEqual(len(results), 1)
 
     def test_get_by_dn(self):
         """Test getting an object by its DN."""
-        user = MyTestUser.objects.get_by_dn("uid=alice,ou=users,dc=example,dc=com")
-        self.assertEqual(user.uid, "alice")
-        self.assertEqual(user.cn, "Alice Johnson")
+        user = cast("LdapManager", MyTestUser.objects).get_by_dn("uid=alice,ou=users,dc=example,dc=com")
+        self.assertEqual(cast("MyTestUser", user).uid, "alice")
+        self.assertEqual(cast("MyTestUser", user).cn, "Alice Johnson")
 
     def test_get_by_dn_invalid_dn(self):
         """Test getting an object by invalid DN."""
         with self.assertRaises(ValueError):
-            MyTestUser.objects.get_by_dn("uid=alice,dc=invalid,dc=com")
+            cast("LdapManager", MyTestUser.objects).get_by_dn("uid=alice,dc=invalid,dc=com")
 
     def test_get_by_dn_nonexistent(self):
         """Test getting a nonexistent object by DN."""
         with self.assertRaises(MyTestUser.DoesNotExist):
-            MyTestUser.objects.get_by_dn("uid=nonexistent,ou=users,dc=example,dc=com")
+            cast("LdapManager", MyTestUser.objects).get_by_dn("uid=nonexistent,ou=users,dc=example,dc=com")
 
     def test_filter_methods(self):
         """Test filter-based query methods."""
         # Test get with filter
-        user = MyTestUser.objects.get(uid="alice")
+        user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
         self.assertEqual(user.uid, "alice")
 
         # Test get with multiple conditions
-        user = MyTestUser.objects.get(uid="alice", cn="Alice Johnson")
+        user = cast("LdapManager", MyTestUser.objects).get(uid="alice", cn="Alice Johnson")
         self.assertEqual(user.uid, "alice")
 
         # Test get with nonexistent user
         with self.assertRaises(MyTestUser.DoesNotExist):
-            MyTestUser.objects.get(uid="nonexistent")
+            cast("LdapManager", MyTestUser.objects).get(uid="nonexistent")
 
         # Test get with multiple results
         with self.assertRaises(MyTestUser.MultipleObjectsReturned):
-            MyTestUser.objects.get(loginShell="/bin/bash")  # Multiple users have bash
+            cast("LdapManager", MyTestUser.objects).get(loginShell="/bin/bash")  # Multiple users have bash
 
     def test_all_method(self):
         """Test getting all objects."""
-        users = MyTestUser.objects.all()
+        users = cast("LdapManager", MyTestUser.objects).all()
         self.assertEqual(len(users), 3)
 
-        uids = [user.uid for user in users]
+        uids = [cast("MyTestUser", user).uid for user in users]
         self.assertIn("alice", uids)
         self.assertIn("bob", uids)
         self.assertIn("charlie", uids)
 
     def test_values_method(self):
         """Test values method."""
-        values = MyTestUser.objects.values("uid", "cn")
+        values = cast("LdapManager", MyTestUser.objects).values("uid", "cn")
         self.assertEqual(len(values), 3)
 
         # Check structure
@@ -551,7 +552,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_values_list_method(self):
         """Test values_list method."""
-        values = MyTestUser.objects.values_list("uid", "cn")
+        values = cast("LdapManager", MyTestUser.objects).values_list("uid", "cn")
         self.assertEqual(len(values), 3)
 
         # Check structure
@@ -562,7 +563,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_values_list_flat(self):
         """Test values_list with flat=True."""
-        values = MyTestUser.objects.values_list("uid", flat=True)
+        values = cast("LdapManager", MyTestUser.objects).values_list("uid", flat=True)
         self.assertEqual(len(values), 3)
 
         # Check structure
@@ -571,30 +572,30 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_values_list_named(self):
         """Test values_list with named=True."""
-        values = MyTestUser.objects.values_list("uid", "cn", named=True)
+        values = cast("LdapManager", MyTestUser.objects).values_list("uid", "cn", named=True)
         self.assertEqual(len(values), 3)
 
         # Check structure
         for named_tuple in values:
             self.assertEqual(len(named_tuple), 2)
-            self.assertIsInstance(named_tuple.uid, str)
-            self.assertIsInstance(named_tuple.cn, str)
+            self.assertIsInstance(named_tuple.uid, str)  # type: ignore[attr-defined]
+            self.assertIsInstance(named_tuple.cn, str)  # type: ignore[attr-defined]
 
     def test_order_by(self):
         """Test ordering functionality."""
         # Test ascending order
-        users = MyTestUser.objects.order_by("uid").all()
+        users = cast("LdapManager", MyTestUser.objects).order_by("uid").all()
         uids = [user.uid for user in users]
         self.assertEqual(uids, ["alice", "bob", "charlie"])
 
         # Test descending order
-        users = MyTestUser.objects.order_by("-uid").all()
+        users = cast("LdapManager", MyTestUser.objects).order_by("-uid").all()
         uids = [user.uid for user in users]
         self.assertEqual(uids, ["charlie", "bob", "alice"])
 
     def test_create_method(self):
         """Test creating a new object."""
-        user = MyTestUser.objects.create(
+        user = cast("LdapManager", MyTestUser.objects).create(
             uid="newuser",
             cn="New User",
             sn="User",
@@ -604,26 +605,26 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             loginShell="/bin/bash"
         )
 
-        self.assertEqual(user.uid, "newuser")
-        self.assertEqual(user.cn, "New User")
+        self.assertEqual(cast("MyTestUser", user).uid, "newuser")
+        self.assertEqual(cast("MyTestUser", user).cn, "New User")
 
         # Verify it was actually created in LDAP
-        created_user = MyTestUser.objects.get(uid="newuser")
+        created_user = cast("LdapManager", MyTestUser.objects).get(uid="newuser")
         self.assertEqual(created_user.uid, "newuser")
 
     def test_authentication_success(self):
         """Test successful authentication."""
-        result = MyTestUser.objects.authenticate("alice", "password")
+        result = cast("LdapManager", MyTestUser.objects).authenticate("alice", "password")
         self.assertTrue(result)
 
     def test_authentication_nonexistent_user(self):
         """Test authentication with nonexistent user."""
-        result = MyTestUser.objects.authenticate("nonexistent", "password")
+        result = cast("LdapManager", MyTestUser.objects).authenticate("nonexistent", "password")
         self.assertFalse(result)
 
     def test_authentication_invalid_credentials(self):
         """Test authentication with invalid credentials."""
-        result = MyTestUser.objects.authenticate("alice", "wrongpassword")
+        result = cast("LdapManager", MyTestUser.objects).authenticate("alice", "wrongpassword")
         self.assertFalse(result)
 
     def test_reset_password(self):
@@ -637,14 +638,14 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         def test_get_password_hash(cls, password):
             return password.encode('utf-8')
 
-        MyTestUser.get_password_hash = classmethod(test_get_password_hash)
+        MyTestUser.get_password_hash = classmethod(test_get_password_hash)  # type: ignore[assignment]
 
         try:
-            result = MyTestUser.objects.reset_password("alice", "newpassword123")
+            result = cast("LdapManager", MyTestUser.objects).reset_password("alice", "newpassword123")
             self.assertTrue(result)
 
             # Verify the password was changed by trying to authenticate
-            auth_result = MyTestUser.objects.authenticate("alice", "newpassword123")
+            auth_result = cast("LdapManager", MyTestUser.objects).authenticate("alice", "newpassword123")
             self.assertTrue(auth_result)
         finally:
             # Restore the original method
@@ -652,7 +653,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_reset_password_nonexistent_user(self):
         """Test password reset for nonexistent user."""
-        result = MyTestUser.objects.reset_password("nonexistent", "newpassword123")
+        result = cast("LdapManager", MyTestUser.objects).reset_password("nonexistent", "newpassword123")
         self.assertFalse(result)
 
     def test_reset_password_with_attributes(self):
@@ -666,10 +667,10 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         def test_get_password_hash(cls, password):
             return password.encode('utf-8')
 
-        MyTestUser.get_password_hash = classmethod(test_get_password_hash)
+        MyTestUser.get_password_hash = classmethod(test_get_password_hash)  # type: ignore[assignment]
 
         try:
-            result = MyTestUser.objects.reset_password(
+            result = cast("LdapManager", MyTestUser.objects).reset_password(
                 "alice",
                 "newpassword123",
                 attributes={"loginShell": "/bin/zsh"}
@@ -677,7 +678,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
             self.assertTrue(result)
 
             # Verify both password and additional attribute were changed
-            user = MyTestUser.objects.get(uid="alice")
+            user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
             self.assertEqual(user.loginShell, "/bin/zsh")
         finally:
             # Restore the original method
@@ -685,7 +686,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_modlist_add(self):
         """Test Modlist.add functionality."""
-        modlist_helper = Modlist(MyTestUser.objects)
+        modlist_helper = Modlist(cast("LdapManager", MyTestUser.objects))
         user = MyTestUser(
             uid="modlistuser",
             cn="Modlist User",
@@ -702,7 +703,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_modlist_update(self):
         """Test Modlist.update functionality."""
-        modlist_helper = Modlist(MyTestUser.objects)
+        modlist_helper = Modlist(cast("LdapManager", MyTestUser.objects))
 
         # Create old and new versions of a user
         old_user = MyTestUser(
@@ -731,7 +732,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_server_side_sorting_support_check(self):
         """Test server-side sorting support detection."""
         # This should work with the fake LDAP server
-        result = MyTestUser.objects._check_server_sorting_support("read")
+        result = cast("LdapManager", MyTestUser.objects)._check_server_sorting_support("read")
         # The result depends on the fake server implementation
         self.assertIsInstance(result, bool)
 
@@ -740,7 +741,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         # Test with invalid configuration
         with patch.object(MyTestUser.objects, 'config', {'read': {'url': 'ldap://invalid:389'}}):
             with self.assertRaises(Exception):
-                MyTestUser.objects._connect("read")
+                cast("LdapManager", MyTestUser.objects)._connect("read")
 
     def test_tls_configuration(self):
         """Test TLS configuration options."""
@@ -761,7 +762,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         with patch.object(MyTestUser.objects, 'config', config_with_tls):
             # This should raise an error due to missing certificate files
             with self.assertRaises(OSError):
-                MyTestUser.objects._connect("read")
+                cast("LdapManager", MyTestUser.objects)._connect("read")
 
     def test_invalid_tls_verify(self):
         """Test invalid TLS verify configuration."""
@@ -776,17 +777,17 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
         with patch.object(MyTestUser.objects, 'config', config_invalid_tls):
             with self.assertRaises(ValueError):
-                MyTestUser.objects._connect("read")
+                cast("LdapManager", MyTestUser.objects)._connect("read")
 
     def test_thread_safety(self):
         """Test thread safety of connection management."""
         import threading
 
         def worker():
-            MyTestUser.objects.connect("read")
-            self.assertTrue(MyTestUser.objects.has_connection())
-            MyTestUser.objects.disconnect()
-            self.assertFalse(MyTestUser.objects.has_connection())
+            cast("LdapManager", MyTestUser.objects).connect("read")
+            self.assertTrue(cast("LdapManager", MyTestUser.objects).has_connection())
+            cast("LdapManager", MyTestUser.objects).disconnect()
+            self.assertFalse(cast("LdapManager", MyTestUser.objects).has_connection())
 
         # Create multiple threads
         threads = []
@@ -810,7 +811,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
         result = test_function(dummy)
         self.assertEqual(result, "success")
-        self.assertFalse(dummy.has_connection())
+        self.assertFalse(dummy.has_connection())  # type: ignore[attr-defined]
 
     def test_substitute_pk_decorator(self):
         """Test the substitute_pk decorator."""
@@ -826,7 +827,7 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_needs_pk_decorator(self):
         """Test the needs_pk decorator."""
         # Create an F object to test the decorator
-        f = MyTestUser.objects.filter(uid="alice")
+        f = cast("LdapManager", MyTestUser.objects).filter(uid="alice")
 
         @needs_pk
         def test_function(self):
@@ -840,39 +841,39 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_wildcard_search(self):
         """Test wildcard search functionality."""
         # Test contains search
-        results = MyTestUser.objects.wildcard("cn", "*Alice*").all()
+        results = cast("LdapManager", MyTestUser.objects).wildcard("cn", "*Alice*").all()
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].uid, "alice")
 
         # Test starts with search
-        results = MyTestUser.objects.wildcard("cn", "Alice*").all()
+        results = cast("LdapManager", MyTestUser.objects).wildcard("cn", "Alice*").all()
         self.assertEqual(len(results), 1)
 
         # Test ends with search
-        results = MyTestUser.objects.wildcard("cn", "*Johnson").all()
+        results = cast("LdapManager", MyTestUser.objects).wildcard("cn", "*Johnson").all()
         self.assertEqual(len(results), 1)
 
     def test_only_restriction(self):
         """Test only() method for attribute restriction."""
-        f = MyTestUser.objects.only("uid", "cn")
+        f = cast("LdapManager", MyTestUser.objects).only("uid", "cn")
         self.assertEqual(f._attributes, ["uid", "cn"])
 
     def test_filter_chain(self):
         """Test filter chaining."""
-        f = MyTestUser.objects.filter(uid="alice").filter(cn="Alice Johnson")
+        f = cast("LdapManager", MyTestUser.objects).filter(uid="alice").filter(cn="Alice Johnson")
         user = f.get()
         self.assertEqual(user.uid, "alice")
 
     def test_complex_queries(self):
         """Test complex query combinations."""
         # Test ordering with filtering
-        users = MyTestUser.objects.filter(loginShell="/bin/bash").order_by("uid").all()
+        users = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash").order_by("uid").all()
         self.assertEqual(len(users), 2)  # alice and bob
         self.assertEqual(users[0].uid, "alice")
         self.assertEqual(users[1].uid, "bob")
 
         # Test values with filtering
-        values = MyTestUser.objects.filter(loginShell="/bin/bash").values("uid", "cn")
+        values = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash").values("uid", "cn")
         self.assertEqual(len(values), 2)
 
     def test_error_conditions(self):
@@ -892,25 +893,25 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_password_hash_generation(self):
         """Test password hash generation."""
         password = "testpassword"
-        hash_result = MyTestUser.objects._get_ssha_hash(password)
+        hash_result = cast("LdapManager", MyTestUser.objects)._get_ssha_hash(password)
         self.assertIsInstance(hash_result, bytes)
         self.assertTrue(hash_result.startswith(b"{SSHA}"))
 
     def test_paged_search_controls(self):
         """Test paged search control handling."""
-        pctrls = MyTestUser.objects._get_pctrls([])
+        pctrls = cast("LdapManager", MyTestUser.objects)._get_pctrls([])
         self.assertEqual(pctrls, [])
 
         # Test with mock controls
         mock_control = MagicMock()
         mock_control.controlType = "1.2.840.113556.1.4.319"  # SimplePagedResultsControl
-        pctrls = MyTestUser.objects._get_pctrls([mock_control])
+        pctrls = cast("LdapManager", MyTestUser.objects)._get_pctrls([mock_control])
         self.assertEqual(len(pctrls), 1)
 
     def test_model_integration(self):
         """Test integration with model methods."""
         # Test that manager works with model's from_db method
-        user = MyTestUser.objects.get(uid="alice")
+        user = cast("LdapManager", MyTestUser.objects).get(uid="alice")
         self.assertIsInstance(user, MyTestUser)
         self.assertEqual(user.uid, "alice")
 
@@ -922,22 +923,22 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
     def test_group_operations(self):
         """Test operations with group model."""
         # Test group search
-        groups = MyTestGroup.objects.all()
+        groups = cast("LdapManager", MyTestGroup.objects).all()
         self.assertEqual(len(groups), 2)
 
         # Test group creation
-        new_group = MyTestGroup.objects.create(
+        new_group = cast("LdapManager", MyTestGroup.objects).create(
             cn="testgroup",
             gidNumber=2003,
             memberUid=["alice"]
         )
-        self.assertEqual(new_group.cn, "testgroup")
+        self.assertEqual(cast("MyTestGroup", new_group).cn, "testgroup")
 
         # Test group modification
-        new_group.memberUid = ["alice", "bob"]
-        MyTestGroup.objects.modify(new_group)
+        new_group.memberUid = ["alice", "bob"]  # type: ignore[attr-defined]
+        cast("LdapManager", MyTestGroup.objects).modify(new_group)
 
-        updated_group = MyTestGroup.objects.get(cn="testgroup")
+        updated_group = cast("LdapManager", MyTestGroup.objects).get(cn="testgroup")
         self.assertEqual(len(updated_group.memberUid), 2)
 
 
