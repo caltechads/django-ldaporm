@@ -1,3 +1,4 @@
+# mypy: disable-error-code="attr-defined"
 """
 LDAP ORM manager and query logic.
 
@@ -12,19 +13,25 @@ import logging
 import os
 import re
 import threading
+import warnings
 from base64 import b64encode as encode
 from collections import namedtuple
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
+from contextlib import suppress
 from distutils.version import StrictVersion
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Optional, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, cast
 
-import ldap
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from ldap import modlist
-from ldap.controls import SimplePagedResultsControl
+from ldap.controls import LDAPControl, SimplePagedResultsControl
 from ldap_filter import Filter
+from pyasn1.codec.ber import encoder  # type: ignore[import]
+from pyasn1.type import namedtype, tag, univ  # type: ignore[import]
+
+from ldaporm import ldap
 
 from .typing import AddModlist, LDAPData, ModifyDeleteModList
 
@@ -36,6 +43,124 @@ if TYPE_CHECKING:
 
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion("2.4")
 logger = logging.getLogger("django-ldaporm")
+
+
+# -----------------------
+# LDAP Controls
+# -----------------------
+
+
+# SortKey definition
+class SortKey(univ.Sequence):
+    """
+    SortKey is a sequence of attributeType, orderingRule, and reverseOrder.
+
+    This is used to build the control value for the Server-Side Sort control.
+
+    See RFC 2891 for more details.
+    """
+
+    componentType: ClassVar[namedtype.NamedTypes] = namedtype.NamedTypes(  # noqa: N815
+        namedtype.NamedType("attributeType", univ.OctetString()),
+        namedtype.OptionalNamedType(
+            "orderingRule",
+            univ.OctetString().subtype(
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
+            ),
+        ),
+        namedtype.DefaultedNamedType(
+            "reverseOrder",
+            univ.Boolean(False).subtype(  # noqa: FBT003
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
+            ),
+        ),
+    )
+
+
+# SortKeyList is a sequence of SortKeys
+class SortKeyList(univ.SequenceOf):
+    """
+    A sequence of SortKeys, used to build the control value for the Server-Side
+    Sort control.
+
+    See RFC 2891 for more details.
+    """
+
+    componentType: ClassVar[SortKey] = SortKey()  # noqa: N815
+
+
+def build_sort_control_value(sort_fields: list[str]) -> bytes:
+    """
+    Build the BER-encoded control value for server-side sorting.
+
+    Args:
+        sort_fields: List of attribute names to sort by.
+
+    Returns:
+        BER-encoded control value.
+
+    """
+    if not sort_fields:
+        return b""
+
+    sort_key_list = SortKeyList()
+
+    for field in sort_fields:
+        descending = field.startswith("-")
+        attr_name = field[1:] if descending else field
+
+        sort_key = SortKey()
+        sort_key.setComponentByName(
+            "attributeType", univ.OctetString(attr_name.encode("utf-8"))
+        )
+
+        if descending:
+            sort_key.setComponentByName(
+                "reverseOrder",
+                univ.Boolean(True).subtype(
+                    explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
+                ),
+            )
+
+        # If you needed orderingRule, e.g. caseIgnoreOrderingMatch:
+        # sort_key.setComponentByName('orderingRule', univ.OctetString('caseIgnoreOrderingMatch'.encode('utf-8')))  # noqa: E501, ERA001
+
+        sort_key_list.append(sort_key)
+
+    return encoder.encode(sort_key_list)
+
+
+class ServerSideSortControl(LDAPControl):
+    """
+    LDAP Control Extension for Server-Side Sorting (RFC 2891).
+
+    This control allows the client to request that the server sort the results
+    before returning them. The OID 1.2.840.113556.1.4.473 is used by both
+    389 Directory Server and Active Directory.
+    """
+
+    control_type = "1.2.840.113556.1.4.473"
+
+    def __init__(
+        self,
+        criticality: bool = False,
+        sort_key_list: list[str] | None = None,
+    ) -> None:
+        """
+        Initialize the Server-Side Sort control.
+
+        Args:
+            criticality: Whether the control is critical.
+            sort_key_list: List of (attribute_name, reverse) tuples for sorting.
+                          reverse=True means descending order.
+
+        """
+        if sort_key_list is None:
+            sort_key_list = []
+        # Build the control value according to RFC 2891
+        # The control value is a BER-encoded sequence of sort keys
+        control_value = build_sort_control_value(sort_key_list)
+        super().__init__(self.control_type, criticality, control_value)
 
 
 # -----------------------
@@ -327,28 +452,49 @@ class F:
             return self.chain[0]  # type: ignore[return-value]
         return Filter.AND(self.chain).simplify()
 
-    def __sort(self, objects: Sequence["Model"]) -> Sequence["Model"]:
+    def _create_sort_control(self) -> ServerSideSortControl | None:
         """
-        Sort a sequence of model instances based on the current ordering.
-
-        Args:
-            objects: The sequence of Model instances to sort.
+        Create a server-side sort control for LDAP queries if supported by the
+        server and ordering is specified.
 
         Returns:
-            The sorted sequence of Model instances.
+            ServerSideSortControl if supported and ordering is specified,
+            otherwise None.
+
+        Raises:
+            F.UnboundFilter: If the F instance is not bound to a manager.
 
         """
+        self._require_manager()
         if not self._order_by:
+            return None
+        if self.manager is None:
+            msg = "F instance is not bound to a manager."
+            raise F.UnboundFilter(msg)
+        if not self.manager._check_server_sorting_support():
+            return None
+        return ServerSideSortControl(sort_key_list=self._order_by)
+
+    def _sort_objects_client_side(self, objects: list["Model"]) -> list["Model"]:
+        """
+        Sort a list of model instances client-side according to the specified ordering.
+
+        Args:
+            objects: The list of model instances to sort.
+
+        Returns:
+            The sorted list of model instances.
+
+        """
+        self._require_manager()
+        order_by = cast("list[str]", self._order_by)
+        if not order_by:
             return objects
-        if not any(k.startswith("-") for k in self._order_by):
-            # if none of the keys are reversed, just sort directly
+        if not any(k.startswith("-") for k in order_by):
             return sorted(
-                objects, key=lambda obj: tuple(getattr(obj, k) for k in self._order_by)
+                objects, key=lambda obj: tuple(getattr(obj, k) for k in order_by)
             )
-        # At least one key was reversed. now we have to do it the hard way,
-        # with sequential sorts, starting from the last sort key and working
-        # our way back to the first
-        keys = list(self._order_by)
+        keys = list(order_by)
         keys.reverse()
         for k in keys:
             key = k
@@ -356,12 +502,12 @@ class F:
             if key.startswith("-"):
                 key = k[1:]
                 reverse = True
-            data = sorted(
+            objects = sorted(
                 objects,
-                key=lambda obj: getattr(obj, key),  # pylint: disable=cell-var-from-loop
+                key=lambda obj: getattr(obj, key),
                 reverse=reverse,
             )
-        return data
+        return objects
 
     def __validate_positional_args(self, args: Sequence["F"]) -> list["F"]:
         """
@@ -589,7 +735,6 @@ class F:
         return len(objects) > 0
 
     @needs_pk
-    def all(self) -> Sequence["Model"]:
         """
         Return all results matching the query, sorted if order_by is set.
 
@@ -652,22 +797,43 @@ class F:
             NotImplementedError: If .only() was used with .values().
 
         """
+        self._require_manager()
         if self._attributes != self.attributes:
             msg = "Don't use .only() with .values()"
             raise NotImplementedError(msg)
-        _attrs = []
+
+        # Determine which attributes to fetch and which field names to use as keys
         if not attrs:
-            _attrs = self.attributes
+            # If no attrs specified, use all attributes and field names
+            ldap_attrs = self.attributes
+            field_names = [
+                self.attribute_to_field_name_map[attr] for attr in ldap_attrs
+            ]
+        else:
+            # If attrs specified, convert to LDAP attributes
+            ldap_attrs = [self.get_attribute(attr) for attr in attrs]
+            field_names = list(attrs)
+
+        sort_control = self._create_sort_control()
         objects = self.model.from_db(
-            _attrs, self.manager.search(str(self), _attrs), many=True
+            ldap_attrs,
+            self.manager.search(str(self), ldap_attrs, sort_control=sort_control),
+            many=True,
         )
-        objects = self.__sort(cast("Sequence[Model]", objects))
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        if isinstance(objects, list):
+            return [
+                {field_name: getattr(obj, field_name) for field_name in field_names}
+                for obj in objects
+            ]
         return [
-            {
-                self.attribute_to_field_name_map[attr]: getattr(obj, attr)
-                for attr in _attrs
-            }
-            for obj in objects
+            {field_name: getattr(objects, field_name) for field_name in field_names}
         ]
 
     def values_list(self, *attrs: str, **kwargs) -> list[tuple[Any, ...]]:
@@ -686,6 +852,7 @@ class F:
             ValueError: If flat=True is used with more than one field.
 
         """
+        self._require_manager()
         if self._attributes != self.attributes:
             msg = "Don't use .only() with .values_list()"
             raise NotImplementedError(msg)
@@ -696,25 +863,39 @@ class F:
             attrs = tuple(self.attribute_to_field_name_map[attr] for attr in _attrs)
         else:
             _attrs = [self.get_attribute(attr) for attr in attrs]
+        sort_control = self._create_sort_control()
         objects = self.model.from_db(
-            _attrs, self.manager.search(str(self), _attrs), many=True
+            _attrs,
+            self.manager.search(str(self), _attrs, sort_control=sort_control),
+            many=True,
         )
-        objects = self.__sort(cast("Sequence[Model]", objects))
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
         if kwargs.get("flat"):
             if len(attrs) > 1:
                 msg = "Cannot use flat=True when asking for more than one field"
                 raise ValueError(msg)
-            return [getattr(obj, attrs[0]) for obj in objects]  # type: ignore[return-value]
+            if isinstance(objects, list):
+                return [getattr(obj, attrs[0]) for obj in objects]  # type: ignore[return-value]
+            return [getattr(objects, attrs[0])]  # type: ignore[index]
         if kwargs.get("named"):
-            rows: list[Any] = []
-            for obj in objects:
-                # Dynamic namedtuple creation: attrs is not a literal, but this
-                # is valid for runtime use.
-                Row = namedtuple("Row", tuple(attrs))  # type: ignore[misc]  # noqa: PYI024
-                # the keys here should be field names, not attribute names
-                rows.append(Row(**{attr: getattr(obj, attr) for attr in attrs}))
-            return rows
-        return [tuple(getattr(obj, attr) for attr in attrs) for obj in objects]
+            # Dynamic namedtuple creation: attrs is not a literal, but this
+            # is valid for runtime use.
+            Row = namedtuple("Row", tuple(attrs))  # type: ignore[misc]  # noqa: PYI024
+            if isinstance(objects, list):
+                return [
+                    Row(**{attr: getattr(obj, attr) for attr in attrs})
+                    for obj in objects
+                ]
+            return [Row(**{attr: getattr(objects, attr) for attr in attrs})]
+        if isinstance(objects, list):
+            return [tuple(getattr(obj, attr) for attr in attrs) for obj in objects]
+        return [tuple(getattr(objects, attr) for attr in attrs)]
 
     def __or__(self, other: "F") -> "F":
         """
@@ -727,8 +908,20 @@ class F:
             A new F object representing the OR of both filters.
 
         """
-        self.chain = Filter.OR([self._filter, other._filter])  # type: ignore[assignment]
-        return F(self.manager, f=self)
+        self._require_manager()
+        other._require_manager()
+        new_f = F(self.manager)
+        # For OR, we need to create a single OR filter containing both filter chains
+        if len(self.chain) == 1 and len(other.chain) == 1:
+            # Simple case: single filter on each side
+            new_f.chain = [Filter.OR([self.chain[0], other.chain[0]])]
+        else:
+            # Complex case: multiple filters on either side
+            # Create AND filters for each side, then OR them together
+            left_filter = self._filter
+            right_filter = other._filter
+            new_f.chain = [Filter.OR([left_filter, right_filter])]
+        return new_f
 
     def __and__(self, other: "F") -> "F":
         """
@@ -741,8 +934,13 @@ class F:
             A new F object representing the AND of both filters.
 
         """
-        self.chain = Filter.AND([self._filter, other._filter])  # type: ignore[assignment]
-        return F(self.manager, f=self)
+        self._require_manager()
+        other._require_manager()
+        new_f = F(self.manager)
+        # For AND, we can just concatenate the filter chains
+        # The _filter property will handle creating the proper AND filter
+        new_f.chain = list(self.chain) + list(other.chain)
+        return new_f
 
     def __str__(self) -> str:
         """
@@ -752,6 +950,7 @@ class F:
             The LDAP filter string.
 
         """
+        self._require_manager()
         return self._filter.to_string()
 
 
@@ -770,6 +969,8 @@ class LdapManager:
     LDAP-backed Django ORM models.
     """
 
+    #: Class-level cache for server-side sorting capability per server configuration
+    _server_sorting_supported: ClassVar[dict[str, bool]] = {}
     def __init__(self) -> None:
         """
         Initialize the LdapManager instance and set up configuration attributes.
@@ -815,6 +1016,7 @@ class LdapManager:
         pagesize: int = 100,
         sizelimit: int = 0,
         scope: int = ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
+        sort_control: ServerSideSortControl | None = None,
     ) -> list[LDAPData]:
         """
         Perform a paged search against the LDAP server.
@@ -822,10 +1024,13 @@ class LdapManager:
         Args:
             basedn: The base DN to search from.
             searchfilter: The LDAP search filter string.
+
+        Keyword Args:
             attrlist: List of attributes to retrieve.
             pagesize: Number of results per page.
             sizelimit: Maximum number of results to return.
             scope: LDAP search scope.
+            sort_control: Server-side sort control.
 
         Returns:
             List of LDAPData tuples (dn, attrs).
@@ -833,7 +1038,10 @@ class LdapManager:
         """
         # Initialize the LDAP controls for paging. Note that we pass ''
         # for the cookie because on first iteration, it starts out empty.
-        controls = SimplePagedResultsControl(True, size=pagesize, cookie="")  # noqa: FBT003
+        paging = SimplePagedResultsControl(True, size=pagesize, cookie="")  # noqa: FBT003
+        controls = [paging]
+        if sort_control:
+            controls = [paging, sort_control]
 
         # Do searches until we run out of pages to get from the LDAP server.
         results: list[LDAPData] = []
@@ -844,10 +1052,10 @@ class LdapManager:
                 scope,
                 searchfilter,
                 attrlist,
-                serverctrls=[controls],
+                serverctrls=controls,
                 sizelimit=sizelimit,
             )
-            rtype, rdata, rmsgid, serverctrls = self.connection.result3(msgid)  # pylint: disable=unused-variable
+            rtype, rdata, rmsgid, serverctrls = self.connection.result3(msgid)
             # Each "rdata" is a tuple of the form (dn, attrs), where dn is
             # a string containing the DN (distinguished name) of the entry,
             # and attrs is a dictionary containing the attributes associated
@@ -866,7 +1074,7 @@ class LdapManager:
                 break
 
             # Push cookie back into the main controls.
-            controls.cookie = paged_controls[0].cookie
+            controls[0].cookie = paged_controls[0].cookie
 
             # If there is no cookie, we're done!
             if not paged_controls[0].cookie:
@@ -1098,6 +1306,7 @@ class LdapManager:
         sizelimit: int = 0,
         basedn: str | None = None,
         scope: int = ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
+        sort_control: ServerSideSortControl | None = None,
     ) -> list[LDAPData]:
         """
         Perform an LDAP search with the given filter and attributes.
@@ -1105,9 +1314,12 @@ class LdapManager:
         Args:
             searchfilter: The LDAP search filter string.
             attributes: List of attribute names to retrieve.
+
+        Keyword Args:
             sizelimit: Maximum number of results to return (0 for no limit).
             basedn: Optional base DN to search from. If None, uses the model's basedn.
-            scope: LDAP search scope.
+            scope: LDAP sSequenceearch scope.
+            sort_control: Server-side sort control.
 
         Returns:
             List of LDAPData tuples (dn, attrs).
@@ -1130,6 +1342,7 @@ class LdapManager:
                 attrlist=attributes,
                 sizelimit=sizelimit,
                 scope=scope,
+                sort_control=sort_control,
             )
         # We have to filter out and references that AD puts in
         data = self.connection.search_s(
@@ -1503,3 +1716,84 @@ class LdapManager:
         obj = cast("type[Model]", self.model)(**kwargs)
         self.add(obj)
         return self.get(pk=getattr(obj, cast("str", self.pk)))
+
+    def _check_server_sorting_support(self, key: str = "read") -> bool:
+        """
+        Check if the LDAP server supports server-side sorting by querying the Root DSE.
+
+        Args:
+            key: Configuration key for the LDAP server.
+
+        Returns:
+            True if server-side sorting is supported, False otherwise.
+
+        """
+        # Check cache first
+        if key in self.__class__._server_sorting_supported:
+            return self.__class__._server_sorting_supported[key]
+
+        # Create a temporary connection to check server capabilities
+        temp_connection = None
+        try:
+            temp_connection = self._connect(key)
+
+            # Query the Root DSE for supported controls
+            result = temp_connection.search_s(
+                "",  # Root DSE
+                ldap.SCOPE_BASE,  # type: ignore[attr-defined]
+                "(objectClass=*)",
+                ["supportedControl"],
+            )
+
+        except ldap.LDAPError as e:  # type: ignore[attr-defined]
+            # Allow SERVER_DOWN and CONNECT_ERROR to propagate (test is inconclusive)
+            if isinstance(e, (ldap.SERVER_DOWN, ldap.CONNECT_ERROR)):  # type: ignore[attr-defined]
+                raise
+            # If we can't check due to other LDAP-specific errors, assume no support
+            # and log the error
+            self.logger.warning(
+                "Failed to check server-side sorting support: %s. "
+                "Falling back to client-side sorting.",
+                e,
+            )
+            self.__class__._server_sorting_supported[key] = False
+            warnings.warn(
+                f"Failed to check server-side sorting support: {e}. "
+                "Falling back to client-side sorting.",
+                stacklevel=2,
+            )
+            return False
+        else:
+            if not result:
+                # No Root DSE found, assume no support
+                self.__class__._server_sorting_supported[key] = False
+                warnings.warn(
+                    "Could not query Root DSE for supported controls. "
+                    "Server-side sorting will be disabled.",
+                    stacklevel=2,
+                )
+                return False
+
+            # Extract supported controls from the result
+            supported_controls = result[0][1].get("supportedControl", [])
+
+            # Check if our server-side sorting OID is in the list
+            sorting_oid = "1.2.840.113556.1.4.473"
+            is_supported = any(
+                control.decode("utf-8") == sorting_oid for control in supported_controls
+            )
+
+            # Cache the result at class level
+            self.__class__._server_sorting_supported[key] = is_supported
+
+            if not is_supported:
+                warnings.warn(
+                    "LDAP server does not support server-side sorting "
+                    f"(OID: {sorting_oid}). Falling back to client-side sorting.",
+                    stacklevel=2,
+                )
+            return is_supported
+        finally:
+            if temp_connection:
+                with suppress(ldap.LDAPError):  # type: ignore[attr-defined]
+                    temp_connection.unbind_s()
