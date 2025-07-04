@@ -16,12 +16,57 @@ All automatically have their ``objects`` attribute set to an instance of
 setting the ``objects`` attribute to an instance of a subclass of
 :py:class:`~ldaporm.managers.LdapManager`.
 
+What's New (2025)
+-----------------
+
+- **Direct Iteration:** You can now iterate over query results directly, without needing to call ``.all()``.
+- **Slicing and Indexing:** Query results support Python slicing and indexing. Slicing with ``[:stop]`` is efficient; other slices fetch all results then slice in Python.
+- **Convenience Methods:** ``.count()``, ``.as_list()``, ``.get_or_none()``, and ``.first_or_none()`` are available on both F and LdapManager objects.
+- **Backward Compatibility:** ``.all()`` is still supported and works as before.
+
+Examples:
+
+.. code-block:: python
+
+   # Direct iteration (no .all() needed)
+   for user in User.objects.filter(is_active=True):
+       print(user.uid)
+
+   # Indexing
+   first_user = User.objects.filter(is_active=True)[0]
+
+   # Efficient slicing (fetches only first 10 results)
+   first_ten = User.objects.filter(is_active=True)[:10]
+
+   # Inefficient slicing (fetches all, then slices)
+   middle_five = User.objects.filter(is_active=True)[5:10]
+
+   # Count
+   num_active = User.objects.filter(is_active=True).count()
+
+   # as_list
+   user_list = User.objects.filter(is_active=True).as_list()
+
+   # get_or_none
+   user = User.objects.get_or_none(uid='john.doe')
+
+   # first_or_none
+   user = User.objects.filter(is_active=True).first_or_none()
+
+.. note::
+   You can still use ``.all()`` for backward compatibility:
+
+   .. code-block:: python
+
+      users = User.objects.filter(is_active=True).all()
+
+
 Subclassing
 ^^^^^^^^^^^
 
 You can subclass :py:class:`~ldaporm.managers.LdapManager` to add custom
 methods to your manager.  For example you can add new methods to your manager
-to your manager to do common operations on your LDAP objects.
+to do common operations on your LDAP objects.
 
 .. code-block:: python
 
@@ -82,8 +127,12 @@ Querying Objects
            basedn = 'ou=users,dc=example,dc=com'
            objectclass = 'person'
 
-   # Get all users
-   users = User.objects.all()
+   # Get all users (you can iterate over them directly)
+   for user in User.objects:
+       print(user.uid)
+
+   # Or get as a list
+   users = list(User.objects)
 
    # Get a specific user
    user = User.objects.get(uid='john.doe')
@@ -93,19 +142,29 @@ Querying Objects
 
    # Use a filter to get a specific user.  If more than one user matches, you'll
    # get a :py:class:`~ldaporm.exceptions.MultipleObjectsReturned` error.
+   # If the user doesn't exist, you'll get a :py:class:`~ldaporm.exceptions.DoesNotExist` error.
    user = User.objects.get(uid__istartswith='john')
 
+   # Get a user or None if they don't exist.  You'll get a
+   # :py:class:`~ldaporm.exceptions.MultipleObjectsReturned` error if more than
+   # one user matches the filter.
+   user = User.objects.get_or_none(uid='john.doe')
+
    # Get first user
-   first_user = User.objects.first()
+   first_user = User.objects.first_or_none()
 
    # Get last user
-   last_user = User.objects.last()
+   last_user = User.objects.as_list()[-1]
 
    # Just tell me if a user exists
    if User.objects.filter(uid='john.doe').exists():
        print("User exists")
    else:
        print("User does not exist")
+
+.. note::
+   You no longer need to append ``.all()`` to execute queries, but it is still
+   supported for backward compatibility.
 
 Filtering
 ---------
@@ -128,9 +187,7 @@ you will get all the results at once.
 
 .. important::
 
-    You must **always** append ``.all()`` to your filter calls if you want to
-    actually get the results.  It is the ``.all()`` that actually executes the
-    query.
+    You can now iterate, index, and slice query results directly. ``.all()`` is no longer required to execute queries.
 
 Basic Filtering
 ^^^^^^^^^^^^^^^
@@ -140,17 +197,17 @@ Use Django-style filtering:
 .. code-block:: python
 
    # Filter by exact match
-   active_users = User.objects.filter(is_active=True).all()
-   john_users = User.objects.filter(cn='John Doe').all()
+   active_users = User.objects.filter(is_active=True)
+   john_users = User.objects.filter(cn='John Doe')
 
    # Filter by multiple conditions
    active_johns = User.objects.filter(
        is_active=True,
        cn__icontains='John'
-   ).all()
+   )
 
    # Use wildcards
-   users = User.objects.wildcard(cn='*john*').all()
+   users = User.objects.wildcard(cn='*john*')
 
 Field Lookups
 ^^^^^^^^^^^^^
@@ -162,35 +219,21 @@ lookups are case-insensitive, while integer comparisons are only available for
 .. code-block:: python
 
    # String lookups
-   # Exists.  This gives you a list of all users that have a cn attribute.
-   users = User.objects.filter(cn__exists='john').all()
-   # Contains (case-insensitive).  This gives you a list of all users that have a
-   # cn attribute that contains "john" or "John", or "jOhn", etc.
-   users = User.objects.filter(cn__icontains='john').all()
-   # Starts with (case-insensitive).  This gives you a list of all users that
-   # have a cn attribute that starts with "John" or "john", or "jOhn", etc.
-   users = User.objects.filter(cn__istartswith='John').all()
-   # Ends with (case-insensitive).  This gives you a list of all users that have a
-   # cn attribute that ends with "Doe" or "DOE", or "dOe", etc.
-   users = User.objects.filter(cn__iendswith='Doe').all()
-   # Exact match.  This gives you a list of all users that have a givenName
-   # attribute that is exactly "John" or "john", or "jOhn", etc.
-   users = User.objects.filter(givenName__iexact='John').all()
-   # This is equivalent to the above
-   users = User.objects.filter(givenName='John').all()
+   users = User.objects.filter(cn__exists='john')
+   users = User.objects.filter(cn__icontains='john')
+   users = User.objects.filter(cn__istartswith='John')
+   users = User.objects.filter(cn__iendswith='Doe')
+   users = User.objects.filter(givenName__iexact='John')
+   users = User.objects.filter(givenName='John')
 
    # List lookups
-   users = User.objects.filter(cn__in=['John Doe', 'Jane Smith']).all()
+   users = User.objects.filter(cn__in=['John Doe', 'Jane Smith'])
 
    # Integer comparisons (only for IntegerField and subclasses)
-   # Greater than
-   users = User.objects.filter(uidNumber__gt=1000).all()
-   # Greater than or equal
-   users = User.objects.filter(uidNumber__gte=1000).all()
-   # Less than
-   users = User.objects.filter(uidNumber__lt=10000).all()
-   # Less than or equal
-   users = User.objects.filter(uidNumber__lte=10000).all()
+   users = User.objects.filter(uidNumber__gt=1000)
+   users = User.objects.filter(uidNumber__gte=1000)
+   users = User.objects.filter(uidNumber__lt=10000)
+   users = User.objects.filter(uidNumber__lte=10000)
 
 .. important::
 
@@ -230,17 +273,17 @@ queries, similarly to Django's :py:class:`~django.db.models.Q` objects:
    # AND operation
    users = User.objects.filter(
        F(cn__icontains='john') & F(is_active=True)
-   ).all()
+   )
 
    # OR operation
    users = User.objects.filter(
        F(cn__icontains='john') | F(cn__icontains='admin')
-   ).all()
+   )
 
    # Complex combinations - use parentheses to control precedence
    users = User.objects.filter(
        (F(cn__icontains='john') & F(is_active=True)) | F(cn__icontains='admin')
-   ).all()
+   )
 
 .. note::
 
@@ -295,8 +338,6 @@ your server's configuration.
 
     Or the following to your ``cn=config`` entry (new style):
 
-    .. code-block:: text
-
         dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config
         objectClass: olcOverlayConfig
         objectClass: olcSssVlvConfig
@@ -350,25 +391,38 @@ Limiting Results
 
 .. important::
 
-    Unlike a SQL database, LDAP does not support server-side limiting.  Sure, you
-    can limit the number of results returned, but you can't take arbitrary slices
-    of the results server side.  We've chosen to implement this in
-    ``django-ldaporm`` so that if you want to limit the number of results, all
-    the results from your query will be returned, and only afterward be limited.
+    Slicing with ``[:stop]`` (e.g., ``[:10]``) is efficient and only fetches up
+    to ``stop`` results from the server. Other slices (e.g., ``[5:15]``,
+    ``[::-1]``) fetch all results and then slice in Python.
 
-Control the number of results:
+    You can now use Python slicing and indexing directly on query results.
+    ``.all()`` is no longer required.
 
 .. code-block:: python
 
-   # Limit results
-   users = User.objects.all()[:10]  # First 10 users
-   users = User.objects.all()[5:15]  # Users 6-15
+   # Efficient: fetches only first 10 results
+   users = User.objects.filter(is_active=True)[:10]
 
-   # Get specific number of results
-   users = User.objects.all()[:5]  # First 5 users
+   # Inefficient: fetches all, then slices
+   users = User.objects.filter(is_active=True)[5:15]
 
-   # Check if more results exist
-   has_more = User.objects.count() > 10
+   # Indexing
+   user = User.objects.filter(is_active=True)[0]
+
+   # Backward compatible
+   users = User.objects.filter(is_active=True).all()
+
+   # Count
+   num_users = User.objects.count()
+
+   # as_list
+   user_list = User.objects.as_list()
+
+   # get_or_none
+   user = User.objects.get_or_none(uid='john.doe')
+
+   # first_or_none
+   user = User.objects.filter(is_active=True).first_or_none()
 
 Limiting the attributes returned
 --------------------------------
@@ -380,11 +434,11 @@ object and don't want to pull in the entire object.
 .. code-block:: python
 
    # Only return the uid and cn attributes
-   >>> User.objects.only('uid', 'cn').all()
+   >>> User.objects.only('uid', 'cn')
    [<User: uid=johndoe, cn=John Doe>, <User: uid=janedoe, cn=Jane Doe>]
 
    # Only return the uid attribute
-   >>> User.objects.filter(uid='johndoe').only('uid').all()
+   >>> User.objects.filter(uid='johndoe').only('uid')
    [<User: uid=johndoe>]
 
 
