@@ -21,19 +21,29 @@ classifiers = [
     "Framework :: Django :: 4.2",
     "Framework :: Django :: 5",
     "Framework :: Django :: 5.1",
-    "Framework :: Django :: 5.2"
+    "Framework :: Django :: 5.2",
+    "Natural Language :: English",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed"
 ]
 dependencies = [
     "pytz>=2019.3",
     "ldap_filter>=0.2.2",
     "python-ldap>=3.2.0",
+    "pyasn1>=0.6.1",
+    "asn1>=3.1.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/caltechads/django-ldaporm"
+Documentation = "https://django-ldaporm.readthedocs.io/en/latest/"
+Issues = "https://github.com/caltechads/django-ldaporm/issues"
 
 [tool.uv]
 python-preference = "only-system"
+default-groups = ["docs", "test"]
 
 [dependency-groups]
 dev = [
@@ -50,6 +60,36 @@ test = [
     "coverage>=5.0.3",
     "django-coverage-plugin>=1.8.0",
     "factory-boy>=2.12.0",
+    "pytest>=8.4.1",
+    "python-ldap-faker>=1.1.0",
+]
+docs = [
+    "sphinx<=7",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinxcontrib-django>=2.5",
+    "sphinxcontrib-images>=0.10.0",
+]
+demo = [
+    "crispy-bootstrap5>=2024.10",
+    "django>=4.2",
+    "django-braces>=1.15.0",
+    "django-crispy-forms>=2.3",
+    "django-extensions>=3.2.3",
+    "django-compressor>=4.5.1",
+    "django-crequest>=2018.5.11",
+    "django-debug-toolbar>=4.4.2",
+    "django-environ>=0.11.2",
+    "django-sass-processor>=1.4.1",
+    "django-theme-academy>=0.3.11",
+    "django-wildewidgets>=1.1.0",
+    "django-xff>=1.3.0",
+    "gunicorn >= 22.0.0",
+    "ipython>=7.27.0",
+    "libsass>=0.23.0",
+    "mysqlclient>=2.2.6",
+    "redis>=5.2.1",
+    "structlog>=24.2.0",
+    "tabulate>=0.9.0",
 ]
 
 [build-system]
@@ -95,6 +135,27 @@ ignore_missing_imports = true
 module = "pytz.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "environ.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "wildewidgets.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sphinx_rtd_theme.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "debug_toolbar.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "crispy_forms.*"
+ignore_missing_imports = true
+
+
 [tool.ruff]
 # Same as Black.
 line-length = 88
@@ -123,10 +184,9 @@ ignore = [
     "D105",     # Missing docstring in magic method
     "D106",     # Missing docstring in nested class
     "D107",     # ignore Missing docstring in __init__ method
-    "D200",     # One-line docstring should fit on one line
     "D203",     # 1 blank required before class docstring
+    "D200",     # One-line docstring should fit on one line
     "D205",     # 1 blank line required between summary line and description
-    "D211",     # No blank lines allowed before class docstring
     "D212",     # Multi-line docstring summary should start at the first line
     "D400",     # First line should end with a period
     "D401",     # First line of docstring should be in imperative mood
@@ -166,3 +226,6 @@ docstring-code-line-length = "dynamic"
 # Django signal handlers use a lot of positional args.
 max-args = 10
 max-positional-args = 10
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["D101", "D102", "N802"]
