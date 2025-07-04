@@ -440,7 +440,7 @@ class F:
             self.attributes = self._meta.attributes
             self._attributes = self.attributes
             self._order_by = self._meta.ordering
-        if f:
+        if f is not None:
             self.chain = list(f.chain)
         else:
             self.chain = []
@@ -855,9 +855,13 @@ class F:
         """
         self._require_manager()
         sort_control = self._create_sort_control()
-        objects = self.model.from_db(
-            self._attributes,
-            self.manager.search(str(self), self._attributes, sort_control=sort_control),
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", self._attributes),
+            cast("LdapManager", self.manager).search(
+                str(self),
+                cast("list[str]", self._attributes),
+                sort_control=sort_control,
+            ),
             many=True,
         )
 
@@ -868,6 +872,63 @@ class F:
             objects = self._sort_objects_client_side(cast("list[Model]", objects))
 
         return cast("list[Model]", objects)
+
+    def count(self) -> int:
+        """
+        Return the number of objects for this model from LDAP.
+
+        Returns:
+            The count of all model instances from LDAP.
+
+        """
+        return len(self.all())
+
+    def as_list(self) -> list["Model"]:
+        """
+        Return a list of all objects for this model from LDAP.
+
+        Returns:
+            A list of all model instances from LDAP.
+
+        """
+        return self.all()
+
+    def get_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return a single object matching the given filters, or None if not found.
+
+        Args:
+            *args: Positional filter arguments.
+            **kwargs: Keyword filter arguments.
+
+        Returns:
+            The model instance matching the filters, or None if no match.
+
+        """
+        try:
+            return self.get(*args, **kwargs)
+        except (
+            cast("type[Model]", self.model).DoesNotExist,
+            cast("type[Model]", self.model).MultipleObjectsReturned,
+        ):
+            return None
+
+    def first_or_none(self, *args, **kwargs) -> "Model | None":
+        """
+        Return the first object matching the given filters, or None if not found.
+
+        Args:
+            *args: Positional filter arguments.
+            **kwargs: Keyword filter arguments.
+
+        Returns:
+            The first model instance matching the filters, or None if no match.
+
+        """
+        try:
+            return self.filter(*args, **kwargs).first()
+        except cast("type[Model]", self.model).DoesNotExist:
+            return None
 
     def delete(self) -> None:
         """
@@ -880,7 +941,7 @@ class F:
         """
         self._require_manager()
         obj = self.get()
-        self.manager.delete_obj(obj)
+        cast("LdapManager", self.manager).delete_obj(obj)
 
     def order_by(self, *args: str) -> "F":
         """
@@ -900,8 +961,9 @@ class F:
         for key in args:
             _key = key.removeprefix("-")
             if self.attributes_map is None or _key not in self.attributes_map:
-                msg = f'"{_key}" is not a valid field on model {self.model.__name__}'
-                raise self.model.InvalidField(msg)
+                name = cast("type[Model]", self.model).__name__
+                msg = f'"{_key}" is not a valid field on model {name}'
+                raise cast("type[Model]", self.model).InvalidField(msg)
         self._order_by = list(args)
         return self
 
@@ -929,7 +991,8 @@ class F:
             # If no attrs specified, use all attributes and field names
             ldap_attrs = self.attributes
             field_names = [
-                self.attribute_to_field_name_map[attr] for attr in ldap_attrs
+                cast("dict[str, str]", self.attribute_to_field_name_map)[attr]
+                for attr in cast("list[str]", ldap_attrs)
             ]
         else:
             # If attrs specified, convert to LDAP attributes
@@ -937,9 +1000,11 @@ class F:
             field_names = list(attrs)
 
         sort_control = self._create_sort_control()
-        objects = self.model.from_db(
-            ldap_attrs,
-            self.manager.search(str(self), ldap_attrs, sort_control=sort_control),
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", ldap_attrs),
+            cast("LdapManager", self.manager).search(
+                str(self), cast("list[str]", ldap_attrs), sort_control=sort_control
+            ),
             many=True,
         )
 
@@ -1074,6 +1139,63 @@ class F:
         """
         self._require_manager()
         return self._filter.to_string()
+
+    def __iter__(self) -> "FIterator":
+        """
+        Make F instances iterable, automatically executing the query.
+
+        Returns:
+            An iterator over the query results.
+
+        """
+        return FIterator(self.all())
+
+    def __len__(self) -> int:
+        """
+        Return the number of objects matching the query.
+
+        Returns:
+            The count of matching objects.
+
+        """
+        return len(self.all())
+
+    def __getitem__(self, key: int | slice) -> "Model | list[Model]":
+        """
+        Support indexing and slicing of query results.
+
+        Args:
+            key: Integer index or slice.
+
+        Returns:
+            The object at the given index or slice of objects.
+
+        """
+        objects = self.all()
+        return objects[key]
+
+
+class FIterator:
+    """
+    Iterator wrapper for F query results.
+
+    This allows F instances to be iterable while maintaining the ability
+    to chain methods.
+    """
+
+    def __init__(self, objects: list["Model"]) -> None:
+        self.objects = objects
+        self.index = 0
+
+    def __iter__(self) -> "FIterator":
+        return self
+
+    def __next__(self) -> "Model":
+        if self.index >= len(self.objects):
+            raise StopIteration
+        result = self.objects[self.index]
+        self.index += 1
+        return result
 
 
 # -----------------------
@@ -1501,7 +1623,7 @@ class LdapManager:
         Keyword Args:
             sizelimit: Maximum number of results to return (0 for no limit).
             basedn: Optional base DN to search from. If None, uses the model's basedn.
-            scope: LDAP sSequenceearch scope.
+            scope: LDAP search scope.
             sort_control: Server-side sort control.
 
         Returns:

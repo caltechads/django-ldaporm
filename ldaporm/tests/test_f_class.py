@@ -1,3 +1,4 @@
+# type: ignore
 """
 Comprehensive test suite for the F class using python-ldap-faker.
 
@@ -589,6 +590,308 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
 
         with pytest.raises(ValueError, match="When using the \"__in\" filter you must supply a list"):
             f.filter(uid__in="alice").all()
+
+    # ========================================
+    # Tests for new functionality (iteration, indexing, etc.)
+    # ========================================
+
+    def test_iteration(self):
+        """Test that F instances are iterable."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount")
+
+        # Test direct iteration
+        users = list(f)
+        assert len(users) == 5
+        uids = [user.uid for user in users]
+        assert "alice" in uids
+        assert "bob" in uids
+        assert "charlie" in uids
+        assert "diana" in uids
+        assert "edward" in uids
+
+        # Test iteration with filter
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash")
+        bash_users = list(f)
+        assert len(bash_users) == 3
+        bash_uids = [user.uid for user in bash_users]
+        assert "alice" in bash_uids
+        assert "bob" in bash_uids
+        assert "diana" in bash_uids
+
+    def test_indexing(self):
+        """Test indexing and slicing of F instances."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test single index
+        first_user = f[0]
+        assert first_user.uid == "alice"
+
+        # Test negative index
+        last_user = f[-1]
+        assert last_user.uid == "edward"
+
+        # Test slicing
+        first_three = f[:3]  # type: ignore[assignment]
+        assert len(first_three) == 3
+        assert first_three[0].uid == "alice"  # type: ignore[attr-defined]
+        assert first_three[1].uid == "bob"  # type: ignore[attr-defined]
+        assert first_three[2].uid == "charlie"  # type: ignore[attr-defined]
+
+        # Test slice with step
+        every_other = f[::2]  # type: ignore[assignment]
+        assert len(every_other) == 3
+        assert every_other[0].uid == "alice"  # type: ignore[attr-defined]
+        assert every_other[1].uid == "charlie"  # type: ignore[attr-defined]
+        assert every_other[2].uid == "edward"  # type: ignore[attr-defined]
+
+    def test_length(self):
+        """Test len() function on F instances."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount")
+
+        # Test length of all users
+        assert len(f) == 5
+
+        # Test length with filter
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash")
+        assert len(f) == 3
+
+        # Test length with no results
+        f = F(self.manager)
+        f = f.filter(uid="nonexistent")
+        assert len(f) == 0
+
+    def test_count_method(self):
+        """Test count() method."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount")
+
+        # Test count of all users
+        assert f.count() == 5
+
+        # Test count with filter
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash")
+        assert f.count() == 3
+
+        # Test count with no results
+        f = F(self.manager)
+        f = f.filter(uid="nonexistent")
+        assert f.count() == 0
+
+    def test_as_list_method(self):
+        """Test as_list() method."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test as_list returns a list
+        user_list = f.as_list()
+        assert isinstance(user_list, list)
+        assert len(user_list) == 5
+
+        # Test order is preserved
+        uids = [user.uid for user in user_list]
+        assert uids == ["alice", "bob", "charlie", "diana", "edward"]
+
+        # Test with filter
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash")
+        bash_list = f.as_list()
+        assert len(bash_list) == 3
+        bash_uids = [user.uid for user in bash_list]
+        assert "alice" in bash_uids
+        assert "bob" in bash_uids
+        assert "diana" in bash_uids
+
+    def test_get_or_none_method(self):
+        """Test get_or_none() method."""
+        f = F(self.manager)
+
+        # Test with existing user
+        user = f.filter(uid="alice").get_or_none()
+        assert user is not None
+        assert user.uid == "alice"
+        assert user.cn == "Alice Johnson"
+
+        # Test with non-existent user
+        user = f.filter(uid="nonexistent").get_or_none()
+        assert user is None
+
+        # Test with multiple results (should return None)
+        user = f.filter(loginShell="/bin/bash").get_or_none()
+        assert user is None
+
+    def test_first_or_none_method(self):
+        """Test first_or_none() method."""
+        f = F(self.manager)
+
+        # Test with existing users
+        user = f.filter(loginShell="/bin/bash").first_or_none()
+        assert user is not None
+        assert user.loginShell == "/bin/bash"
+
+        # Test with non-existent user
+        user = f.filter(uid="nonexistent").first_or_none()
+        assert user is None
+
+        # Test with ordering
+        f = F(self.manager)
+        user = f.filter(loginShell="/bin/bash").order_by("uid").first_or_none()
+        assert user is not None
+        assert user.uid == "alice"  # Should be first alphabetically
+
+    def test_iteration_with_chaining(self):
+        """Test that iteration works with method chaining."""
+        f = F(self.manager)
+
+        # Test iteration after filtering and ordering
+        users = list(f.filter(loginShell="/bin/bash").order_by("uid"))
+        assert len(users) == 3
+        uids = [user.uid for user in users]
+        assert uids == ["alice", "bob", "diana"]
+
+        # Test iteration after only()
+        users = list(f.filter(uid="alice").only("uid", "cn"))
+        assert len(users) == 1
+        assert users[0].uid == "alice"
+        assert users[0].cn == "Alice Johnson"
+
+    def test_indexing_with_chaining(self):
+        """Test that indexing works with method chaining."""
+        f = F(self.manager)
+
+        # Test indexing after filtering and ordering
+        first_bash_user = f.filter(loginShell="/bin/bash").order_by("uid")[0]
+        assert first_bash_user.uid == "alice"
+
+        # Test slicing after filtering
+        bash_users = f.filter(loginShell="/bin/bash").order_by("uid")[:2]  # type: ignore[assignment]
+        assert len(bash_users) == 2
+        assert bash_users[0].uid == "alice"  # type: ignore[attr-defined]
+        assert bash_users[1].uid == "bob"  # type: ignore[attr-defined]
+
+    def test_length_with_chaining(self):
+        """Test that len() works with method chaining."""
+        f = F(self.manager)
+
+        # Test length after filtering
+        bash_count = len(f.filter(loginShell="/bin/bash"))
+        assert bash_count == 3
+
+        # Test length after ordering
+        total_count = len(f.filter(objectclass="posixAccount").order_by("uid"))
+        assert total_count == 5
+
+    def test_multiple_iterations(self):
+        """Test that F instances can be iterated multiple times."""
+        f = F(self.manager)
+        f = f.filter(loginShell="/bin/bash")
+
+        # First iteration
+        users1 = list(f)
+        assert len(users1) == 3
+
+        # Second iteration (should work the same)
+        users2 = list(f)
+        assert len(users2) == 3
+
+        # Both should have the same content
+        uids1 = [user.uid for user in users1]
+        uids2 = [user.uid for user in users2]
+        assert uids1 == uids2
+
+    def test_index_error_handling(self):
+        """Test that indexing errors are handled properly."""
+        f = F(self.manager)
+        f = f.filter(uid="nonexistent")
+
+        # Should raise IndexError for empty result
+        with pytest.raises(IndexError):
+            _ = f[0]
+
+        # Should raise IndexError for negative index on empty result
+        with pytest.raises(IndexError):
+            _ = f[-1]
+
+    def test_slice_with_empty_result(self):
+        """Test slicing with empty results."""
+        f = F(self.manager)
+        f = f.filter(uid="nonexistent")
+
+        # Slicing empty result should return empty list
+        empty_slice = f[:5]
+        assert len(empty_slice) == 0
+
+        empty_slice = f[1:3]
+        assert len(empty_slice) == 0
+
+    def test_convenience_methods_with_complex_queries(self):
+        """Test convenience methods with complex query chains."""
+        f = F(self.manager)
+
+        # Complex query with multiple filters and ordering
+        complex_f = f.filter(uidNumber__gte=1002).filter(loginShell="/bin/bash").order_by("uid")
+
+        # Test count
+        assert complex_f.count() == 2  # bob and diana
+
+        # Test as_list
+        user_list = complex_f.as_list()
+        assert len(user_list) == 2
+        uids = [user.uid for user in user_list]
+        assert uids == ["bob", "diana"]
+
+        # Test get_or_none (should return None due to multiple results)
+        user = complex_f.get_or_none()
+        assert user is None
+
+        # Test first_or_none
+        user = complex_f.first_or_none()
+        assert user is not None
+        assert user.uid == "bob"
+
+    def test_f_iterator_class(self):
+        """Test the FIterator class functionality."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Get the iterator
+        iterator = iter(f)
+
+        # Test iteration
+        users = []
+        for user in iterator:
+            users.append(user)
+
+        assert len(users) == 5
+        uids = [user.uid for user in users]
+        assert uids == ["alice", "bob", "charlie", "diana", "edward"]
+
+        # Test that iterator is exhausted
+        with pytest.raises(StopIteration):
+            next(iterator)
+
+    def test_backward_compatibility(self):
+        """Test that existing .all() method still works."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount")
+
+        # Test that .all() still works
+        all_users = f.all()
+        assert len(all_users) == 5
+
+        # Test that iteration gives same result as .all()
+        iter_users = list(f)
+        assert len(iter_users) == len(all_users)
+
+        # Test that content is the same
+        all_uids = [user.uid for user in all_users]
+        iter_uids = [user.uid for user in iter_users]
+        assert all_uids == iter_uids
 
 
 if __name__ == "__main__":

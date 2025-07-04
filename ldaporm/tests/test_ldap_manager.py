@@ -1,4 +1,5 @@
 # mypy: disable-error-code="attr-defined"
+# type: ignore
 """
 Comprehensive test suite for LdapManager using python-ldap-faker.
 
@@ -940,6 +941,163 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
 
         updated_group = cast("LdapManager", MyTestGroup.objects).get(cn="testgroup")
         self.assertEqual(len(updated_group.memberUid), 2)
+
+    # ========================================
+    # Tests for new LdapManager convenience methods
+    # ========================================
+
+    def test_count_method(self):
+        """Test count() method on LdapManager."""
+        # Test count of all users
+        count = cast("LdapManager", MyTestUser.objects).count()
+        self.assertEqual(count, 3)  # alice, bob, charlie
+
+        # Test count with filter (using F object)
+        f = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash")
+        count = f.count()
+        self.assertEqual(count, 2)  # alice and bob
+
+    def test_as_list_method(self):
+        """Test as_list() method on LdapManager."""
+        # Test as_list returns a list
+        user_list = cast("LdapManager", MyTestUser.objects).as_list()
+        self.assertIsInstance(user_list, list)
+        self.assertEqual(len(user_list), 3)
+
+        # Test with ordering
+        user_list = cast("LdapManager", MyTestUser.objects).order_by("uid").as_list()
+        uids = [user.uid for user in user_list]
+        self.assertEqual(uids, ["alice", "bob", "charlie"])
+
+    def test_get_or_none_method(self):
+        """Test get_or_none() method on LdapManager."""
+        # Test with existing user
+        user = cast("LdapManager", MyTestUser.objects).get_or_none(uid="alice")
+        self.assertIsNotNone(user)
+        self.assertEqual(user.uid, "alice")
+        self.assertEqual(user.cn, "Alice Johnson")
+
+        # Test with non-existent user
+        user = cast("LdapManager", MyTestUser.objects).get_or_none(uid="nonexistent")
+        self.assertIsNone(user)
+
+        # Test with multiple results (should return None)
+        user = cast("LdapManager", MyTestUser.objects).get_or_none(loginShell="/bin/bash")
+        self.assertIsNone(user)
+
+    def test_first_or_none_method(self):
+        """Test first_or_none() method on LdapManager."""
+        # Test with existing users
+        user = cast("LdapManager", MyTestUser.objects).first_or_none(loginShell="/bin/bash")
+        self.assertIsNotNone(user)
+        self.assertEqual(user.loginShell, "/bin/bash")
+
+        # Test with non-existent user
+        user = cast("LdapManager", MyTestUser.objects).first_or_none(uid="nonexistent")
+        self.assertIsNone(user)
+
+        # Test with ordering
+        user = cast("LdapManager", MyTestUser.objects).first_or_none(loginShell="/bin/bash")
+        self.assertIsNotNone(user)
+        # Should be first alphabetically (alice or bob)
+
+    def test_convenience_methods_with_complex_queries(self):
+        """Test convenience methods with complex query chains."""
+        # Complex query with multiple filters and ordering
+        complex_query = cast("LdapManager", MyTestUser.objects).filter(
+            uidNumber__gte=1002
+        ).filter(loginShell="/bin/bash").order_by("uid")
+
+        # Test count
+        count = complex_query.count()
+        self.assertEqual(count, 1)  # only bob
+
+        # Test as_list
+        user_list = complex_query.as_list()
+        self.assertEqual(len(user_list), 1)
+        self.assertEqual(user_list[0].uid, "bob")
+
+        # Test get_or_none (should return bob)
+        user = complex_query.get_or_none()
+        self.assertIsNotNone(user)
+        self.assertEqual(user.uid, "bob")
+
+        # Test first_or_none
+        user = complex_query.first_or_none()
+        self.assertIsNotNone(user)
+        self.assertEqual(user.uid, "bob")
+
+    def test_convenience_methods_with_groups(self):
+        """Test convenience methods with group model."""
+        # Test count
+        count = cast("LdapManager", MyTestGroup.objects).count()
+        self.assertEqual(count, 2)  # developers and admins
+
+        # Test as_list
+        group_list = cast("LdapManager", MyTestGroup.objects).as_list()
+        self.assertEqual(len(group_list), 2)
+        group_names = [group.cn for group in group_list]
+        self.assertIn("developers", group_names)
+        self.assertIn("admins", group_names)
+
+        # Test get_or_none
+        group = cast("LdapManager", MyTestGroup.objects).get_or_none(cn="developers")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.cn, "developers")
+
+        # Test first_or_none
+        group = cast("LdapManager", MyTestGroup.objects).first_or_none()
+        self.assertIsNotNone(group)
+        self.assertIn(group.cn, ["developers", "admins"])
+
+    def test_convenience_methods_with_empty_results(self):
+        """Test convenience methods with empty results."""
+        # Test count with no results
+        count = cast("LdapManager", MyTestUser.objects).filter(uid="nonexistent").count()
+        self.assertEqual(count, 0)
+
+        # Test as_list with no results
+        user_list = cast("LdapManager", MyTestUser.objects).filter(uid="nonexistent").as_list()
+        self.assertEqual(len(user_list), 0)
+
+        # Test get_or_none with no results
+        user = cast("LdapManager", MyTestUser.objects).get_or_none(uid="nonexistent")
+        self.assertIsNone(user)
+
+        # Test first_or_none with no results
+        user = cast("LdapManager", MyTestUser.objects).first_or_none(uid="nonexistent")
+        self.assertIsNone(user)
+
+    def test_convenience_methods_backward_compatibility(self):
+        """Test that convenience methods work with existing methods."""
+        # Test that count() gives same result as len(all())
+        count_method = cast("LdapManager", MyTestUser.objects).count()
+        all_method = len(cast("LdapManager", MyTestUser.objects).all())
+        self.assertEqual(count_method, all_method)
+
+        # Test that as_list() gives same result as all()
+        as_list_result = cast("LdapManager", MyTestUser.objects).as_list()
+        all_result = cast("LdapManager", MyTestUser.objects).all()
+        self.assertEqual(len(as_list_result), len(all_result))
+
+        # Test that content is the same
+        as_list_uids = [user.uid for user in as_list_result]
+        all_uids = [user.uid for user in all_result]
+        self.assertEqual(as_list_uids, all_uids)
+
+    def test_convenience_methods_with_values(self):
+        """Test that convenience methods work with values() and values_list()."""
+        # Test count with values
+        values = cast("LdapManager", MyTestUser.objects).values("uid", "cn")
+        self.assertEqual(len(values), 3)
+
+        # Test count with values_list
+        values_list = cast("LdapManager", MyTestUser.objects).values_list("uid", "cn")
+        self.assertEqual(len(values_list), 3)
+
+        # Test as_list with values (should work the same)
+        values_as_list = cast("LdapManager", MyTestUser.objects).values("uid", "cn")
+        self.assertEqual(len(values_as_list), 3)
 
 
 if __name__ == "__main__":
