@@ -65,7 +65,7 @@ add_function_parentheses: bool = False
 add_module_names: bool = True
 
 # Configure the path to the Django settings module
-django_settings: str = "ads_dev_ops.settings_docker"
+django_settings: str = "settings_docs"
 # Include the database table names of Django models
 django_show_db_tables: bool = True
 
