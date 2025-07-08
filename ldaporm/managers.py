@@ -18,7 +18,12 @@ from base64 import b64encode as encode
 from collections import namedtuple
 from collections.abc import Callable
 from contextlib import suppress
-from distutils.version import StrictVersion
+
+try:
+    from distutils.version import StrictVersion
+except ImportError:
+    from packaging.version import Version as StrictVersion  # type: ignore[assignment]
+
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, cast
@@ -117,7 +122,7 @@ def build_sort_control_value(sort_fields: list[str]) -> bytes:
         if descending:
             sort_key.setComponentByName(
                 "reverseOrder",
-                univ.Boolean(True).subtype(
+                univ.Boolean(True).subtype(  # noqa: FBT003
                     explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
                 ),
             )
@@ -785,8 +790,23 @@ class F:
     @needs_pk
     def get(self, *args, **kwargs) -> "Model":
         """
-        Return the single result of the query, or raise DoesNotExist/MultipleObjectsReturned.
-        Accepts kwargs for filtering.
+        Return the single result of the query, or raise
+        DoesNotExist/MultipleObjectsReturned.  Accepts kwargs for filtering.
+
+        Args:
+            *args: Positional filter arguments.
+
+        Keyword Args:
+            **kwargs: Keyword filter arguments.
+
+        Returns:
+            The single model instance matching the query.
+
+        Raises:
+            LdapManager.DoesNotExist: If no object matches the query.
+            LdapManager.MultipleObjectsReturned: If more than one object matches
+                the query.
+
         """
         if kwargs:
             return self.filter(**kwargs).get(*args)
@@ -1034,14 +1054,19 @@ class F:
 
         _attrs: list[str] = []
         if not attrs:
-            _attrs = self.attributes
-            attrs = tuple(self.attribute_to_field_name_map[attr] for attr in _attrs)
+            _attrs = self.attributes  # type: ignore[assignment]
+            attrs = tuple(
+                cast("dict[str, str]", self.attribute_to_field_name_map)[attr]
+                for attr in _attrs
+            )
         else:
             _attrs = [self.get_attribute(attr) for attr in attrs]
         sort_control = self._create_sort_control()
-        objects = self.model.from_db(
+        objects = cast("Model", self.model).from_db(
             _attrs,
-            self.manager.search(str(self), _attrs, sort_control=sort_control),
+            cast("LdapManager", self.manager).search(
+                str(self), _attrs, sort_control=sort_control
+            ),
             many=True,
         )
 
@@ -1167,23 +1192,13 @@ class F:
                 and key.stop is not None
                 and (isinstance(key.stop, int) and key.stop >= 0)
             ):
-                # Efficient case: f[:stop] with non-negative stop
-                print(
-                    f"DEBUG: Using efficient slicing with limit {key.stop}"
-                )  # Debug output
                 return self._fetch_with_sizelimit(key.stop)
-            else:
-                # Inefficient case: fetch all, then slice in Python
-                print(
-                    f"DEBUG: Using inefficient slicing: start={key.start}, stop={key.stop}, step={key.step}"
-                )  # Debug output
-                objects = self.all()
-                return objects[key]
-        else:
-            # Single index: fetch all, then index
-            print(f"DEBUG: Using single index: {key}")  # Debug output
+            # Inefficient case: fetch all, then slice in Python
             objects = self.all()
             return objects[key]
+        # Single index: fetch all, then index
+        objects = self.all()
+        return objects[key]
 
     def _fetch_with_sizelimit(self, limit: int) -> list["Model"]:
         """
@@ -1287,7 +1302,7 @@ class LdapManager:
         self.objectclass: str | None = None
         self.extra_objectclasses: list[str] = []
         # keys in this dictionary get manipulated by .connect() and .disconnect()
-        self._ldap_objects: dict[threading.Thread, ldap.ldapobject.LDAPObject] = {}  # type: ignore[attr-defined]
+        self._ldap_objects: dict[threading.Thread, ldap.ldapobject.LDAPObject] = {}  # type: ignore[name-defined]
 
     def _get_pctrls(self, serverctrls):
         """
@@ -1495,7 +1510,7 @@ class LdapManager:
         """
         return threading.current_thread() in self._ldap_objects
 
-    def set_connection(self, obj: ldap.ldapobject.LDAPObject) -> None:  # type: ignore[attr-defined]
+    def set_connection(self, obj: ldap.ldapobject.LDAPObject) -> None:  # type: ignore[name-defined]
         """
         Set the LDAP connection object for the current thread.
 
@@ -1513,7 +1528,7 @@ class LdapManager:
 
     def _connect(  # noqa: PLR0912, PLR0915
         self, key: str, dn: str | None = None, password: str | None = None
-    ) -> ldap.ldapobject.LDAPObject:  # type: ignore[attr-defined]
+    ) -> ldap.ldapobject.LDAPObject:  # type: ignore[name-defined]
         """
         Create and return a new LDAP connection object.
 
@@ -1539,7 +1554,7 @@ class LdapManager:
         if not dn:
             dn = config["user"]
             password = config["password"]
-        ldap_object: ldap.ldapobject.LDAPObject = ldap.initialize(config["url"])  # type: ignore[attr-defined]
+        ldap_object: ldap.ldapobject.LDAPObject = ldap.initialize(config["url"])  # type: ignore[name-defined]
         if config.get("follow_referrals", False):
             ldap_object.set_option(ldap.OPT_REFERRALS, 1)  # type: ignore[attr-defined]
         else:
@@ -1608,7 +1623,7 @@ class LdapManager:
 
     def new_connection(
         self, key: str = "read", dn: str | None = None, password: str | None = None
-    ) -> ldap.ldapobject.LDAPObject:  # type: ignore[attr-defined]
+    ) -> ldap.ldapobject.LDAPObject:  # type: ignore[name-defined]
         """
         Create and return a new LDAP connection object.
 
@@ -1624,7 +1639,7 @@ class LdapManager:
         return self._connect(key, dn=dn, password=password)
 
     @property
-    def connection(self) -> ldap.ldapobject.LDAPObject:  # type: ignore[attr-defined]
+    def connection(self) -> ldap.ldapobject.LDAPObject:  # type: ignore[name-defined]
         """
         Get the current thread's LDAP connection object.
 
@@ -1917,8 +1932,23 @@ class LdapManager:
     @substitute_pk
     def get(self, *args, **kwargs) -> "Model":
         """
-        Return the single result of the query, or raise DoesNotExist/MultipleObjectsReturned.
-        Accepts kwargs for filtering.
+        Return the single result of the query, or raise
+        DoesNotExist/MultipleObjectsReturned.  Accepts kwargs for filtering.
+
+        Args:
+            *args: Positional filter arguments.
+
+        Keyword Args:
+            **kwargs: Keyword filter arguments.
+
+        Returns:
+            The single model instance matching the query.
+
+        Raises:
+            LdapManager.DoesNotExist: If no object matches the query.
+            LdapManager.MultipleObjectsReturned: If more than one object matches
+                the query.
+
         """
         if kwargs:
             return self.filter(**kwargs).get(*args)
@@ -1936,32 +1966,7 @@ class LdapManager:
             raise model.MultipleObjectsReturned(msg)
         return cast("Model", model.from_db(attributes, objects))
 
-    def get_or_none(self, *args, **kwargs) -> "Model | None":
-        """
-        Return the single result of the query, or None if not exactly one found.
-        Accepts kwargs for filtering.
-        """
-        try:
-            return self.get(*args, **kwargs)
-        except (
-            cast("type[Model]", self.model).DoesNotExist,
-            cast("type[Model]", self.model).MultipleObjectsReturned,
-        ):
-            return None
-
-    def first_or_none(self, *args, **kwargs) -> "Model | None":
-        """
-        Return the first result of the query, or None if no match.
-        Accepts kwargs for filtering.
-        """
-        if kwargs:
-            return self.filter(**kwargs).first_or_none(*args)
-        try:
-            return self.first(*args)
-        except (cast("type[Model]", self.model).DoesNotExist, IndexError):
-            return None
-
-    def _get_single_result(self, *args):
+    def _get_single_result(self, *args) -> "Model":
         # Call the logic directly (no super())
         return self.get(*args)
 

@@ -88,9 +88,9 @@ class Field:
     ] = []  # Default set of validators  # noqa: RUF012
     #: Default error messages for the field.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
-        "invalid_choice": _("Value %(value)r is not a valid choice."),
-        "null": _("This field cannot be null."),
-        "blank": _("This field cannot be blank."),
+        "invalid_choice": _("Value %(value)r is not a valid choice."),  # type: ignore[dict-item]
+        "null": _("This field cannot be null."),  # type: ignore[dict-item]
+        "blank": _("This field cannot be blank."),  # type: ignore[dict-item]
     }
 
     # These are here to fool ModelForm into thinking we're a Django ORM Field. We
@@ -840,8 +840,8 @@ class BooleanField(Field):
 
     #: Error messages for boolean validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
-        "invalid": _("'%(value)s' value must be either True or False."),
-        "invalid_nullable": _("'%(value)s' value must be either True, False, or None."),
+        "invalid": _("'%(value)s' value must be either True or False."),  # type: ignore[dict-item]
+        "invalid_nullable": _("'%(value)s' value must be either True, False, or None."),  # type: ignore[dict-item]
     }
 
     #: Human-readable description of the field type.
@@ -1085,10 +1085,10 @@ class DateField(Field):
     #: Error messages for date validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
         "invalid": _(
-            "'%(value)s' value has an invalid date format. It must be in YYYY-MM-DD format."
+            "'%(value)s' value has an invalid date format. It must be in YYYY-MM-DD format."  # type: ignore[dict-item]  # noqa: E501
         ),
         "invalid_date": _(
-            "'%(value)s' value has the correct format (YYYY-MM-DD) but it is an invalid date."
+            "'%(value)s' value has the correct format (YYYY-MM-DD) but it is an invalid date."  # type: ignore[dict-item]  # noqa: E501
         ),
     }
     #: Human-readable description of the field type.
@@ -1360,19 +1360,19 @@ class DateTimeField(DateField):
         "invalid": _(
             "'%(value)s' value has an invalid format. It must be in "
             "YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format."
-        ),
+        ),  # type: ignore[dict-item]
         "invalid_date": _(
             "'%(value)s' value has the correct format (YYYY-MM-DD) but it is an "
             "invalid date."
-        ),
+        ),  # type: ignore[dict-item]
         "invalid_datetime": _(
             "'%(value)s' value has the correct format "
             "(YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ]) "
             "but it is an invalid date/time."
-        ),
+        ),  # type: ignore[dict-item]
         "invalid_ldap_datetime": _(
             "LDAP datetime '%(value)s' value is not in a supported format"
-        ),
+        ),  # type: ignore[dict-item]
     }
     #: Human-readable description of the field type.
     description: str = _("Date (with time)")  # type: ignore[assignment]
@@ -1680,7 +1680,7 @@ class IntegerField(Field):
     empty_strings_allowed: bool = False
     #: Error messages for integer validation.
     default_error_messages: dict[str, str] = {  # noqa: RUF012
-        "invalid": _("'%(value)s' value must be an integer."),  # type: ignore[assignment]
+        "invalid": _("'%(value)s' value must be an integer."),  # type: ignore[dict-item]
     }
     #: Human-readable description of the field type.
     description: str = _("Integer")  # type: ignore[assignment]
@@ -2058,14 +2058,14 @@ class ActiveDirectoryTimestampField(DateTimeField):
 
     #: Error messages for Active Directory datetime validation.
     default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
-        "invalid": _(
+        "invalid": _(  # type: ignore[dict-item]
             "'%(value)s' value has an invalid format. It must be an 18-digit integer."
         ),
-        "invalid_timestamp": _(
+        "invalid_timestamp": _(  # type: ignore[dict-item]
             "'%(value)s' value is not a valid Active Directory timestamp."
         ),
-        "timestamp_out_of_range": _(
-            "'%(value)s' value represents a timestamp outside the supported range."
+        "timestamp_out_of_range": _(  # type: ignore[dict-item]
+            "'%(value)s' value represents a timestamp outside the supported range."  # type: ignore[dict-item]
         ),
     }
 

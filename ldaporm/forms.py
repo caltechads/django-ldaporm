@@ -29,7 +29,7 @@ class CharListWidget(Textarea):
     #: Whether this widget should be hidden in forms.
     is_hidden: bool = False
 
-    def render(
+    def render(  # type: ignore[override]
         self,
         name: str,
         value: str | list[str] | None,
