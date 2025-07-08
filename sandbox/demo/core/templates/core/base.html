@@ -1,0 +1,7 @@
+{% extends 'academy_theme/base--wildewidgets.html' %}
+{% load static demo %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'core/css/core.css' %}">
+{% endblock %}

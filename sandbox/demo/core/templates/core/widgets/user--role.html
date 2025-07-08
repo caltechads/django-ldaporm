@@ -1,0 +1,109 @@
+{% load tz core helpdesk crispy_forms_tags %}
+
+<div class="border-bottom py-3 px-4 h5 bg-light ">
+    <div class="d-flex justify-content-between align-items-center user search--roles"
+        id="search--roles">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="filter-enabled custom-control d-flex align-items-center custom-checkbox me-4">
+            <input type="checkbox" class="custom-control-input" name="enabled-only" id="id_enabled_only" checked>
+            <label class="custom-control-label" for="id_enabled_only">Assigned Only</label>
+          </div>
+          <button class="btn btn-light" id="copy-roles" title="Copy Roles"><span  class="bi-clipboard me-2"></span> Copy Roles</button>
+        </div>
+        <div>
+            <label class="d-none me-4" for="id_roles_search">Filter Roles</label>
+            <input type="text" class="form-control" id="id_roles_search" name="roles-search" placeholder="Filter Roles">
+        </div>
+    </div>
+</div>
+<div class="alert alert-success" id="success-alert" style="display:none !important;">
+  <div>The roles have been successfully copied to the clipboard.</div>
+  <!-- <a href="#" class="close" data-dismiss="alert">&times;</a> -->
+</div>
+
+
+<div class="user managed-roles">
+  {% crispy form %}
+</div>
+
+<div class="user managed-roles d-flex justify-content-between border-bottom border-top py-3 px-4 bg-light collapse-toggle">
+  <h3 class="align-middle mt-1">Derived Roles</h3>
+  <button class="btn" data-bs-toggle="collapse" href="#user_derived_roles" role="button" aria-expanded="false"
+      aria-controls="user_derived_roles" class="bi-chevron-down"></button>
+</div>
+
+<div id="user_derived_roles" class="p-4 collapse">
+  <div class="user_roles my-4 ps-3">
+  {% for role in user|derived_roles %}
+    <div class="user_role mb-1">
+        <i class="bi-card-checklist"></i><span class="ps-3">{{role|role_name}}</span>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+<script>
+    document.getElementById("id_roles_search").addEventListener("keyup", function() {
+        const enabledOnlyCheckbox = document.getElementById("id_enabled_only");
+        if (enabledOnlyCheckbox.checked) {
+            enabledOnlyCheckbox.checked = false;
+        }
+
+        const searchValue = this.value.trim();
+        const managedRolesContainer = document.getElementById("div_id_{% if role_type == 'legacy' %}legacy_{% endif %}managed_roles");
+        const labels = managedRolesContainer.querySelectorAll("label");
+
+        labels.forEach(label => {
+            const parent = label.parentElement;
+            if (label.textContent.includes(searchValue)) {
+                parent.classList.remove('d-none');
+            } else {
+                parent.classList.add('d-none');
+            }
+        });
+    });
+
+    document.getElementById("id_enabled_only").addEventListener("change", function() {
+        const managedRolesContainer = document.getElementById("div_id_managed_roles");
+        const uncheckedInputs = managedRolesContainer.querySelectorAll("input:not(:checked)");
+
+        uncheckedInputs.forEach(input => {
+            const parent = input.parentElement;
+            if (this.checked) {
+                parent.classList.add('d-none');
+            } else {
+                parent.classList.remove('d-none');
+            }
+        });
+    });
+
+    // Hide unchecked inputs on page load
+    const managedRolesContainer = document.getElementById("div_id_managed_roles");
+    const uncheckedInputs = managedRolesContainer.querySelectorAll("input:not(:checked)");
+    uncheckedInputs.forEach(input => {
+        input.parentElement.classList.add('d-none');
+    });
+
+    document.getElementById('copy-roles').addEventListener('click', function() {
+      const roles = `{% for role in user.nsroledn %}{{role|role_name}}
+{% endfor %}`;
+      navigator.clipboard.writeText(roles).then(
+        () => {
+          // alert("Roles copied.");
+          const alert = document.getElementById('success-alert');
+          alert.style.display = 'block';
+          alert.style.transition = 'opacity 0.3s ease-in-out';
+          setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => {
+              alert.style.display = 'none';
+              alert.style.opacity = '1';
+            }, 300);
+          }, 3000);
+        },
+        () => {
+          alert("Copy failed!");
+        }
+      );
+    });
+</script>

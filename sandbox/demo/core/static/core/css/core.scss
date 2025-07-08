@@ -1,0 +1,119 @@
+@mixin checkbox-toggle() {
+    // Render our boring old checkboxes as toggle switches
+    :focus {
+        outline: 0;
+    }
+
+    .form-check,
+    .custom-checkbox {
+        padding-left: 0;
+        .custom-control-label,
+        .form-check-label {
+            display: block;
+            width: 100%;
+            position: relative;
+        }
+    }
+
+    .form-check-input,
+    .custom-control-input {
+        position: absolute;
+        z-index: -1;
+        opacity: 0;
+        outline: 0;
+    }
+
+    .form-check-input,
+    .custom-control-input:focus {
+        outline: 0;
+        border: 1px solid black;
+    }
+
+    .form-check-input:focus ~ .form-check-label::before,
+    .custom-control-input:focus ~ .custom-control-label::before {
+        border: 1px solid black;
+    }
+
+    .form-check-label::before,
+    .custom-control-label::before {
+        height: 20px;
+        background-color: #D14900;
+        border: 0;
+        transition: background-color .15s ease-in-out;
+    }
+
+    .form-check .form-check-label::before,
+    .custom-control .custom-control-label::before {
+        position: absolute;
+        left: inherit;
+        right: 0;
+        top: 1px;
+        width: 40px;
+        border-radius: 30px;
+        box-shadow: none;
+        content: " ";
+    }
+
+    .form-check .form-check-label::after,
+    .custom-control .custom-control-label::after {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        top: 2px;
+        left: inherit;
+        right: 20.4px;
+        background-color: white;
+        border-radius: 30px;
+        transition: transform 0.15s ease-in-out 0s, background-color 0.15s ease-in-out 0s;
+        content: " ";
+    }
+
+    .form-check-input:checked ~ .form-check-label::before,
+    .custom-control-input:checked ~ .custom-control-label::before {
+        color: white;
+        border: 0;
+        background-color: #55a630;
+    }
+
+    .form-check .form-check-input:checked ~ .form-check-label::after,
+    .custom-control .custom-control-input:checked ~ .custom-control-label::after {
+         transform: translateX(1.05rem);
+    }
+
+    .form-check .form-check-input:disabled ~ .form-check-label::before,
+    .custom-control .custom-control-input:disabled ~ .custom-control-label::before {
+        background-color: change-color(#D14900, $alpha: 0.5);
+    }
+
+    .form-check .form-check-input:disabled:checked ~ .form-check-label::before,
+    .custom-control .custom-control-input:disabled:checked ~ .custom-control-label::before {
+        background-color: change-color(#55a630, $alpha: 0.5);
+    }
+}
+
+.user-configuration {
+    @include checkbox-toggle();
+}
+
+.filter-enabled {
+    width: 170px;
+    font-size: 1rem;
+}
+
+.managed-roles {
+    @include checkbox-toggle();
+    .form-label {
+        display: none;
+    }
+    fieldset {
+        border: none;
+        padding: 0;
+    }
+    .form-check {
+        border-bottom: 1px solid #eee;
+        padding: 1rem 2rem;
+        &:hover {
+            background-color: #fafafa;
+        }
+    }
+}

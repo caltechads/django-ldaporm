@@ -377,11 +377,24 @@ wheels = [
 ]
 
 [[package]]
+name = "django-filter"
+version = "25.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/40/c702a6fe8cccac9bf426b55724ebdf57d10a132bae80a17691d0cf0b9bac/django_filter-25.1.tar.gz", hash = "sha256:1ec9eef48fa8da1c0ac9b411744b16c3f4c31176c867886e4c48da369c407153", size = 143021 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/a6/70dcd68537c434ba7cb9277d403c5c829caf04f35baf5eb9458be251e382/django_filter-25.1-py3-none-any.whl", hash = "sha256:4fa48677cf5857b9b1347fed23e355ea792464e0fe07244d1fdfb8a806215b80", size = 94114 },
+]
+
+[[package]]
 name = "django-ldaporm"
 version = "1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "asn1" },
+    { name = "djangorestframework" },
     { name = "ldap-filter" },
     { name = "pyasn1" },
     { name = "python-ldap" },
@@ -399,10 +412,12 @@ demo = [
     { name = "django-debug-toolbar" },
     { name = "django-environ" },
     { name = "django-extensions" },
+    { name = "django-filter" },
     { name = "django-sass-processor" },
     { name = "django-theme-academy" },
     { name = "django-wildewidgets" },
     { name = "django-xff" },
+    { name = "djangorestframework" },
     { name = "gunicorn" },
     { name = "ipython", version = "8.37.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "ipython", version = "9.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -434,13 +449,14 @@ test = [
     { name = "pytest" },
     { name = "python-ldap-faker" },
     { name = "testfixtures", version = "8.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "testfixtures", version = "9.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "testfixtures", version = "9.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "unittest-xml-reporting" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "asn1", specifier = ">=3.1.0" },
+    { name = "djangorestframework", specifier = ">=3.16.0" },
     { name = "ldap-filter", specifier = ">=0.2.2" },
     { name = "pyasn1", specifier = ">=0.6.1" },
     { name = "python-ldap", specifier = ">=3.2.0" },
@@ -458,10 +474,12 @@ demo = [
     { name = "django-debug-toolbar", specifier = ">=4.4.2" },
     { name = "django-environ", specifier = ">=0.11.2" },
     { name = "django-extensions", specifier = ">=3.2.3" },
+    { name = "django-filter", specifier = ">=25.1" },
     { name = "django-sass-processor", specifier = ">=1.4.1" },
     { name = "django-theme-academy", specifier = ">=0.3.11" },
     { name = "django-wildewidgets", specifier = ">=1.1.0" },
     { name = "django-xff", specifier = ">=1.3.0" },
+    { name = "djangorestframework", specifier = ">=3.16.0" },
     { name = "gunicorn", specifier = ">=22.0.0" },
     { name = "ipython", specifier = ">=7.27.0" },
     { name = "libsass", specifier = ">=0.23.0" },
@@ -568,6 +586,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/73/a7/82c364b842f6baf71d498f9f8e7e4f6bc7be2bcba09cc3326b93285f12b3/django_xff-1.5.0.tar.gz", hash = "sha256:cd63c6da00d8f4b4a909f26c8bb23beeb66fadb400522674c4d93786170e16e4", size = 27533 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/87/0d9c0c42c7ea3163185709b149c6ce05f86a0e245d26d157add85a188d10/django_xff-1.5.0-py2.py3-none-any.whl", hash = "sha256:78148498bf74f60db573a43acfe9e6b81c2ef30fa609664fe7887b2bdf2e749e", size = 13469 },
+]
+
+[[package]]
+name = "djangorestframework"
+version = "3.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/97/112c5a72e6917949b6d8a18ad6c6e72c46da4290c8f36ee5f1c1dcbc9901/djangorestframework-3.16.0.tar.gz", hash = "sha256:f022ff46613584de994c0c6a4aebbace5fd700555fbe9d33b865ebf173eba6c9", size = 1068408 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/3e/2448e93f4f87fc9a9f35e73e3c05669e0edd0c2526834686e949bb1fd303/djangorestframework-3.16.0-py3-none-any.whl", hash = "sha256:bea7e9f6b96a8584c5224bfb2e4348dfb3f8b5e34edbecb98da258e892089361", size = 1067305 },
 ]
 
 [[package]]
@@ -1415,14 +1445,14 @@ wheels = [
 
 [[package]]
 name = "testfixtures"
-version = "9.0.0"
+version = "9.0.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.11'",
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ba/41/b9ff9c56a50baa56de4417e37e0c36b95976a63c6b38a1d2f7aab1f683b8/testfixtures-9.0.0.tar.gz", hash = "sha256:a858e7fd665e5039d6d86c7951d9a231008e18e993ea8624cb20bbec6d49fed4", size = 87851 }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/4d/5693e33075c5a30508745a463e6db2757b64c683866907825578d9ae164c/testfixtures-9.0.1.tar.gz", hash = "sha256:5d4c7e8632ae8fec046d06cdceb0973c679bbf35a6fd8924bd03cf3669477dab", size = 88436 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/8c/90cc2127a7acefc7a6a58841ba84516b477b117a6aa0db2903e48fb2836c/testfixtures-9.0.0-py3-none-any.whl", hash = "sha256:58266723d9e2b5574e65760ea60564c2afcf6ee0e68a3cf022ef42a59654d3e1", size = 105575 },
+    { url = "https://files.pythonhosted.org/packages/52/ae/1d30b4e5ebd47313922a292f07c9586a50f18e4d9dba16bf972892d0b733/testfixtures-9.0.1-py3-none-any.whl", hash = "sha256:264e86855fb3c28d82509e665be2ec3a51698c1fdad2b41734c8c4c84f55bc49", size = 106099 },
 ]
 
 [[package]]
@@ -1484,11 +1514,11 @@ wheels = [
 
 [[package]]
 name = "typing-extensions"
-version = "4.14.0"
+version = "4.14.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d1/bc/51647cd02527e87d05cb083ccc402f93e441606ff1f01739a62c8ad09ba5/typing_extensions-4.14.0.tar.gz", hash = "sha256:8676b788e32f02ab42d9e7c61324048ae4c6d844a399eebace3d4979d75ceef4", size = 107423 }
+sdist = { url = "https://files.pythonhosted.org/packages/98/5a/da40306b885cc8c09109dc2e1abd358d5684b1425678151cdaed4731c822/typing_extensions-4.14.1.tar.gz", hash = "sha256:38b39f4aeeab64884ce9f74c94263ef78f3c22467c8724005483154c26648d36", size = 107673 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/e0/552843e0d356fbb5256d21449fa957fa4eff3bbc135a74a691ee70c7c5da/typing_extensions-4.14.0-py3-none-any.whl", hash = "sha256:a1514509136dd0b477638fc68d6a91497af5076466ad0fa6c338e44e359944af", size = 43839 },
+    { url = "https://files.pythonhosted.org/packages/b5/00/d631e67a838026495268c2f6884f3711a15a9a2a96cd244fdaea53b823fb/typing_extensions-4.14.1-py3-none-any.whl", hash = "sha256:d1e1e3b58374dc93031d6eda2420a48ea44a36c2b4766a4fdeb3710755731d76", size = 43906 },
 ]
 
 [[package]]

@@ -90,6 +90,8 @@ demo = [
     "redis>=5.2.1",
     "structlog>=24.2.0",
     "tabulate>=0.9.0",
+    "django-filter>=25.1",
+    "djangorestframework>=3.16.0",
 ]
 
 [build-system]
@@ -155,6 +157,22 @@ ignore_missing_imports = true
 module = "crispy_forms.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "braces.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "structlog.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rest_framework.*"
+ignore_missing_imports = true
+
+
+[tool.basedpyright]
+python_version = "3.10"
+typeCheckingMode = "off"
 
 [tool.ruff]
 # Same as Black.

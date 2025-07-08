@@ -1,0 +1,176 @@
+# Base organizational structure
+dn: o=example,c=us
+objectClass: organization
+o: example
+
+# People organizational unit
+dn: ou=people,o=example,c=us
+objectClass: organizationalUnit
+ou: people
+
+# Sample POSIX users
+dn: uid=john.doe,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: top
+uid: john.doe
+cn: John Doe
+sn: Doe
+givenName: John
+mail: john.doe@example.com
+uidNumber: 1001
+gidNumber: 1001
+homeDirectory: /home/john.doe
+loginShell: /bin/bash
+employeeNumber: 12344
+userPassword: {SSHA}password123
+loginDisabled: TRUE
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role3,ou=roles,o=example,c=us
+
+dn: uid=jane.smith,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: top
+uid: jane.smith
+cn: Jane Smith
+sn: Smith
+givenName: Jane
+mail: jane.smith@example.com
+mail: jane@example.com
+mail: hr@example.com
+uidNumber: 1002
+gidNumber: 1001
+employeeNumber: 12345
+homeDirectory: /home/jane.smith
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+homePhone: +1 234 567 8900
+mobile: +1 234 567 8901
+roomNumber: 101
+loginDisabled: TRUE
+
+dn: uid=bob.wilson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: top
+uid: bob.wilson
+cn: Bob Wilson
+sn: Wilson
+givenName: Bob
+mail: bob.wilson@example.com
+mail: bob@example.com
+mail: bobw@example.com
+uidNumber: 1003
+gidNumber: 1001
+employeeNumber: 12346
+homeDirectory: /home/bob.wilson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+homePhone: +1 234 567 8900
+mobile: +1 234 567 8901
+roomNumber: 101
+loginDisabled: FALSE
+
+dn: uid=alice.jones,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: top
+uid: alice.jones
+cn: Alice Jones
+sn: Jones
+givenName: Alice
+mail: alice.jones@example.com
+mail: alice@example.com
+mail: alicej@example.com
+uidNumber: 1004
+gidNumber: 1001
+employeeNumber: 12347
+homeDirectory: /home/alice.jones
+loginShell: /bin/bash
+homePhone: +1 234 567 8900
+mobile: +1 234 567 8901
+roomNumber: 102
+userPassword: {SSHA}password123
+loginDisabled: FALSE
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role2,ou=roles,o=example,c=us
+
+dn: uid=admin,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: top
+uid: admin
+cn: Administrator
+sn: Admin
+givenName: Admin
+mail: admin@example.com
+uidNumber: 1000
+gidNumber: 1000
+employeeNumber: 12348
+homeDirectory: /home/admin
+loginShell: /bin/bash
+userPassword: {SSHA}admin123
+homePhone: +1 234 567 8900
+mobile: +1 234 567 8901
+roomNumber: 101
+loginDisabled: FALSE
+nsroledn: cn=role3,ou=roles,o=example,c=us
+
+# Groups organizational unit
+dn: ou=groups,o=example,c=us
+objectClass: organizationalUnit
+ou: groups
+
+# Sample groups
+dn: cn=users,ou=groups,o=example,c=us
+objectClass: posixGroup
+objectClass: top
+cn: users
+gidNumber: 1001
+memberUid: john.doe
+memberUid: jane.smith
+memberUid: bob.wilson
+memberUid: alice.jones
+
+dn: cn=admins,ou=groups,o=example,c=us
+objectClass: posixGroup
+objectClass: top
+cn: admins
+gidNumber: 1000
+memberUid: jane.smith
+
+# Roles organizational unit
+dn: ou=roles,o=example,c=us
+objectClass: organizationalUnit
+ou: roles
+
+
+# NSRoles
+dn: cn=role1,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role1
+description: Role 1
+
+dn: cn=role2,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role2
+description: Role 2
+
+dn: cn=role3,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role3
+description: Role 3

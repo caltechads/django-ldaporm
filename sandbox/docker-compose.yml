@@ -1,0 +1,72 @@
+---
+services:
+  demo:
+    image: django_ldaporm_demo:latest
+    restart: always
+    hostname: django_ldaporm_demo
+    container_name: django_ldaporm_demo
+    environment:
+      - DEBUG=True
+      - DEVELOPMENT=True
+      - LDAP_URL=ldap://ldap:389
+      - LDAP_USER=cn=Directory Manager
+      - LDAP_PASSWORD=password
+      - LDAP_BASEDN=o=example,c=us
+    ports:
+      - "443:8443"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - ../ldaporm:/ve/lib/python3.13/site-packages/ldaporm
+
+  ldap:
+    image: 389ds/dirsrv:latest
+    container_name: ldap
+    hostname: ldap
+    environment:
+      - DS_DM_PASSWORD=password
+      - DS_REINDEX=true
+    ports:
+      - "389:389"
+      - "636:636"
+    volumes:
+      - ./data/ldap/init:/init
+      - django_ldaporm_demo_ldap_data:/data
+
+
+  # For the first time only, after the LDAP container is running, we need to run
+  # the following commands:
+  #
+  # docker exec -it ldap bash
+  # dsconf localhost backend create --suffix o=example,c=us --be-name orgRoot
+  #
+  # Exit from the container and run:
+  #
+  # cd data/ldap/init
+  # ./load_data.sh
+
+  mysql:
+    image: mysql:8.0
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+    cap_add:
+      # removes error messages like: mbind: Operation not permitted
+      - SYS_NICE
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./sql/docker/my.cnf:/etc/mysql/conf.d/dev.cnf
+      - ./sql/docker:/docker-entrypoint-initdb.d
+      - django_ldaporm_demo_data:/var/lib/mysql
+    healthcheck:
+      test: mysql --user=root --password=root_password --execute "SHOW DATABASES;"
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  django_ldaporm_demo_ldap_data:
+  django_ldaporm_demo_data:

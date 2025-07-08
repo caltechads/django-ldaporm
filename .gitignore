@@ -123,3 +123,4 @@ exeter_api.code-workspace
 tags
 supervisord.pid
 requirements.txt.new
+django_ldaporm.tar.gz
