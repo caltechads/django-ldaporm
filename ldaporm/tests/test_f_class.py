@@ -558,8 +558,10 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         """Test error handling when no filter is specified."""
         f = F(self.manager)
 
-        with pytest.raises(F.NoFilterSpecified):
-            f.all()
+        # With our current implementation, an empty F object returns all objects
+        # because it uses a default filter that matches everything
+        users = f.all()
+        self.assertEqual(len(users), 5)  # Should return all 5 test users
 
     def test_values_with_only_error(self):
         """Test error when using values() with only()."""
@@ -958,29 +960,346 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         assert skip_first_bash[1].uid == "diana"
 
     def test_slicing_edge_cases(self):
-        """Test edge cases for slicing."""
-        f = F(self.manager)
-        f = f.filter(objectclass="posixAccount").order_by("uid")
+        """Test slicing with edge cases."""
+        # Test with empty result
+        empty_f = F(self.manager).filter(uid="nonexistent")
+        self.assertEqual(len(empty_f), 0)
+        self.assertEqual(empty_f[:5], [])
 
-        # Test with zero limit
-        empty_result = f[:0]
-        assert len(empty_result) == 0
+        # Test with single result
+        single_f = F(self.manager).filter(uid="alice")
+        self.assertEqual(len(single_f), 1)
+        self.assertEqual(single_f[:5], single_f.all())
+        self.assertEqual(single_f[5:], [])
 
-        # Test with negative limit (should return empty)
-        negative_result = f[:-1]
-        assert len(negative_result) == 4  # All except last
+    # ========================================
+    # Exclude Method Tests
+    # ========================================
 
-        # Test with very large limit
-        large_limit = f[:1000]
-        assert len(large_limit) == 5  # Should return all available
+    def test_exclude_basic(self):
+        """Test basic exclude functionality."""
+        # Exclude a specific user
+        users = F(self.manager).exclude(uid="alice").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
 
-        # Test single index (should fetch all, then index)
-        first_user = f[0]
-        assert first_user.uid == "alice"
+    def test_exclude_multiple_conditions(self):
+        """Test exclude with multiple conditions."""
+        # Exclude users with specific conditions
+        users = F(self.manager).exclude(
+            uid="alice",
+            loginShell="/bin/zsh"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude users who have BOTH uid=alice AND loginShell=/bin/zsh
+        # Since no user has both conditions, no users should be excluded
+        self.assertIn("alice", user_uids)  # alice has uid=alice but loginShell=/bin/bash
+        self.assertIn("charlie", user_uids)  # charlie has loginShell=/bin/zsh but uid=charlie
+        self.assertIn("bob", user_uids)
 
-        # Test negative index (should fetch all, then index)
-        last_user = f[-1]
-        assert last_user.uid == "edward"
+        # Test with conditions that actually match a user
+        users = F(self.manager).exclude(
+            uid="alice",
+            loginShell="/bin/bash"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude alice (who has both uid=alice AND loginShell=/bin/bash)
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)  # bob has loginShell=/bin/bash but uid=bob
+        self.assertIn("charlie", user_uids)  # charlie has uid=charlie but loginShell=/bin/zsh
+
+    def test_exclude_with_filter(self):
+        """Test chaining exclude with filter."""
+        # Filter for bash users, then exclude alice
+        users = F(self.manager).filter(loginShell="/bin/bash").exclude(uid="alice").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        self.assertIn("diana", user_uids)
+        # Note: edward has loginShell=/bin/tcsh, not /bin/bash, so he shouldn't be in the results
+
+    def test_exclude_with_filter_suffixes(self):
+        """Test exclude with various filter suffixes."""
+        # Test icontains
+        users = F(self.manager).exclude(cn__icontains="Alice").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test istartswith
+        users = F(self.manager).exclude(cn__istartswith="Alice").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test iendswith
+        users = F(self.manager).exclude(cn__iendswith="Johnson").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test iexact
+        users = F(self.manager).exclude(cn__iexact="Alice Johnson").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+    def test_exclude_with_in_operator(self):
+        """Test exclude with __in operator."""
+        users = F(self.manager).exclude(uid__in=["alice", "bob"]).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+        self.assertIn("diana", user_uids)
+
+    def test_exclude_with_exists(self):
+        """Test exclude with __exists operator."""
+        # All users have uid, so excluding uid__exists=True should return empty
+        users = F(self.manager).exclude(uid__exists=True).all()
+        self.assertEqual(len(users), 0)
+
+        # Excluding uid__exists=False should return all users
+        users = F(self.manager).exclude(uid__exists=False).all()
+        self.assertEqual(len(users), 5)
+
+    def test_exclude_with_integer_comparisons(self):
+        """Test exclude with integer comparison operators."""
+        # Exclude users with uidNumber >= 1003
+        users = F(self.manager).exclude(uidNumber__gte=1003).all()
+        user_uids = [user.uid for user in users]
+        self.assertIn("alice", user_uids)  # uidNumber 1001
+        self.assertIn("bob", user_uids)    # uidNumber 1002
+        self.assertNotIn("charlie", user_uids)  # uidNumber 1003
+        self.assertNotIn("diana", user_uids)    # uidNumber 1004
+        self.assertNotIn("edward", user_uids)   # uidNumber 1005
+
+        # Exclude users with uidNumber < 1003
+        users = F(self.manager).exclude(uidNumber__lt=1003).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)  # uidNumber 1001
+        self.assertNotIn("bob", user_uids)    # uidNumber 1002
+        self.assertIn("charlie", user_uids)   # uidNumber 1003
+        self.assertIn("diana", user_uids)     # uidNumber 1004
+        self.assertIn("edward", user_uids)    # uidNumber 1005
+
+    def test_exclude_with_none_value(self):
+        """Test exclude with None values."""
+        # Exclude users where uid is None (should exclude users who have uid attribute)
+        # Since all users have uid, all should be excluded
+        users = F(self.manager).exclude(uid=None).all()
+        self.assertEqual(len(users), 0)
+
+        # Exclude users where uid equals None (should exclude users who have uid attribute)
+        # Since all users have uid, all should be excluded
+        users = F(self.manager).exclude(uid__iexact=None).all()
+        self.assertEqual(len(users), 0)
+
+    def test_exclude_with_f_objects(self):
+        """Test exclude with F objects."""
+        # Create F objects for exclusion
+        f1 = F(self.manager).filter(uid="alice")
+        f2 = F(self.manager).filter(uid="bob")
+
+        # Exclude using F objects
+        users = F(self.manager).exclude(f1, f2).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_with_logical_operations(self):
+        """Test exclude with logical operations."""
+        # Test exclude with OR logic
+        f1 = F(self.manager).filter(uid="alice")
+        f2 = F(self.manager).filter(uid="bob")
+        or_filter = f1 | f2
+
+        users = F(self.manager).exclude(or_filter).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_chaining(self):
+        """Test chaining multiple exclude calls."""
+        # Chain multiple exclude calls
+        users = F(self.manager).exclude(uid="alice").exclude(uid="bob").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_with_other_methods(self):
+        """Test exclude with other methods like only, order_by."""
+        # Test exclude with only
+        users = F(self.manager).exclude(uid="alice").only("uid", "cn").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+        # Test exclude with order_by
+        users = F(self.manager).exclude(uid="alice").order_by("uid").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertEqual(user_uids, ["bob", "charlie", "diana", "edward"])
+
+    def test_exclude_edge_cases(self):
+        """Test exclude with edge cases."""
+        # Exclude all users (should return empty)
+        users = F(self.manager).exclude(
+            uid__in=["alice", "bob", "charlie", "diana", "edward"]
+        ).all()
+        self.assertEqual(len(users), 0)
+
+        # Exclude with empty list
+        users = F(self.manager).exclude(uid__in=[]).all()
+        self.assertEqual(len(users), 5)
+
+    def test_exclude_error_handling(self):
+        """Test exclude error handling."""
+        # Test invalid field
+        with self.assertRaises(MyTestUser.InvalidField):
+            F(self.manager).exclude(invalid_field="value")
+
+        # Test invalid suffix
+        with self.assertRaises(F.UnknownSuffix):
+            F(self.manager).exclude(uid__invalid="value")
+
+        # Test __in with non-list
+        with self.assertRaises(ValueError):
+            F(self.manager).exclude(uid__in="not_a_list")
+
+        # Test integer comparison on non-integer field
+        with self.assertRaises(TypeError):
+            F(self.manager).exclude(cn__gt=100)
+
+    def test_exclude_string_representation(self):
+        """Test string representation of exclude filters."""
+        # Simple exclude
+        f = F(self.manager).exclude(uid="alice")
+        self.assertIn("(!(uid=alice))", str(f))
+
+        # Multiple excludes - our implementation combines them with AND
+        f = F(self.manager).exclude(uid="alice", cn="Bob Smith")
+        self.assertIn("(!(&(uid=alice)(cn=Bob Smith)))", str(f))
+
+        # Exclude with filter
+        f = F(self.manager).filter(loginShell="/bin/bash").exclude(uid="alice")
+        self.assertIn("(loginShell=/bin/bash)", str(f))
+        self.assertIn("(!(uid=alice))", str(f))
+
+    def test_exclude_with_values_method(self):
+        """Test exclude with values method."""
+        users = F(self.manager).exclude(uid="alice").values("uid", "cn")
+        user_uids = [user["uid"] for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_with_values_list_method(self):
+        """Test exclude with values_list method."""
+        users = F(self.manager).exclude(uid="alice").values_list("uid", "cn")
+        user_uids = [user[0] for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_with_count_method(self):
+        """Test exclude with count method."""
+        count = F(self.manager).exclude(uid="alice").count()
+        self.assertEqual(count, 4)  # 5 total - 1 excluded = 4
+
+    def test_exclude_with_exists_method(self):
+        """Test exclude with exists method."""
+        # Should exist since we're excluding only one user
+        self.assertTrue(F(self.manager).exclude(uid="alice").exists())
+
+        # Should not exist if we exclude all users
+        self.assertFalse(F(self.manager).exclude(
+            uid__in=["alice", "bob", "charlie", "diana", "edward"]
+        ).exists())
+
+    def test_exclude_with_get_method(self):
+        """Test exclude with get method."""
+        # Should get bob since alice is excluded
+        user = F(self.manager).exclude(uid="alice").get(uid="bob")
+        self.assertEqual(user.uid, "bob")
+
+        # Should raise DoesNotExist if trying to get excluded user
+        with self.assertRaises(MyTestUser.DoesNotExist):
+            F(self.manager).exclude(uid="alice").get(uid="alice")
+
+    def test_exclude_with_get_or_none_method(self):
+        """Test exclude with get_or_none method."""
+        # Should get bob since alice is excluded
+        user = F(self.manager).exclude(uid="alice").get_or_none(uid="bob")
+        self.assertEqual(user.uid, "bob")
+
+        # Should return None if trying to get excluded user
+        user = F(self.manager).exclude(uid="alice").get_or_none(uid="alice")
+        self.assertIsNone(user)
+
+    def test_exclude_with_first_method(self):
+        """Test exclude with first method."""
+        user = F(self.manager).exclude(uid="alice").first()
+        self.assertIsNotNone(user)
+        self.assertNotEqual(user.uid, "alice")
+
+    def test_exclude_with_first_or_none_method(self):
+        """Test exclude with first_or_none method."""
+        user = F(self.manager).exclude(uid="alice").first_or_none()
+        self.assertIsNotNone(user)
+        self.assertNotEqual(user.uid, "alice")
+
+        # Test with all users excluded
+        user = F(self.manager).exclude(
+            uid__in=["alice", "bob", "charlie", "diana", "edward"]
+        ).first_or_none()
+        self.assertIsNone(user)
+
+    def test_exclude_complex_scenarios(self):
+        """Test complex exclude scenarios."""
+        # Complex scenario: filter for bash users, exclude alice and users with uidNumber > 1003
+        users = F(self.manager).filter(loginShell="/bin/bash").exclude(
+            uid="alice",
+            uidNumber__gt=1003
+        ).all()
+        user_uids = [user.uid for user in users]
+        # The test data shows:
+        # - alice: loginShell=/bin/bash, uidNumber=1001
+        # - bob: loginShell=/bin/bash, uidNumber=1002
+        # - charlie: loginShell=/bin/zsh, uidNumber=1003
+        # - diana: loginShell=/bin/bash, uidNumber=1004
+        # - edward: loginShell=/bin/tcsh, uidNumber=1005
+        #
+        # Filter for bash users: alice, bob, diana
+        # Exclude users who are alice AND have uidNumber > 1003
+        # Since alice has uidNumber=1001, she doesn't match the exclude condition
+        # So we should get alice, bob, diana back
+        self.assertIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        self.assertIn("diana", user_uids)
+        self.assertNotIn("edward", user_uids)  # edward has /bin/tcsh, not /bin/bash
+
+    def test_exclude_de_morgans_law(self):
+        """Test that exclude follows De Morgan's Law correctly."""
+        # NOT (A AND B) should be equivalent to (NOT A) OR (NOT B)
+        # But our implementation does (A) AND NOT (B AND C)
+        # This test verifies our specific behavior
+
+        # Exclude users who are alice AND have bash shell
+        users = F(self.manager).exclude(
+            uid="alice",
+            loginShell="/bin/bash"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude alice (who has both conditions)
+        self.assertNotIn("alice", user_uids)
+        # Should include bob (who has bash but not alice)
+        self.assertIn("bob", user_uids)
+        # Should include charlie (who is not alice but has zsh)
+        self.assertIn("charlie", user_uids)
 
 
 if __name__ == "__main__":

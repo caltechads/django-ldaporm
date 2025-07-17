@@ -394,7 +394,6 @@ version = "1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "asn1" },
-    { name = "djangorestframework" },
     { name = "ldap-filter" },
     { name = "pyasn1" },
     { name = "python-ldap" },
@@ -456,7 +455,6 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "asn1", specifier = ">=3.1.0" },
-    { name = "djangorestframework", specifier = ">=3.16.0" },
     { name = "ldap-filter", specifier = ">=0.2.2" },
     { name = "pyasn1", specifier = ">=0.6.1" },
     { name = "python-ldap", specifier = ">=3.2.0" },

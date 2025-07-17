@@ -182,7 +182,6 @@ you will get all the results at once.
     Again LDAP is weird and is not SQL.  These things from Django's ORM are not
     supported:
 
-    * ``exclude()``
     * ``distinct()``
 
 .. important::
@@ -208,6 +207,52 @@ Use Django-style filtering:
 
    # Use wildcards
    users = User.objects.wildcard(cn='*john*')
+
+Excluding Objects
+^^^^^^^^^^^^^^^^^
+
+Use the ``exclude()`` method to filter out objects that match certain criteria:
+
+.. code-block:: python
+
+   # Exclude a specific user
+   users = User.objects.exclude(uid='admin')
+
+   # Exclude multiple conditions (AND logic)
+   users = User.objects.exclude(
+       uid__in=['admin', 'root'],
+       is_active=False
+   )
+
+   # Chain exclude with filter
+   users = User.objects.filter(is_active=True).exclude(uid='admin')
+
+   # Exclude with various filter suffixes
+   users = User.objects.exclude(cn__icontains='admin')
+   users = User.objects.exclude(uidNumber__gte=1000)
+   users = User.objects.exclude(uid__exists=False)
+
+   # Exclude with F objects
+   from ldaporm.managers import F
+   users = User.objects.exclude(
+       F(uid__icontains='admin') | F(uid__icontains='root')
+   )
+
+.. note::
+
+   The ``exclude()`` method uses LDAP's NOT operator to filter out matching objects.
+   Multiple exclude conditions in a single ``exclude()`` call are combined with AND logic,
+   meaning objects must match ALL exclude conditions to be filtered out.  If you want to
+   exclude with OR logic, you can use multiple ``exclude()`` calls.  For example:
+
+   .. code-block:: python
+
+      users = User.objects.exclude(
+          F(uid__icontains='admin') | F(uid__icontains='root')
+      )
+
+      # or
+      users = User.objects.exclude(uid__icontains='admin').exclude(uid__icontains='root')
 
 Field Lookups
 ^^^^^^^^^^^^^

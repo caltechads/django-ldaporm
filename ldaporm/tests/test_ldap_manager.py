@@ -20,7 +20,7 @@ import ldap
 from ldap_faker.unittest import LDAPFakerMixin
 
 from ldaporm.fields import CharField, IntegerField, CharListField
-from ldaporm.managers import LdapManager, Modlist, atomic, needs_pk, substitute_pk
+from ldaporm.managers import LdapManager, Modlist, atomic, needs_pk, substitute_pk, F
 from ldaporm.models import Model
 from ldaporm.options import Options
 
@@ -1098,6 +1098,346 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         # Test as_list with values (should work the same)
         values_as_list = cast("LdapManager", MyTestUser.objects).values("uid", "cn")
         self.assertEqual(len(values_as_list), 3)
+
+
+
+    # ========================================
+    # Exclude Method Tests
+    # ========================================
+
+    def test_exclude_basic(self):
+        """Test basic exclude functionality on LdapManager."""
+        # Exclude a specific user
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_multiple_conditions(self):
+        """Test exclude with multiple conditions on LdapManager."""
+        # Exclude users with specific conditions
+        users = cast("LdapManager", MyTestUser.objects).exclude(
+            uid="alice",
+            loginShell="/bin/zsh"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude users who have BOTH uid=alice AND loginShell=/bin/zsh
+        # Since no user has both conditions, no users should be excluded
+        self.assertIn("alice", user_uids)  # alice has uid=alice but loginShell=/bin/bash
+        self.assertIn("charlie", user_uids)  # charlie has loginShell=/bin/zsh but uid=charlie
+        self.assertIn("bob", user_uids)
+
+        # Test with conditions that actually match a user
+        users = cast("LdapManager", MyTestUser.objects).exclude(
+            uid="alice",
+            loginShell="/bin/bash"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude alice (who has both uid=alice AND loginShell=/bin/bash)
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)  # bob has loginShell=/bin/bash but uid=bob
+        self.assertIn("charlie", user_uids)  # charlie has uid=charlie but loginShell=/bin/zsh
+
+    def test_exclude_with_filter(self):
+        """Test chaining exclude with filter on LdapManager."""
+        # Filter for bash users, then exclude alice
+        users = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash").exclude(uid="alice").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        # Note: diana and edward are not in the test data, only alice, bob, charlie
+
+    def test_exclude_with_filter_suffixes(self):
+        """Test exclude with various filter suffixes on LdapManager."""
+        # Test icontains
+        users = cast("LdapManager", MyTestUser.objects).exclude(cn__icontains="Alice").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test istartswith
+        users = cast("LdapManager", MyTestUser.objects).exclude(cn__istartswith="Alice").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test iendswith
+        users = cast("LdapManager", MyTestUser.objects).exclude(cn__iendswith="Johnson").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+        # Test iexact
+        users = cast("LdapManager", MyTestUser.objects).exclude(cn__iexact="Alice Johnson").all()
+        user_cns = [user.cn for user in users]
+        self.assertNotIn("Alice Johnson", user_cns)
+        self.assertIn("Bob Smith", user_cns)
+
+    def test_exclude_with_in_operator(self):
+        """Test exclude with __in operator on LdapManager."""
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid__in=["alice", "bob"]).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+        # Note: diana is not in the test data, only alice, bob, charlie
+
+    def test_exclude_with_exists(self):
+        """Test exclude with __exists operator on LdapManager."""
+        # All users have uid, so excluding uid__exists=True should return empty
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid__exists=True).all()
+        self.assertEqual(len(users), 0)
+
+        # Excluding uid__exists=False should return all users
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid__exists=False).all()
+        self.assertEqual(len(users), 3)  # 3 test users: alice, bob, charlie
+
+    def test_exclude_with_integer_comparisons(self):
+        """Test exclude with integer comparison operators on LdapManager."""
+        # Exclude users with uidNumber >= 1003
+        users = cast("LdapManager", MyTestUser.objects).exclude(uidNumber__gte=1003).all()
+        user_uids = [user.uid for user in users]
+        self.assertIn("alice", user_uids)  # uidNumber 1001
+        self.assertIn("bob", user_uids)    # uidNumber 1002
+        self.assertNotIn("charlie", user_uids)  # uidNumber 1003
+
+        # Exclude users with uidNumber < 1003
+        users = cast("LdapManager", MyTestUser.objects).exclude(uidNumber__lt=1003).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)  # uidNumber 1001
+        self.assertNotIn("bob", user_uids)    # uidNumber 1002
+        self.assertIn("charlie", user_uids)   # uidNumber 1003
+
+    def test_exclude_with_none_value(self):
+        """Test exclude with None values on LdapManager."""
+        # Exclude users where uid is None (should exclude users who have uid attribute)
+        # Since all users have uid, all should be excluded
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid=None).all()
+        self.assertEqual(len(users), 0)
+
+        # Exclude users where uid equals None (should exclude users who have uid attribute)
+        # Since all users have uid, all should be excluded
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid__iexact=None).all()
+        self.assertEqual(len(users), 0)
+
+    def test_exclude_with_f_objects(self):
+        """Test exclude with F objects on LdapManager."""
+        # Create F objects for exclusion
+        f1 = F(cast("LdapManager", MyTestUser.objects)).filter(uid="alice")
+        f2 = F(cast("LdapManager", MyTestUser.objects)).filter(uid="bob")
+
+        # Exclude using F objects
+        users = cast("LdapManager", MyTestUser.objects).exclude(f1, f2).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_with_logical_operations(self):
+        """Test exclude with logical operations on LdapManager."""
+        # Test exclude with OR logic
+        f1 = F(cast("LdapManager", MyTestUser.objects)).filter(uid="alice")
+        f2 = F(cast("LdapManager", MyTestUser.objects)).filter(uid="bob")
+        or_filter = f1 | f2
+
+        users = cast("LdapManager", MyTestUser.objects).exclude(or_filter).all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_chaining(self):
+        """Test chaining multiple exclude calls on LdapManager."""
+        # Chain multiple exclude calls
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").exclude(uid="bob").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertNotIn("bob", user_uids)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_with_other_methods(self):
+        """Test exclude with other methods like only, order_by on LdapManager."""
+        # Test exclude with only
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").only("uid", "cn").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+        # Test exclude with order_by
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").order_by("uid").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertEqual(user_uids, ["bob", "charlie"])
+
+    def test_exclude_edge_cases(self):
+        """Test exclude with edge cases on LdapManager."""
+        # Exclude all users (should return empty)
+        users = cast("LdapManager", MyTestUser.objects).exclude(
+            uid__in=["alice", "bob", "charlie"]
+        ).all()
+        self.assertEqual(len(users), 0)
+
+        # Exclude with empty list
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid__in=[]).all()
+        self.assertEqual(len(users), 3)  # 3 test users: alice, bob, charlie
+
+    def test_exclude_error_handling(self):
+        """Test exclude error handling on LdapManager."""
+        # Test invalid field
+        with self.assertRaises(MyTestUser.InvalidField):
+            cast("LdapManager", MyTestUser.objects).exclude(invalid_field="value")
+
+        # Test invalid suffix
+        with self.assertRaises(F.UnknownSuffix):
+            cast("LdapManager", MyTestUser.objects).exclude(uid__invalid="value")
+
+        # Test __in with non-list
+        with self.assertRaises(ValueError):
+            cast("LdapManager", MyTestUser.objects).exclude(uid__in="not_a_list")
+
+        # Test integer comparison on non-integer field
+        with self.assertRaises(TypeError):
+            cast("LdapManager", MyTestUser.objects).exclude(cn__gt=100)
+
+    def test_exclude_string_representation(self):
+        """Test string representation of exclude filters on LdapManager."""
+        # Simple exclude
+        f = cast("LdapManager", MyTestUser.objects).exclude(uid="alice")
+        self.assertIn("(!(uid=alice))", str(f))
+
+        # Multiple excludes - our implementation combines them with AND
+        f = cast("LdapManager", MyTestUser.objects).exclude(uid="alice", cn="Bob Smith")
+        self.assertIn("(!(&(uid=alice)(cn=Bob Smith)))", str(f))
+
+        # Exclude with filter
+        f = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash").exclude(uid="alice")
+        self.assertIn("(loginShell=/bin/bash)", str(f))
+        self.assertIn("(!(uid=alice))", str(f))
+
+    def test_exclude_with_values_method(self):
+        """Test exclude with values method on LdapManager."""
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").values("uid", "cn")
+        user_uids = [user["uid"] for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_with_values_list_method(self):
+        """Test exclude with values_list method on LdapManager."""
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").values_list("uid", "cn")
+        user_uids = [user[0] for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_with_count_method(self):
+        """Test exclude with count method on LdapManager."""
+        count = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").count()
+        self.assertEqual(count, 2)  # 3 total - 1 excluded = 2
+
+    def test_exclude_with_exists_method(self):
+        """Test exclude with exists method on LdapManager."""
+        # Should exist since we're excluding only one user
+        self.assertTrue(cast("LdapManager", MyTestUser.objects).exclude(uid="alice").exists())
+
+        # Should not exist if we exclude all users
+        self.assertFalse(cast("LdapManager", MyTestUser.objects).exclude(
+            uid__in=["alice", "bob", "charlie"]
+        ).exists())
+
+    def test_exclude_with_get_method(self):
+        """Test exclude with get method on LdapManager."""
+        # Should get bob since alice is excluded
+        user = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").get(uid="bob")
+        self.assertEqual(user.uid, "bob")
+
+        # Should raise DoesNotExist if trying to get excluded user
+        with self.assertRaises(MyTestUser.DoesNotExist):
+            cast("LdapManager", MyTestUser.objects).exclude(uid="alice").get(uid="alice")
+
+    def test_exclude_with_get_or_none_method(self):
+        """Test exclude with get_or_none method on LdapManager."""
+        # Should get bob since alice is excluded
+        user = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").get_or_none(uid="bob")
+        self.assertEqual(user.uid, "bob")
+
+        # Should return None if trying to get excluded user
+        user = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").get_or_none(uid="alice")
+        self.assertIsNone(user)
+
+    def test_exclude_with_first_method(self):
+        """Test exclude with first method on LdapManager."""
+        user = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").first()
+        self.assertIsNotNone(user)
+        self.assertNotEqual(user.uid, "alice")
+
+    def test_exclude_with_first_or_none_method(self):
+        """Test exclude with first_or_none method on LdapManager."""
+        user = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").first_or_none()
+        self.assertIsNotNone(user)
+        self.assertNotEqual(user.uid, "alice")
+
+        # Test with all users excluded
+        user = cast("LdapManager", MyTestUser.objects).exclude(
+            uid__in=["alice", "bob", "charlie"]
+        ).first_or_none()
+        self.assertIsNone(user)
+
+    def test_exclude_complex_scenarios(self):
+        """Test complex exclude scenarios on LdapManager."""
+        # Complex scenario: filter for bash users, exclude alice and users with uidNumber > 1002
+        users = cast("LdapManager", MyTestUser.objects).filter(loginShell="/bin/bash").exclude(
+            uid="alice",
+            uidNumber__gt=1002
+        ).all()
+        user_uids = [user.uid for user in users]
+        # The test data shows:
+        # - alice: loginShell=/bin/bash, uidNumber=1001
+        # - bob: loginShell=/bin/bash, uidNumber=1002
+        # - charlie: loginShell=/bin/zsh, uidNumber=1003
+        #
+        # Filter for bash users: alice, bob
+        # Exclude users who are alice AND have uidNumber > 1002
+        # Since alice has uidNumber=1001, she doesn't match the exclude condition
+        # So we should get both alice and bob back
+        self.assertEqual(len(user_uids), 2)
+        self.assertIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_de_morgans_law(self):
+        """Test that exclude follows De Morgan's Law correctly on LdapManager."""
+        # NOT (A AND B) should be equivalent to (NOT A) OR (NOT B)
+        # But our implementation does (A) AND NOT (B AND C)
+        # This test verifies our specific behavior
+
+        # Exclude users who are alice AND have bash shell
+        users = cast("LdapManager", MyTestUser.objects).exclude(
+            uid="alice",
+            loginShell="/bin/bash"
+        ).all()
+        user_uids = [user.uid for user in users]
+        # Should exclude alice (who has both conditions)
+        self.assertNotIn("alice", user_uids)
+        # Should include bob (who has bash but not alice)
+        self.assertIn("bob", user_uids)
+        # Should include charlie (who is not alice but has zsh)
+        self.assertIn("charlie", user_uids)
+
+    def test_exclude_with_pk_substitution(self):
+        """Test that exclude works with pk substitution."""
+        # Test using 'pk' instead of the actual primary key field name
+        users = cast("LdapManager", MyTestUser.objects).exclude(pk="alice").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+
+    def test_exclude_with_wildcard(self):
+        """Test exclude with wildcard method."""
+        # Test exclude with wildcard
+        users = cast("LdapManager", MyTestUser.objects).exclude(uid="alice").wildcard("cn", "*Bob*").all()
+        user_uids = [user.uid for user in users]
+        self.assertNotIn("alice", user_uids)
+        self.assertIn("bob", user_uids)
+        self.assertNotIn("charlie", user_uids)  # Doesn't match wildcard
 
 
 if __name__ == "__main__":

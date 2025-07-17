@@ -436,6 +436,8 @@ class F:
         self.chain: list[
             Any
         ] = []  # Changed from list[F] to list[Any] to handle filter objects
+        self._exclude_chain: list[Any] = []  # Track exclude conditions separately
+        self._exclude_groups: list[list[Any]] = []  # Track exclude conditions in groups
         if manager is not None:
             self.model = cast("type[Model]", manager.model)
             self._meta = cast("Options", self.model._meta)
@@ -447,8 +449,12 @@ class F:
             self._order_by = self._meta.ordering
         if f is not None:
             self.chain = list(f.chain)
+            self._exclude_chain = list(f._exclude_chain)
+            self._exclude_groups = list(f._exclude_groups)
         else:
             self.chain = []
+            self._exclude_chain = []
+            self._exclude_groups = []
 
     def bind_manager(self, manager: "LdapManager") -> None:
         if manager is None:
@@ -487,6 +493,14 @@ class F:
         if self._attributes is None:
             self._attributes = []
 
+        # Ensure _exclude_chain is not None for type checker
+        if self._exclude_chain is None:
+            self._exclude_chain = []
+
+        # Ensure _exclude_groups is not None for type checker
+        if self._exclude_groups is None:
+            self._exclude_groups = []
+
     @property
     def _filter(self) -> "GroupAnd":
         """
@@ -499,14 +513,54 @@ class F:
             NoFilterSpecified: If no filters are specified.
 
         """
+        if len(self.chain) == 0 and len(self._exclude_groups) == 0:
+            # No filters specified - return a filter that matches everything
+            return Filter.attribute("objectClass").present()
+
+        # Build the main filter from the chain
         if len(self.chain) == 0:
+            main_filter = None
+        elif len(self.chain) == 1:
+            main_filter = self.chain[0]
+        else:
+            main_filter = Filter.AND(self.chain).simplify()
+
+        # Build the exclude filter from the exclude groups
+        if len(self._exclude_groups) == 0:
+            exclude_filter = None
+        elif len(self._exclude_groups) == 1:
+            # Single exclude group
+            group = self._exclude_groups[0]
+            if len(group) == 1:
+                exclude_filter = Filter.NOT(group[0])
+            else:
+                # Multiple conditions in single exclude call: combine with AND
+                exclude_filter = Filter.NOT(Filter.AND(group).simplify())
+        else:
+            # Multiple exclude groups: combine each group with AND, then combine groups with OR
+            group_filters = []
+            for group in self._exclude_groups:
+                if len(group) == 1:
+                    group_filters.append(Filter.NOT(group[0]))
+                else:
+                    # Multiple conditions in group: combine with AND
+                    group_filters.append(Filter.NOT(Filter.AND(group).simplify()))
+            # Combine groups with AND
+            exclude_filter = Filter.AND(group_filters).simplify()
+
+        # Combine main filter and exclude filter
+        if main_filter is None and exclude_filter is None:
             msg = (
                 "You need to at least specify one filter in order to do LDAP searches."
             )
             raise self.NoFilterSpecified(msg)
-        if len(self.chain) == 1:
-            return self.chain[0]  # type: ignore[return-value]
-        return Filter.AND(self.chain).simplify()
+        elif main_filter is None:
+            return exclude_filter  # type: ignore[return-value]
+        elif exclude_filter is None:
+            return main_filter  # type: ignore[return-value]
+        else:
+            # Combine with AND: (main_filter) AND NOT (exclude_conditions)
+            return Filter.AND([main_filter, exclude_filter]).simplify()
 
     def _create_sort_control(self) -> ServerSideSortControl | None:
         """
@@ -546,9 +600,18 @@ class F:
         order_by = cast("list[str]", self._order_by)
         if not order_by:
             return objects
+
+        def get_sort_key(obj, key):
+            """Get sort key value, handling None values."""
+            value = getattr(obj, key)
+            # Handle None values by treating them as less than any other value
+            if value is None:
+                return (0, None)  # (0, None) sorts before (1, actual_value)
+            return (1, value)  # (1, actual_value) sorts after (0, None)
+
         if not any(k.startswith("-") for k in order_by):
             return sorted(
-                objects, key=lambda obj: tuple(getattr(obj, k) for k in order_by)
+                objects, key=lambda obj: tuple(get_sort_key(obj, k) for k in order_by)
             )
         keys = list(order_by)
         keys.reverse()
@@ -560,7 +623,7 @@ class F:
                 reverse = True
             objects = sorted(
                 objects,
-                key=lambda obj: getattr(obj, key),
+                key=lambda obj: get_sort_key(obj, key),
                 reverse=reverse,
             )
         return objects
@@ -677,6 +740,10 @@ class F:
                 if not isinstance(value, list):
                     msg = 'When using the "__in" filter you must supply a list'
                     raise ValueError(msg)
+                # Handle empty list case
+                if not value:
+                    # Empty list means no exclusions, so skip this filter
+                    continue
                 # OR together equal_to filters for each value
                 filter_obj = Filter.OR(
                     [Filter.attribute(attr_name).equal_to(v) for v in value]
@@ -1235,6 +1302,133 @@ class F:
             objects = cast("list[Model]", objects)[:limit]
 
         return cast("list[Model]", objects)
+
+    def exclude(self, *args, **kwargs) -> "F":  # noqa: PLR0912, PLR0915
+        """
+        Return a new F object with exclude conditions applied.
+
+        Exclude conditions are applied as NOT conditions to the final filter.
+        Multiple exclude conditions are combined with AND logic.
+
+        Args:
+            *args: Positional filter arguments (F objects to exclude)
+            **kwargs: Keyword filter arguments to exclude
+
+        Returns:
+            A new F object with exclude conditions applied.
+
+        Note:
+            Exclude conditions are applied after filter conditions.
+            The final LDAP filter will be: (filter_conditions) AND NOT (exclude_conditions)
+
+        """
+        self._require_manager()
+        manager = cast("LdapManager", self.manager)
+
+        # Handle positional arguments (F objects)
+        bound_args = []
+        for arg in args:
+            if isinstance(arg, F) and arg.manager is None:
+                arg.bind_manager(manager)
+            bound_args.append(arg)
+
+        # Create a new F instance with the current chain and exclude chain
+        new_f = F(manager, self)
+
+        # Add positional F objects to the exclude groups
+        for arg in bound_args:
+            if isinstance(arg, F):
+                # Each F object's chain becomes a separate exclude group
+                if arg.chain:
+                    new_f._exclude_groups.append(arg.chain)
+
+        # Process keyword arguments to create exclude filters
+        exclude_filters = []
+        for key, value in kwargs.items():
+            if "__" in key:
+                field_name, suffix = key.split("__", 1)
+            else:
+                field_name = key
+                suffix = "iexact"
+
+            # Validate field exists
+            if field_name not in cast("dict[str, str]", self.attributes_map):
+                msg = (
+                    f'"{field_name}" is not a valid field on model '
+                    f"{cast('type[Model]', self.model).__name__}"
+                )
+                raise cast("type[Model]", self.model).InvalidField(msg)
+
+            # Get the LDAP attribute name
+            attr_name = self.get_attribute(field_name)
+
+            # Handle different filter suffixes (same logic as filter, but for exclude)
+            if suffix == "iexact":
+                if value is None:
+                    # Exclude attributes that don't exist (i.e., exclude users where attribute is NOT present)
+                    # This creates a filter that matches users where the attribute is NOT present
+                    filter_obj = Filter.attribute(attr_name).present()
+                else:
+                    filter_obj = Filter.attribute(attr_name).equal_to(value)
+            elif suffix == "icontains":
+                filter_obj = Filter.attribute(attr_name).contains(value)
+            elif suffix == "istartswith":
+                filter_obj = Filter.attribute(attr_name).starts_with(value)
+            elif suffix == "iendswith":
+                filter_obj = Filter.attribute(attr_name).ends_with(value)
+            elif suffix == "exists":
+                if value:
+                    filter_obj = Filter.attribute(attr_name).present()
+                else:
+                    filter_obj = Filter.NOT(Filter.attribute(attr_name).present())
+            elif suffix == "in":
+                if not isinstance(value, list):
+                    msg = 'When using the "__in" filter you must supply a list'
+                    raise ValueError(msg)
+                # Handle empty list case
+                if not value:
+                    # Empty list means no exclusions, so skip this filter
+                    continue
+                # OR together equal_to filters for each value
+                filter_obj = Filter.OR(
+                    [Filter.attribute(attr_name).equal_to(v) for v in value]
+                )
+            elif suffix in ["gt", "gte", "lt", "lte"]:
+                # Integer comparisons
+                self._validate_integer_field(field_name)
+                attr_obj = Filter.attribute(attr_name)
+                if suffix == "gt":
+                    # For gt, use gte with value+1
+                    if isinstance(value, int):
+                        filter_obj = attr_obj.gte(value + 1)
+                    else:
+                        msg = f'Filter suffix "{suffix}" requires an integer value'
+                        raise ValueError(msg)
+                elif suffix == "gte":
+                    filter_obj = attr_obj.gte(value)
+                elif suffix == "lt":
+                    # For lt, use lte with value-1
+                    if isinstance(value, int):
+                        filter_obj = attr_obj.lte(value - 1)
+                    else:
+                        msg = f'Filter suffix "{suffix}" requires an integer value'
+                        raise ValueError(msg)
+                elif suffix == "lte":
+                    filter_obj = attr_obj.lte(value)
+            else:
+                msg = f'Unknown filter suffix: "{suffix}"'
+                raise self.UnknownSuffix(msg)
+
+            # Add the filter to the exclude filters list
+            exclude_filters.append(filter_obj)
+
+            # Add exclude filters as a group
+        # Multiple conditions within a single exclude call are combined with AND
+        # Skip empty groups
+        if exclude_filters:
+            new_f._exclude_groups.append(exclude_filters)
+
+        return new_f
 
 
 class FIterator:
@@ -1884,6 +2078,21 @@ class LdapManager:
         """
         return self.__filter().filter(*args, **kwargs)
 
+    @substitute_pk
+    def exclude(self, *args, **kwargs) -> "F":
+        """
+        Return a QuerySet-like F object with negated filters applied.
+
+        Args:
+            *args: Positional filter arguments.
+            **kwargs: Keyword filter arguments to negate.
+
+        Returns:
+            An F object with the negated filters applied.
+
+        """
+        return self.__filter().exclude(*args, **kwargs)
+
     def get_by_dn(self, dn: str) -> "Model":
         """
         Get an object specifically by its DN.  To do this we do a search with
@@ -2045,9 +2254,9 @@ class LdapManager:
 
         """
         model = cast("type[Model]", self.model)
-        password_attribute = cast("Options", model._meta).password_attribute
-        if not password_attribute:
-            return False
+        password_attribute = getattr(
+            cast("Options", model._meta), "password_attribute", "userPassword"
+        )
         if not attributes:
             attributes = {}
         try:
@@ -2075,7 +2284,7 @@ class LdapManager:
         self.connect("write")
         self.connection.modify_s(user.dn, _modlist)
         self.disconnect()
-        service = getattr(model._meta, "ldap_server", "ldap")  # type: ignore[attr-defined]
+        service = getattr(model._meta, "ldap_server", "default")  # type: ignore[attr-defined]
         self.logger.info("%s.password_reset.success dn=%s", service, user.dn)
         return True
 
