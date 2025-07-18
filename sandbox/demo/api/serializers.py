@@ -21,7 +21,6 @@ class LDAPUserSerializer(LdapModelSerializer):
             "room_number",
             "home_phone",
             "mobile",
-            "is_disabled",
             "nsroledn",
             "nsrole",
         )

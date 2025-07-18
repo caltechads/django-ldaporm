@@ -1,12 +1,12 @@
-{% load tz core helpdesk crispy_forms_tags %}
+{% load tz core crispy_forms_tags %}
 
 <div class="border-bottom py-3 px-4 h5 bg-light ">
     <div class="d-flex justify-content-between align-items-center user search--roles"
         id="search--roles">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="filter-enabled custom-control d-flex align-items-center custom-checkbox me-4">
-            <input type="checkbox" class="custom-control-input" name="enabled-only" id="id_enabled_only" checked>
-            <label class="custom-control-label" for="id_enabled_only">Assigned Only</label>
+        <div class="d-flex justify-content-between align-items-baseline">
+          <div class="form-check form-switch me-4">
+            <input type="checkbox" class="form-check-input" name="enabled-only" id="id_enabled_only" checked>
+            <label class="form-check-label" for="id_enabled_only">Assigned Only</label>
           </div>
           <button class="btn btn-light" id="copy-roles" title="Copy Roles"><span  class="bi-clipboard me-2"></span> Copy Roles</button>
         </div>
@@ -29,10 +29,11 @@
 <div class="user managed-roles d-flex justify-content-between border-bottom border-top py-3 px-4 bg-light collapse-toggle">
   <h3 class="align-middle mt-1">Derived Roles</h3>
   <button class="btn" data-bs-toggle="collapse" href="#user_derived_roles" role="button" aria-expanded="false"
-      aria-controls="user_derived_roles" class="bi-chevron-down"></button>
+      aria-controls="user_derived_roles"><i class="bi-chevron-down"></i></button>
 </div>
 
 <div id="user_derived_roles" class="p-4 collapse">
+{% if user.nsrole %}
   <div class="user_roles my-4 ps-3">
   {% for role in user|derived_roles %}
     <div class="user_role mb-1">
@@ -40,6 +41,9 @@
     </div>
   {% endfor %}
   </div>
+{% else %}
+    <p class="text-muted">No derived roles</p>
+{% endif %}
 </div>
 
 <script>
@@ -50,7 +54,7 @@
         }
 
         const searchValue = this.value.trim();
-        const managedRolesContainer = document.getElementById("div_id_{% if role_type == 'legacy' %}legacy_{% endif %}managed_roles");
+        const managedRolesContainer = document.getElementById("div_id_nsroledn");
         const labels = managedRolesContainer.querySelectorAll("label");
 
         labels.forEach(label => {
@@ -64,7 +68,7 @@
     });
 
     document.getElementById("id_enabled_only").addEventListener("change", function() {
-        const managedRolesContainer = document.getElementById("div_id_managed_roles");
+        const managedRolesContainer = document.getElementById("div_id_nsroledn");
         const uncheckedInputs = managedRolesContainer.querySelectorAll("input:not(:checked)");
 
         uncheckedInputs.forEach(input => {
@@ -77,12 +81,6 @@
         });
     });
 
-    // Hide unchecked inputs on page load
-    const managedRolesContainer = document.getElementById("div_id_managed_roles");
-    const uncheckedInputs = managedRolesContainer.querySelectorAll("input:not(:checked)");
-    uncheckedInputs.forEach(input => {
-        input.parentElement.classList.add('d-none');
-    });
 
     document.getElementById('copy-roles').addEventListener('click', function() {
       const roles = `{% for role in user.nsroledn %}{{role|role_name}}
@@ -105,5 +103,14 @@
           alert("Copy failed!");
         }
       );
+    });
+
+    // Hide unchecked inputs on page load
+    document.addEventListener("DOMContentLoaded", function() {
+      const managedRolesContainer = document.getElementById("div_id_nsroledn");
+      const uncheckedInputs = managedRolesContainer.querySelectorAll("input:not(:checked)");
+      uncheckedInputs.forEach(input => {
+          input.parentElement.classList.add('d-none');
+      });
     });
 </script>

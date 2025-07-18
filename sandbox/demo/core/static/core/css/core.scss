@@ -91,13 +91,36 @@
     }
 }
 
+.ribbon_bar__content {
+    &__breadcrumbs {
+        .breadcrumb-item + .breadcrumb-item::before {
+            color: black !important;
+        }
+        .breadcrumb-item.active span.text-white {
+            color: #333333 !important;
+        }
+        .breadcrumb-item:not(.active) {
+            font-weight: bold;
+            color: #333333 !important;
+            a {
+                pointer-events: auto !important;
+                color: #333333 !important;
+                text-decoration: none;
+            }
+        }
+    }
+  }
+
 .user-configuration {
     @include checkbox-toggle();
 }
 
-.filter-enabled {
-    width: 170px;
-    font-size: 1rem;
+#search--roles {
+    @include checkbox-toggle();
+
+    .filter--enabled {
+        width: 170px;
+    }
 }
 
 .managed-roles {
@@ -116,4 +139,12 @@
             background-color: #fafafa;
         }
     }
+}
+
+.collapse-toggle button[aria-expanded="false"] .bi-chevron-down {
+    transition: .3s transform ease-in-out;
+}
+
+.collapse-toggle button[aria-expanded="true"] .bi-chevron-down {
+    transform: rotate(90deg);
 }

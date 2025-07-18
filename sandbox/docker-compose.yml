@@ -8,7 +8,7 @@ services:
     environment:
       - DEBUG=True
       - DEVELOPMENT=True
-      - LDAP_URL=ldap://ldap:389
+      - LDAP_URL=ldap://ldap:3389
       - LDAP_USER=cn=Directory Manager
       - LDAP_PASSWORD=password
       - LDAP_BASEDN=o=example,c=us
@@ -18,8 +18,10 @@ services:
       mysql:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ./demo:/ve/lib/python3.13/site-packages/sandbox/demo
       - ../ldaporm:/ve/lib/python3.13/site-packages/ldaporm
+      - ../../django-wildewidgets/wildewidgets:/ve/lib/python3.13/site-packages/wildewidgets
+      - .:/app
 
   ldap:
     image: 389ds/dirsrv:latest
@@ -28,9 +30,10 @@ services:
     environment:
       - DS_DM_PASSWORD=password
       - DS_REINDEX=true
+      - DS_ERRORLOG_LEVEL=debug
     ports:
-      - "389:389"
-      - "636:636"
+      - "389:3389"
+      - "636:3636"
     volumes:
       - ./data/ldap/init:/init
       - django_ldaporm_demo_ldap_data:/data

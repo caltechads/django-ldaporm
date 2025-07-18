@@ -71,29 +71,19 @@ class BasePasswordChanger:
     by the subclass.
     """
 
-    def generate_random_password(self, username: str) -> tuple[str, list[str]]:
+    def generate_random_password(self) -> tuple[str, list[str]]:
         """
         Generate a random password that satisfies our password requirements
         and return it and the phonetic (Alpha, Bravo, Charlie, etc.) spelling
         for it.  The phonetic spelling is used by Help Desk folk when reading
         the password to the user over the phone.
 
-        Args:
-            username: the username of the user for whom we're generating a password
-
         Returns:
             A tuple of the password and the phonetic spelling of the password
 
         """
         rnd = RandomPassword()
-        validator = RandomPasswordValidator()
-        while True:
-            try:
-                password = rnd.get_random_password()
-                validator.validate("", password, username)
-                break
-            except ValidationException:
-                continue
+        password = rnd.get_random_password()
         return (password, rnd.get_phonetic_strings(password))
 
     def set_random_password(self, username: str) -> tuple[str, list[str]]:
@@ -103,7 +93,7 @@ class BasePasswordChanger:
 
         :param username: the username of the user on which to set the password
         """
-        (password, phonetic_strings) = self.generate_random_password(username)
+        (password, phonetic_strings) = self.generate_random_password()
         self.force_set_password(username, password)
         return (password, phonetic_strings)
 
@@ -146,9 +136,6 @@ class PasswordChanger(BasePasswordChanger):
         if not cast("LdapManager", LDAPUser.objects).reset_password(username, password):
             msg = f'Failed to reset password for "{username}"'
             raise ValidationException(msg)
-
-        user = cast("LdapManager", LDAPUser.objects).get(uid=username)
-        user.save()
 
     def verify_password(self, username: str, password: str) -> bool:
         """

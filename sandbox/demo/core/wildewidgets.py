@@ -11,9 +11,14 @@ from wildewidgets import (
     Block,
     BreadcrumbBlock,
     CardWidget,
+    CrispyFormModalWidget,
     CrispyFormWidget,
     DataTable,
     DataTableFilter,
+    FormButton,
+    HeaderWithWidget,
+    HorizontalLayoutBlock,
+    LinkButton,
     LinkedImage,
     Menu,
     MenuItem,
@@ -27,7 +32,14 @@ from wildewidgets import (
 from ldaporm.managers import F, LdapManager
 from ldaporm.models import Model as LdapModel
 from ldaporm.wildewidgets import LdapModelTableMixin
-from sandbox.demo.core.forms import LDAPPersonForm, ManagedRoleForm, VerifyPasswordForm
+from sandbox.demo.core.forms import (
+    LDAPGroupAddMemberForm,
+    LDAPGroupEditForm,
+    LDAPPersonAddForm,
+    LDAPPersonEditForm,
+    ManagedRoleForm,
+    VerifyPasswordForm,
+)
 from sandbox.demo.core.ldap.models import LDAPGroup, LDAPUser, NSRole
 
 # ====================================
@@ -52,7 +64,12 @@ class MainMenu(Menu):
         MenuItem(
             text="Groups",
             icon="collection",
-            url=reverse_lazy("core:group-list"),
+            url=reverse_lazy("core:group--list"),
+        ),
+        MenuItem(
+            text="Roles",
+            icon="card-checklist",
+            url=reverse_lazy("core:role--list"),
         ),
     ]
 
@@ -136,20 +153,39 @@ class ValueBlock(Block):
             monospace: Whether to display the value in monospace
 
         """
+        super().__init__()
         _label = Block(label, css_class="fw-bold")
         self.add_block(_label)
         _value = Block(
             str(value),
-            css_class="p-2 bg-grey-200 text-grey-200-fg border rounded-2",
+            css_class="p-2 bg-gray-800 text-black border rounded-2",
         )
         if monospace:
-            _value.css_class += " font-monospace"
+            _value.add_class("font-monospace")
         self.add_block(_value)
 
 
 # ====================================
 # Users
 # ====================================
+
+
+class UserAddFormWidget(CardWidget):
+    """
+    Widget for displaying a user add form.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        form = CrispyFormWidget(form=LDAPPersonAddForm())
+        super().__init__(widget=form, header=self.get_title(), **kwargs)
+
+    def get_title(self) -> HeaderWithWidget:
+        """
+        Get the title for the widget.
+        """
+        return HeaderWithWidget(
+            header_text="Add User",
+        )
 
 
 class UserDataDetailWidget(WidgetStream):
@@ -173,31 +209,35 @@ class UserDataDetailWidget(WidgetStream):
 
         """
         full_name = Block(
-            Block("Name", css_class="fw-bold"),
-            Block(user.full_name),  # type: ignore[arg-type]
+            Block("Name", css_class="fw-bold fs-5"),
+            Block(user.full_name, css_class="fs-5"),  # type: ignore[arg-type]
             css_class=(  # type: ignore[arg-type]
-                "d-flex justify-content-between p-3 bg-blue text-blue-fg border-bottom",
+                "d-flex justify-content-between p-3 bg-blue text-blue-fg border-bottom"
             ),
         )
         uid = Block(
-            Block("Username", css_class="fw-bold"),
-            Block(user.uid),  # type: ignore[arg-type]
+            Block("Username", css_class="fw-bold fs-5"),
+            Block(user.uid, css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
             css_class=(  # type: ignore[arg-type]
-                "d-flex justify-content-between p-3 bg-grey-200 text-grey-200-fg "
-                "border-bottom",
+                "d-flex justify-content-between p-3 bg-gray-800 text-blackborder-bottom"
             ),
         )
         email = Block(
-            Block("Email", css_class="fw-bold"),
-            Block(user.mail[0]),  # type: ignore[arg-type]
-            css_class="d-flex justify-content-between p-3 border-bottom",
+            Block("Email", css_class="fw-bold fs-5"),
+            Block(user.mail[0], css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
+            css_class=(
+                "d-flex justify-content-between p-3 border-bottom bg-white "
+                "text-white-fg"
+            ),
         )
         employee_number = Block(
-            Block("Employee Number", css_class="fw-bold"),
-            Block(user.employee_number),  # type: ignore[arg-type]
-            css_class="d-flex justify-content-between p-3 border-bottom",
+            Block("Employee Number", css_class="fw-bold fs-5"),
+            Block(user.employee_number, css_class="fs-5"),  # type: ignore[arg-type]
+            css_class=(
+                "d-flex justify-content-between p-3 border-bottom bg-white "
+                "text-white-fg"
+            ),
         )
-
         super().__init__([full_name, uid, email, employee_number])
 
 
@@ -208,7 +248,7 @@ class UserConfigurationFormWidget(CrispyFormWidget):
 
     def __init__(self, user: LDAPUser, **kwargs: Any) -> None:
         if "form" not in kwargs:
-            kwargs["form"] = LDAPPersonForm(instance=user)
+            kwargs["form"] = LDAPPersonEditForm(instance=user)
         super().__init__(**kwargs)
 
 
@@ -224,6 +264,7 @@ class UserConfigurationWidget(WidgetStream):
     title: str = "User Configuration"
     icon: str = "gear-fill"
     name: str = "user-configuration"
+    css_class: str = "py-3 rounded"
 
     def __init__(self, user: LDAPUser) -> None:
         """
@@ -238,9 +279,24 @@ class UserConfigurationWidget(WidgetStream):
         _group = LDAPGroup.objects.get(gid_number=user.gid_number)
         group = ValueBlock("Group", f"{_group.cn} ({_group.gid_number})")
         room_number = ValueBlock("Room Number", user.room_number)
+        created_at = ValueBlock("Created At", str(user.created_at))
+        created_by = ValueBlock("Created By", user.created_by)
+        updated_at = ValueBlock("Updated At", str(user.updated_at))
+        updated_by = ValueBlock("Updated By", user.updated_by)
         form = UserConfigurationFormWidget(user)
-
-        super().__init__([dn, uid_number, group, room_number, form])
+        super().__init__(
+            [
+                dn,
+                uid_number,
+                group,
+                room_number,
+                created_at,
+                created_by,
+                updated_at,
+                updated_by,
+                form,
+            ]
+        )
 
 
 class UserRoleWidget(TemplateWidget):
@@ -310,15 +366,15 @@ class UserVerifyPasswordWidget(CardWidget):
     tag: str = "div"
     css_class: str = "p-4"
     script: str = """
-    function verify_password() {
+    async function verify_password() {
         const form = document.getElementById('id_verify_password_form');
         const formData = new FormData(form);
-        const response = fetch(form.action, {
+        const response = await fetch(form.action, {
             method: 'POST',
             body: formData,
         });
         const result = await response.json();
-        if (result.success) {
+        if (result['result'] === 'success') {
             document.getElementById('verify_password_success').classList.remove('d-none');
             document.getElementById('verify_password_failed').classList.add('d-none');
         } else {
@@ -355,7 +411,7 @@ class UserVerifyPasswordWidget(CardWidget):
 
 class UserTableWidget(CardWidget):
     """
-    Widget for displaying a user table.
+    Widget for displaying a dataTable of :py:class:`ldaporm.models.LDAPUser` objects.
     """
 
     title: str = "Users"
@@ -363,16 +419,22 @@ class UserTableWidget(CardWidget):
     name: str = "user-table"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(UserTable, **kwargs)
+        super().__init__(widget=UserTable, header=self.get_title(), **kwargs)
 
-    def get_title(self) -> WidgetListLayoutHeader:
+    def get_title(self) -> HeaderWithWidget:
         """
         Get the title for the widget.
         """
-        return WidgetListLayoutHeader(
-            header_text=self.title,
-            badge_text=len(cast("LdapManager", LDAPUser.objects).all()),
+        header = HeaderWithWidget(
+            header_text="Users",
+            badge_text=cast("LdapManager", LDAPUser.objects).count(),
         )
+        header.add_link_button(
+            text="Add User",
+            url=reverse("core:user--add"),
+            color="primary",
+        )
+        return header
 
 
 class UserTable(LdapModelTableMixin, BasicModelTable):
@@ -404,24 +466,26 @@ class UserTable(LdapModelTableMixin, BasicModelTable):
         "uid",
         "full_name",
         "mail",
+        "employee_type",
         "employee_number",
-        "is_active",
     ]
     verbose_names: ClassVar[dict[str, str]] = {
         "uid": "Username",
         "full_name": "Name",
         "mail": "Email",
+        "employee_type": "Employee Type",
         "employee_number": "Employee Number",
-        "is_active": "Active?",
     }
-    unsearchable: ClassVar[list[str]] = ["is_active"]
+    hidden: ClassVar[list[str]] = ["employee_type"]
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        enabled = DataTableFilter()
-        enabled.add_choice("True", "True")
-        enabled.add_choice("False", "False")
-        self.add_filter("is_active", enabled)
+        employee_type = DataTableFilter(
+            header="Employee Type",
+        )
+        for choice in LDAPUser.EMPLOYEE_TYPE_CHOICES:
+            employee_type.add_choice(choice[1], choice[0])
+        self.add_filter("employee_type", employee_type)
 
     def get_initial_queryset(self) -> F:
         """
@@ -437,18 +501,49 @@ class UserTable(LdapModelTableMixin, BasicModelTable):
         """
         return cast("LdapManager", self.model.objects).order_by("uid")
 
-    def render_is_active_column(self, value: bool) -> str:
+    def render_uid_column(self, row: LDAPUser, column: str) -> str:  # noqa: ARG002
         """
-        Render the is_active column.
+        Render the username column.
         """
-        if value:
-            return "<span class='badge bg-success'>Yes</span>"
-        return "<span class='badge bg-danger'>No</span>"
+        url = reverse("core:user--detail", kwargs={"uid": row.uid})
+        return f"<a href='{url}'>{row.uid}</a>"
+
+    def render_mail_column(self, row: LDAPUser, column: str) -> str:  # noqa: ARG002
+        """
+        Render the email column.
+
+        Args:
+            row: The LDAPUser object being rendered
+            column: The column being rendered
+
+        Returns:
+            A string containing the email addresses for the user, each on a new line
+
+        """
+        return "<br>".join(row.mail)
 
 
 # ====================================
 # Groups
 # ====================================
+
+
+class GroupAddFormWidget(CardWidget):
+    """
+    Widget for displaying a group add form.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        form = CrispyFormWidget()
+        super().__init__(widget=form, header=self.get_title(), **kwargs)
+
+    def get_title(self) -> HeaderWithWidget:
+        """
+        Get the title for the widget.
+        """
+        return HeaderWithWidget(
+            header_text="Add Group",
+        )
 
 
 class GroupDataDetailWidget(WidgetStream):
@@ -460,10 +555,7 @@ class GroupDataDetailWidget(WidgetStream):
 
     """
 
-    def __init__(
-        self,
-        group: LDAPGroup,
-    ) -> None:
+    def __init__(self, group: LDAPGroup) -> None:
         """
         Initialize the group data detail widget.
 
@@ -472,26 +564,29 @@ class GroupDataDetailWidget(WidgetStream):
 
         """
         name = Block(
-            Block("Name", css_class="fw-bold"),
-            Block(group.cn),  # type: ignore[arg-type]
+            Block("Name", css_class="fw-bold fs-5"),
+            Block(group.cn, css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
             css_class=(  # type: ignore[arg-type]
-                "d-flex justify-content-between p-3 bg-blue text-blue-fg border-bottom",
+                "d-flex justify-content-between p-3 bg-blue text-blue-fg border-bottom"
             ),
         )
         gid_number = Block(
-            Block("Group ID", css_class="fw-bold"),
-            Block(group.gid_number),  # type: ignore[arg-type]
+            Block("Group ID", css_class="fw-bold fs-5"),
+            Block(group.gid_number, css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
             css_class=(  # type: ignore[arg-type]
                 "d-flex justify-content-between p-3 bg-grey-200 text-grey-200-fg "
-                "border-bottom",
+                "border-bottom"
             ),
         )
+        num_users = 0
+        if group.member_uids:
+            num_users = len(group.member_uids)
         n_users = Block(
-            Block("Number of Users", css_class="fw-bold"),
-            Block(len(group.memberUid)),  # type: ignore[arg-type]
+            Block("Number of Users", css_class="fw-bold fs-5"),
+            Block(str(num_users), css_class="fs-5"),  # type: ignore[arg-type]
             css_class=(  # type: ignore[arg-type]
                 "d-flex justify-content-between p-3 bg-grey-200 text-grey-200-fg "
-                "border-bottom",
+                "border-bottom"
             ),
         )
 
@@ -506,21 +601,25 @@ class GroupConfigurationWidget(WidgetStream):
     title: str = "Group Configuration"
     icon: str = "gear-fill"
     name: str = "group-configuration"
+    css_class: str = "py-3 rounded"
 
     def __init__(self, group: LDAPGroup) -> None:
         dn = ValueBlock("Distinguished Name", group.dn)
-        description = ValueBlock("Description", group.description)
-        super().__init__([dn, description])
+        form = CrispyFormWidget(form=LDAPGroupEditForm(instance=group))
+        super().__init__([dn, form])
 
 
-class GroupMembershipTableWidget(CardWidget):
+class GroupAddMemberModalWidget(CrispyFormModalWidget):
     """
-    Widget for displaying a group membership table.
+    Widget for adding a member to a group.
     """
 
-    title: str = "Group Membership"
-    icon: str = "people-fill"
-    name: str = "group-membership-table"
+    name: str = "group-add-member"
+    modal_id: str = "id_add_member"
+    modal_title: str = "Add Member to Group"
+
+    def __init__(self, group: LDAPGroup, **kwargs: Any) -> None:
+        super().__init__(form=LDAPGroupAddMemberForm(group), **kwargs)
 
 
 class GroupTableWidget(CardWidget):
@@ -533,55 +632,22 @@ class GroupTableWidget(CardWidget):
     name: str = "group-table"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(GroupTable, **kwargs)
+        super().__init__(widget=GroupTable, header=self.get_title(), **kwargs)
 
-    def get_title(self) -> WidgetListLayoutHeader:
+    def get_title(self) -> HeaderWithWidget:
         """
         Get the title for the widget.
         """
-        return WidgetListLayoutHeader(
+        header = HeaderWithWidget(
             header_text=self.title,
-            badge_text=len(cast("LdapManager", LDAPGroup.objects).all()),
+            badge_text=str(cast("LdapManager", LDAPGroup.objects).count()),
         )
-
-
-class GroupMembershipTable(LdapModelTableMixin, DataTable):
-    """
-    A data table that displays the members of a group.
-    """
-
-    model: type[LdapModel] = LDAPGroup
-    page_length: int = 25
-    striped: bool = True
-
-    def __init__(self, group: LDAPGroup, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_column("uid", "UID")
-        self.add_column("full_name", "Name")
-        self.add_column("employee_number", "Employee Number")
-        self.add_column("is_active", "Active?")
-        self.add_column("actions", "Actions")
-        users = LDAPUser.objects.filter(uid__in=group.memberUid)
-        for user in users:
-            self.add_row(
-                user.uid,
-                user.full_name,
-                user.employee_number,
-                user.is_active,
-            )
-
-    def render_actions_column(self, row: LDAPUser, _: str) -> str:
-        """
-        Render the actions column.
-        """
-        actions = []
-        actions.append(
-            f"<a class='btn btn-primary me-2' href='{reverse('core:user--detail', args=[row.uid])}'>View</a>"  # noqa: E501
+        header.add_link_button(
+            text="Add Group",
+            url=reverse("core:group--add"),
+            color="primary",
         )
-        actions.append(
-            f"<a class='btn btn-danger' href='{reverse('core:group--user--remove', args=[row.uid])}' onclick='return confirm(\"Are you sure you want to remove this user from the group?\")'>Remove</a>"  # noqa: E501
-        )
-        return '<div class="d-flex flex-row">{}</div>'.format("".join(actions))
+        return header
 
 
 class GroupTable(LdapModelTableMixin, BasicModelTable):
@@ -592,11 +658,11 @@ class GroupTable(LdapModelTableMixin, BasicModelTable):
     model: type[LdapModel] = LDAPGroup
     page_length: int = 25
     striped: bool = True
-    fields: ClassVar[list[str]] = ["cn", "gid_number", "memberUid"]
+    fields: ClassVar[list[str]] = ["cn", "gid_number", "member_uids"]
     verbose_names: ClassVar[dict[str, str]] = {
         "cn": "Name",
         "gid_number": "Group ID",
-        "memberUid": "Members",
+        "member_uids": "# Members",
     }
 
     def get_initial_queryset(self) -> F:
@@ -605,11 +671,111 @@ class GroupTable(LdapModelTableMixin, BasicModelTable):
         """
         return cast("LdapManager", self.model.objects).order_by("cn")
 
-    def render_memberUid_column(self, value: list[str]) -> str:  # noqa: N802
+    def render_cn_column(self, row: LDAPGroup, col: str) -> str:  # noqa: ARG002
         """
-        Render the memberUid column.
+        Render the cn column.
         """
-        return "<br>".join(value)
+        return f"<a href='{reverse('core:group--detail', kwargs={'gid': row.gid_number})}'>{row.cn}</a>"  # noqa: E501
+
+    def render_member_uids_column(self, row: LDAPGroup, col: str) -> str:  # noqa: ARG002
+        """
+        Render the member_uids column.
+        """
+        if row.member_uids:
+            return str(len(row.member_uids))
+        return "0"
+
+
+class GroupMembershipTableWidget(CardWidget):
+    """
+    Widget for displaying a group membership table.
+    """
+
+    title: str = "Group Membership"
+    icon: str = "people-fill"
+    name: str = "group-membership-table"
+
+    def __init__(self, group: LDAPGroup) -> None:
+        self.group = group
+        super().__init__(widget=GroupMembershipTable(group))
+
+    def get_title(self) -> WidgetListLayoutHeader:
+        """
+        Get the title for the widget.
+        """
+        num_users = 0
+        if self.group.member_uids:
+            num_users = len(self.group.member_uids)
+        header = WidgetListLayoutHeader(
+            header_text=self.title,
+            badge_text=str(num_users),
+        )
+        header.add_modal_button(
+            text="Add Member",
+            target="#id_add_member",
+            color="primary",
+        )
+        return header
+
+
+class GroupMembershipTableRowActions(HorizontalLayoutBlock):
+    """
+    Block for displaying actions for a group membership row.
+    """
+
+    justify: str = "end"
+    align: str = "center"
+
+    def __init__(self, group: LDAPGroup, uid: str) -> None:
+        view = LinkButton(
+            text="View",
+            url=reverse("core:user--detail", kwargs={"uid": uid}),
+            css_class="btn btn-primary me-2",
+        )
+        remove = FormButton(
+            text="Remove",
+            action=reverse(
+                "core:group--user--remove", kwargs={"gid": group.gid_number}
+            ),
+            data={"member_uid": uid},
+            button_css_class="btn btn-danger",
+        )
+        super().__init__(view, remove)
+
+
+class GroupMembershipTable(LdapModelTableMixin, DataTable):
+    """
+    A data table that displays the members of a group.
+    """
+
+    model: type[LdapModel] = LDAPGroup
+    page_length: int = 25
+    striped: bool = True
+    is_async: bool = False
+
+    def __init__(self, group: LDAPGroup, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.add_column("uid", "UID")
+        self.add_column("full_name", "Name")
+        self.add_column("employee_number", "Employee Number")
+        self.add_column("actions", "Actions")
+        if not group.member_uids:
+            users = []
+        else:
+            users = LDAPUser.objects.filter(uid__in=group.member_uids)
+        for user in users:
+            self.add_row(
+                uid=user.uid,
+                full_name=user.full_name,
+                employee_number=user.employee_number,
+                actions=GroupMembershipTableRowActions(group, user.uid),
+            )
+
+    def render_actions_column(self, row: LDAPGroup, col: str) -> str:
+        """
+        Render the actions column.
+        """
+        return GroupMembershipTableRowActions(row, col).render()
 
 
 # ====================================
@@ -627,15 +793,15 @@ class RoleTableWidget(CardWidget):
     name: str = "role-table"
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(RoleTable, **kwargs)
+        super().__init__(widget=RoleTable, header=self.get_title(), **kwargs)
 
-    def get_title(self) -> WidgetListLayoutHeader:
+    def get_title(self) -> HeaderWithWidget:
         """
         Get the title for the widget.
         """
-        return WidgetListLayoutHeader(
+        return HeaderWithWidget(
             header_text=self.title,
-            badge_text=len(cast("LdapManager", NSRole.objects).all()),
+            badge_text=str(cast("LdapManager", NSRole.objects).count()),
         )
 
 

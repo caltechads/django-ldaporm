@@ -4,7 +4,7 @@ from django.urls import include, path
 from wildewidgets import WildewidgetDispatch
 
 urlpatterns = [
-    path("", include("demo.core.urls", namespace="ldap_users")),
+    path("", include("demo.core.urls", namespace="core")),
     path("accounts/", include("django.contrib.auth.urls")),
     path("admin/", include(admin.site.urls[:2], namespace=admin.site.name)),
     path("wildewidgets_json", WildewidgetDispatch.as_view(), name="wildewidgets_json"),

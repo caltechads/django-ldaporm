@@ -1,9 +1,11 @@
 from typing import TYPE_CHECKING, Final, cast
 
+from django.urls import reverse
+
 from ldaporm.fields import (
-    AllCapsBooleanField,
     CharField,
     CharListField,
+    DateTimeField,
     IntegerField,
 )
 from ldaporm.models import Model
@@ -13,25 +15,13 @@ if TYPE_CHECKING:
     from ldaporm.managers import LdapManager
 
 
-def get_next_group_gid() -> int:
-    """
-    Return the next available gid_number for a group by finding the maximum
-    gid_number in the LDAP and adding 1.
-    """
-    current_gid: int = 0
-    for group in cast("LdapManager", LDAPGroup.objects).all():
-        _group: LDAPGroup = cast("LDAPGroup", group)
-        if not _group.gid_number:
-            continue
-        current_gid = max(_group.gid_number, current_gid)  # type: ignore[assignment]
-    return current_gid + 1
-
 
 class LDAPUser(Model):
     """
     LDAP model for POSIX users.
     """
 
+    #: Login shell choices
     LOGIN_SHELL_CHOICES: Final[list[tuple[str, str]]] = [
         ("/bin/csh", "C Shell"),
         ("/bin/tcsh", "Tcsh"),
@@ -39,6 +29,21 @@ class LDAPUser(Model):
         ("/bin/zsh", "Zsh"),
         ("/bin/fish", "Fish"),
     ]
+
+    #: Employee type choices
+    EMPLOYEE_TYPE_CHOICES: Final[list[tuple[str, str]]] = [
+        ("employee", "Employee"),
+        ("contractor", "Contractor"),
+        ("intern", "Intern"),
+        ("manager", "Manager"),
+        ("external", "External"),
+    ]
+
+    def get_absolute_url(self) -> str:
+        """
+        Return the absolute URL for the user.
+        """
+        return reverse("core:user--detail", kwargs={"uid": self.uid})
 
     # Identity fields
     uid = CharField("uid", primary_key=True, max_length=50)
@@ -65,41 +70,73 @@ class LDAPUser(Model):
     )
 
     # inetOrgPerson fields
+    employee_type = CharField(
+        "Employee Type", max_length=50, null=True, db_column="employeeType"
+    )
     employee_number = IntegerField("Employee Number", db_column="employeeNumber")
     room_number = CharField("Room Number", max_length=50, db_column="roomNumber")
     home_phone = CharField("Home Phone", max_length=50, db_column="homePhone")
     mobile = CharField("Mobile", max_length=50, db_column="mobile")
 
-    # Status
-    is_disabled = AllCapsBooleanField(
-        "User Account Control", default=True, db_column="loginDisabled"
+    # 389-ds fields
+    created_at = DateTimeField(
+        "Created At",
+        null=True,
+        blank=True,
+        default=None,
+        db_column="createTimestamp",
+        editable=False,
+    )
+    created_by = CharField(
+        "Created By",
+        null=True,
+        blank=True,
+        default=None,
+        db_column="creatorsName",
+        editable=False,
+    )
+    updated_at = DateTimeField(
+        "Updated At",
+        null=True,
+        blank=True,
+        default=None,
+        db_column="modifyTimestamp",
+        editable=False,
+    )
+    updated_by = CharField(
+        "Updated By",
+        null=True,
+        blank=True,
+        default=None,
+        db_column="modifiersName",
+        editable=False,
     )
 
-    # 389-ds fields
     nsroledn = CharListField(
-        "RoleDNs",
-        max_length=254,
-        db_column="nsroledn",
+        "nsroledn",
+        max_length=255,
         help_text="List of NSRole DNs",
     )
     nsrole = CharListField(
-        "Roles",
-        max_length=254,
-        db_column="nsrole",
+        "nsrole",
+        blank=True,
+        default=None,
+        editable=False,
         help_text="List of all nsroles, managed, search and nested roles",
     )
 
     class Meta:
-        ldap_server = "default"
-        basedn = "ou=people,o=example,c=us"
-        objectclass = "posixAccount"
-        extra_objectclasses = [  # noqa: RUF012
+        ldap_server: str = "default"
+        basedn: str = "ou=people,o=example,c=us"
+        objectclass: str = "posixAccount"
+        extra_objectclasses: list[str] = [  # noqa: RUF012
             "top",
             "inetOrgPerson",
         ]
-        verbose_name = "LDAP User"
-        verbose_name_plural = "LDAP Users"
-        ordering = ["uid"]  # noqa: RUF012
+        verbose_name: str = "LDAP User"
+        verbose_name_plural: str = "LDAP Users"
+        ordering: list[str] = ["uid"]  # noqa: RUF012
+        password_attribute: str = "userPassword"  # noqa: S105
 
     def get_full_name(self) -> str:
         """Return the user's full name."""

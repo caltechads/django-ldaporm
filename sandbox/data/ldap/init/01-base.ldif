@@ -1,10 +1,14 @@
-# Base organizational structure
+# The main suffix
 dn: o=example,c=us
+objectClass: top
 objectClass: organization
+objectClass: country
 o: example
+c: us
 
 # People organizational unit
 dn: ou=people,o=example,c=us
+objectClass: top
 objectClass: organizationalUnit
 ou: people
 
@@ -12,6 +16,8 @@ ou: people
 dn: uid=john.doe,ou=people,o=example,c=us
 objectClass: posixAccount
 objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
 objectClass: top
 uid: john.doe
 cn: John Doe
@@ -24,7 +30,7 @@ homeDirectory: /home/john.doe
 loginShell: /bin/bash
 employeeNumber: 12344
 userPassword: {SSHA}password123
-loginDisabled: TRUE
+employeeType: Manager
 nsroledn: cn=role1,ou=roles,o=example,c=us
 nsroledn: cn=role2,ou=roles,o=example,c=us
 nsroledn: cn=role3,ou=roles,o=example,c=us
@@ -32,6 +38,8 @@ nsroledn: cn=role3,ou=roles,o=example,c=us
 dn: uid=jane.smith,ou=people,o=example,c=us
 objectClass: posixAccount
 objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
 objectClass: top
 uid: jane.smith
 cn: Jane Smith
@@ -46,14 +54,19 @@ employeeNumber: 12345
 homeDirectory: /home/jane.smith
 loginShell: /bin/bash
 userPassword: {SSHA}password123
+employeeType: Employee
 homePhone: +1 234 567 8900
 mobile: +1 234 567 8901
 roomNumber: 101
-loginDisabled: TRUE
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
 
 dn: uid=bob.wilson,ou=people,o=example,c=us
 objectClass: posixAccount
 objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
 objectClass: top
 uid: bob.wilson
 cn: Bob Wilson
@@ -68,14 +81,19 @@ employeeNumber: 12346
 homeDirectory: /home/bob.wilson
 loginShell: /bin/bash
 userPassword: {SSHA}password123
+employeeType: Contractor
 homePhone: +1 234 567 8900
 mobile: +1 234 567 8901
 roomNumber: 101
-loginDisabled: FALSE
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
 
 dn: uid=alice.jones,ou=people,o=example,c=us
 objectClass: posixAccount
 objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
 objectClass: top
 uid: alice.jones
 cn: Alice Jones
@@ -93,13 +111,15 @@ homePhone: +1 234 567 8900
 mobile: +1 234 567 8901
 roomNumber: 102
 userPassword: {SSHA}password123
-loginDisabled: FALSE
+employeeType: Intern
 nsroledn: cn=role1,ou=roles,o=example,c=us
 nsroledn: cn=role2,ou=roles,o=example,c=us
 
 dn: uid=admin,ou=people,o=example,c=us
 objectClass: posixAccount
 objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
 objectClass: top
 uid: admin
 cn: Administrator
@@ -112,11 +132,1277 @@ employeeNumber: 12348
 homeDirectory: /home/admin
 loginShell: /bin/bash
 userPassword: {SSHA}admin123
+employeeType: Manager
 homePhone: +1 234 567 8900
 mobile: +1 234 567 8901
 roomNumber: 101
-loginDisabled: FALSE
 nsroledn: cn=role3,ou=roles,o=example,c=us
+
+# Additional 50 users
+dn: uid=sarah.johnson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: sarah.johnson
+cn: Sarah Johnson
+sn: Johnson
+givenName: Sarah
+mail: sarah.johnson@example.com
+uidNumber: 1005
+gidNumber: 1001
+employeeNumber: 12349
+homeDirectory: /home/sarah.johnson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8902
+mobile: +1 234 567 8903
+roomNumber: 103
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+
+dn: uid=michael.brown,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: michael.brown
+cn: Michael Brown
+sn: Brown
+givenName: Michael
+mail: michael.brown@example.com
+uidNumber: 1006
+gidNumber: 1001
+employeeNumber: 12350
+homeDirectory: /home/michael.brown
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8904
+mobile: +1 234 567 8905
+roomNumber: 104
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=emily.davis,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: emily.davis
+cn: Emily Davis
+sn: Davis
+givenName: Emily
+mail: emily.davis@example.com
+uidNumber: 1007
+gidNumber: 1001
+employeeNumber: 12351
+homeDirectory: /home/emily.davis
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8906
+mobile: +1 234 567 8907
+roomNumber: 105
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+
+dn: uid=david.miller,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: david.miller
+cn: David Miller
+sn: Miller
+givenName: David
+mail: david.miller@example.com
+uidNumber: 1008
+gidNumber: 1001
+employeeNumber: 12352
+homeDirectory: /home/david.miller
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8908
+mobile: +1 234 567 8909
+roomNumber: 106
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=lisa.garcia,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: lisa.garcia
+cn: Lisa Garcia
+sn: Garcia
+givenName: Lisa
+mail: lisa.garcia@example.com
+uidNumber: 1009
+gidNumber: 1001
+employeeNumber: 12353
+homeDirectory: /home/lisa.garcia
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8910
+mobile: +1 234 567 8911
+roomNumber: 107
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=robert.rodriguez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: robert.rodriguez
+cn: Robert Rodriguez
+sn: Rodriguez
+givenName: Robert
+mail: robert.rodriguez@example.com
+uidNumber: 1010
+gidNumber: 1001
+employeeNumber: 12354
+homeDirectory: /home/robert.rodriguez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8912
+mobile: +1 234 567 8913
+roomNumber: 108
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=amanda.martinez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: amanda.martinez
+cn: Amanda Martinez
+sn: Martinez
+givenName: Amanda
+mail: amanda.martinez@example.com
+uidNumber: 1011
+gidNumber: 1001
+employeeNumber: 12355
+homeDirectory: /home/amanda.martinez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8914
+mobile: +1 234 567 8915
+roomNumber: 109
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=christopher.anderson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: christopher.anderson
+cn: Christopher Anderson
+sn: Anderson
+givenName: Christopher
+mail: christopher.anderson@example.com
+uidNumber: 1012
+gidNumber: 1001
+employeeNumber: 12356
+homeDirectory: /home/christopher.anderson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8916
+mobile: +1 234 567 8917
+roomNumber: 110
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=rachel.taylor,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: rachel.taylor
+cn: Rachel Taylor
+sn: Taylor
+givenName: Rachel
+mail: rachel.taylor@example.com
+uidNumber: 1013
+gidNumber: 1001
+employeeNumber: 12357
+homeDirectory: /home/rachel.taylor
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8918
+mobile: +1 234 567 8919
+roomNumber: 111
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=matthew.thomas,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: matthew.thomas
+cn: Matthew Thomas
+sn: Thomas
+givenName: Matthew
+mail: matthew.thomas@example.com
+uidNumber: 1014
+gidNumber: 1001
+employeeNumber: 12358
+homeDirectory: /home/matthew.thomas
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8920
+mobile: +1 234 567 8921
+roomNumber: 112
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=ashley.hernandez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: ashley.hernandez
+cn: Ashley Hernandez
+sn: Hernandez
+givenName: Ashley
+mail: ashley.hernandez@example.com
+uidNumber: 1015
+gidNumber: 1001
+employeeNumber: 12359
+homeDirectory: /home/ashley.hernandez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8922
+mobile: +1 234 567 8923
+roomNumber: 113
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=daniel.moore,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: daniel.moore
+cn: Daniel Moore
+sn: Moore
+givenName: Daniel
+mail: daniel.moore@example.com
+uidNumber: 1016
+gidNumber: 1001
+employeeNumber: 12360
+homeDirectory: /home/daniel.moore
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8924
+mobile: +1 234 567 8925
+roomNumber: 114
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=stephanie.martin,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: stephanie.martin
+cn: Stephanie Martin
+sn: Martin
+givenName: Stephanie
+mail: stephanie.martin@example.com
+uidNumber: 1017
+gidNumber: 1001
+employeeNumber: 12361
+homeDirectory: /home/stephanie.martin
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8926
+mobile: +1 234 567 8927
+roomNumber: 115
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=joseph.jackson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: joseph.jackson
+cn: Joseph Jackson
+sn: Jackson
+givenName: Joseph
+mail: joseph.jackson@example.com
+uidNumber: 1018
+gidNumber: 1001
+employeeNumber: 12362
+homeDirectory: /home/joseph.jackson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8928
+mobile: +1 234 567 8929
+roomNumber: 116
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=nicole.thompson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: nicole.thompson
+cn: Nicole Thompson
+sn: Thompson
+givenName: Nicole
+mail: nicole.thompson@example.com
+uidNumber: 1019
+gidNumber: 1001
+employeeNumber: 12363
+homeDirectory: /home/nicole.thompson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8930
+mobile: +1 234 567 8931
+roomNumber: 117
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=andrew.white,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: andrew.white
+cn: Andrew White
+sn: White
+givenName: Andrew
+mail: andrew.white@example.com
+uidNumber: 1020
+gidNumber: 1001
+employeeNumber: 12364
+homeDirectory: /home/andrew.white
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8932
+mobile: +1 234 567 8933
+roomNumber: 118
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=lauren.harris,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: lauren.harris
+cn: Lauren Harris
+sn: Harris
+givenName: Lauren
+mail: lauren.harris@example.com
+uidNumber: 1021
+gidNumber: 1001
+employeeNumber: 12365
+homeDirectory: /home/lauren.harris
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8934
+mobile: +1 234 567 8935
+roomNumber: 119
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=kevin.clark,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: kevin.clark
+cn: Kevin Clark
+sn: Clark
+givenName: Kevin
+mail: kevin.clark@example.com
+uidNumber: 1022
+gidNumber: 1001
+employeeNumber: 12366
+homeDirectory: /home/kevin.clark
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8936
+mobile: +1 234 567 8937
+roomNumber: 120
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=melissa.lewis,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: melissa.lewis
+cn: Melissa Lewis
+sn: Lewis
+givenName: Melissa
+mail: melissa.lewis@example.com
+uidNumber: 1023
+gidNumber: 1001
+employeeNumber: 12367
+homeDirectory: /home/melissa.lewis
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8938
+mobile: +1 234 567 8939
+roomNumber: 121
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=ryan.robinson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: ryan.robinson
+cn: Ryan Robinson
+sn: Robinson
+givenName: Ryan
+mail: ryan.robinson@example.com
+uidNumber: 1024
+gidNumber: 1001
+employeeNumber: 12368
+homeDirectory: /home/ryan.robinson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8940
+mobile: +1 234 567 8941
+roomNumber: 122
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=heather.walker,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: heather.walker
+cn: Heather Walker
+sn: Walker
+givenName: Heather
+mail: heather.walker@example.com
+uidNumber: 1025
+gidNumber: 1001
+employeeNumber: 12369
+homeDirectory: /home/heather.walker
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8942
+mobile: +1 234 567 8943
+roomNumber: 123
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=eric.young,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: eric.young
+cn: Eric Young
+sn: Young
+givenName: Eric
+mail: eric.young@example.com
+uidNumber: 1026
+gidNumber: 1001
+employeeNumber: 12370
+homeDirectory: /home/eric.young
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8944
+mobile: +1 234 567 8945
+roomNumber: 124
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=amanda.allen,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: amanda.allen
+cn: Amanda Allen
+sn: Allen
+givenName: Amanda
+mail: amanda.allen@example.com
+uidNumber: 1027
+gidNumber: 1001
+employeeNumber: 12371
+homeDirectory: /home/amanda.allen
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8946
+mobile: +1 234 567 8947
+roomNumber: 125
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=steven.king,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: steven.king
+cn: Steven King
+sn: King
+givenName: Steven
+mail: steven.king@example.com
+uidNumber: 1028
+gidNumber: 1001
+employeeNumber: 12372
+homeDirectory: /home/steven.king
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8948
+mobile: +1 234 567 8949
+roomNumber: 126
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=michelle.wright,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: michelle.wright
+cn: Michelle Wright
+sn: Wright
+givenName: Michelle
+mail: michelle.wright@example.com
+uidNumber: 1029
+gidNumber: 1001
+employeeNumber: 12373
+homeDirectory: /home/michelle.wright
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8950
+mobile: +1 234 567 8951
+roomNumber: 127
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=timothy.lopez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: timothy.lopez
+cn: Timothy Lopez
+sn: Lopez
+givenName: Timothy
+mail: timothy.lopez@example.com
+uidNumber: 1030
+gidNumber: 1001
+employeeNumber: 12374
+homeDirectory: /home/timothy.lopez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8952
+mobile: +1 234 567 8953
+roomNumber: 128
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=kimberly.hill,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: kimberly.hill
+cn: Kimberly Hill
+sn: Hill
+givenName: Kimberly
+mail: kimberly.hill@example.com
+uidNumber: 1031
+gidNumber: 1001
+employeeNumber: 12375
+homeDirectory: /home/kimberly.hill
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8954
+mobile: +1 234 567 8955
+roomNumber: 129
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=jeffrey.scott,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: jeffrey.scott
+cn: Jeffrey Scott
+sn: Scott
+givenName: Jeffrey
+mail: jeffrey.scott@example.com
+uidNumber: 1032
+gidNumber: 1001
+employeeNumber: 12376
+homeDirectory: /home/jeffrey.scott
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8956
+mobile: +1 234 567 8957
+roomNumber: 130
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=angela.green,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: angela.green
+cn: Angela Green
+sn: Green
+givenName: Angela
+mail: angela.green@example.com
+uidNumber: 1033
+gidNumber: 1001
+employeeNumber: 12377
+homeDirectory: /home/angela.green
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8958
+mobile: +1 234 567 8959
+roomNumber: 131
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=mark.adams,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: mark.adams
+cn: Mark Adams
+sn: Adams
+givenName: Mark
+mail: mark.adams@example.com
+uidNumber: 1034
+gidNumber: 1001
+employeeNumber: 12378
+homeDirectory: /home/mark.adams
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8960
+mobile: +1 234 567 8961
+roomNumber: 132
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=rebecca.baker,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: rebecca.baker
+cn: Rebecca Baker
+sn: Baker
+givenName: Rebecca
+mail: rebecca.baker@example.com
+uidNumber: 1035
+gidNumber: 1001
+employeeNumber: 12379
+homeDirectory: /home/rebecca.baker
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8962
+mobile: +1 234 567 8963
+roomNumber: 133
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=paul.gonzalez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: paul.gonzalez
+cn: Paul Gonzalez
+sn: Gonzalez
+givenName: Paul
+mail: paul.gonzalez@example.com
+uidNumber: 1036
+gidNumber: 1001
+employeeNumber: 12380
+homeDirectory: /home/paul.gonzalez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8964
+mobile: +1 234 567 8965
+roomNumber: 134
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=laura.nelson,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: laura.nelson
+cn: Laura Nelson
+sn: Nelson
+givenName: Laura
+mail: laura.nelson@example.com
+uidNumber: 1037
+gidNumber: 1001
+employeeNumber: 12381
+homeDirectory: /home/laura.nelson
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8966
+mobile: +1 234 567 8967
+roomNumber: 135
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=gregory.carter,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: gregory.carter
+cn: Gregory Carter
+sn: Carter
+givenName: Gregory
+mail: gregory.carter@example.com
+uidNumber: 1038
+gidNumber: 1001
+employeeNumber: 12382
+homeDirectory: /home/gregory.carter
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8968
+mobile: +1 234 567 8969
+roomNumber: 136
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=christine.mitchell,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: christine.mitchell
+cn: Christine Mitchell
+sn: Mitchell
+givenName: Christine
+mail: christine.mitchell@example.com
+uidNumber: 1039
+gidNumber: 1001
+employeeNumber: 12383
+homeDirectory: /home/christine.mitchell
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8970
+mobile: +1 234 567 8971
+roomNumber: 137
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=ronald.perez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: ronald.perez
+cn: Ronald Perez
+sn: Perez
+givenName: Ronald
+mail: ronald.perez@example.com
+uidNumber: 1040
+gidNumber: 1001
+employeeNumber: 12384
+homeDirectory: /home/ronald.perez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8972
+mobile: +1 234 567 8973
+roomNumber: 138
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=deborah.roberts,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: deborah.roberts
+cn: Deborah Roberts
+sn: Roberts
+givenName: Deborah
+mail: deborah.roberts@example.com
+uidNumber: 1041
+gidNumber: 1001
+employeeNumber: 12385
+homeDirectory: /home/deborah.roberts
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8974
+mobile: +1 234 567 8975
+roomNumber: 139
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=anthony.turner,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: anthony.turner
+cn: Anthony Turner
+sn: Turner
+givenName: Anthony
+mail: anthony.turner@example.com
+uidNumber: 1042
+gidNumber: 1001
+employeeNumber: 12386
+homeDirectory: /home/anthony.turner
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8976
+mobile: +1 234 567 8977
+roomNumber: 140
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=sharon.phillips,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: sharon.phillips
+cn: Sharon Phillips
+sn: Phillips
+givenName: Sharon
+mail: sharon.phillips@example.com
+uidNumber: 1043
+gidNumber: 1001
+employeeNumber: 12387
+homeDirectory: /home/sharon.phillips
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8978
+mobile: +1 234 567 8979
+roomNumber: 141
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=kevin.campbell,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: kevin.campbell
+cn: Kevin Campbell
+sn: Campbell
+givenName: Kevin
+mail: kevin.campbell@example.com
+uidNumber: 1044
+gidNumber: 1001
+employeeNumber: 12388
+homeDirectory: /home/kevin.campbell
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8980
+mobile: +1 234 567 8981
+roomNumber: 142
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=cynthia.parker,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: cynthia.parker
+cn: Cynthia Parker
+sn: Parker
+givenName: Cynthia
+mail: cynthia.parker@example.com
+uidNumber: 1045
+gidNumber: 1001
+employeeNumber: 12389
+homeDirectory: /home/cynthia.parker
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8982
+mobile: +1 234 567 8983
+roomNumber: 143
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=larry.evans,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: larry.evans
+cn: Larry Evans
+sn: Evans
+givenName: Larry
+mail: larry.evans@example.com
+uidNumber: 1046
+gidNumber: 1001
+employeeNumber: 12390
+homeDirectory: /home/larry.evans
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8984
+mobile: +1 234 567 8985
+roomNumber: 144
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=amy.edwards,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: amy.edwards
+cn: Amy Edwards
+sn: Edwards
+givenName: Amy
+mail: amy.edwards@example.com
+uidNumber: 1047
+gidNumber: 1001
+employeeNumber: 12391
+homeDirectory: /home/amy.edwards
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8986
+mobile: +1 234 567 8987
+roomNumber: 145
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=scott.collins,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: scott.collins
+cn: Scott Collins
+sn: Collins
+givenName: Scott
+mail: scott.collins@example.com
+uidNumber: 1048
+gidNumber: 1001
+employeeNumber: 12392
+homeDirectory: /home/scott.collins
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8988
+mobile: +1 234 567 8989
+roomNumber: 146
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=carol.stewart,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: carol.stewart
+cn: Carol Stewart
+sn: Stewart
+givenName: Carol
+mail: carol.stewart@example.com
+uidNumber: 1049
+gidNumber: 1001
+employeeNumber: 12393
+homeDirectory: /home/carol.stewart
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Manager
+homePhone: +1 234 567 8990
+mobile: +1 234 567 8991
+roomNumber: 147
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=dennis.sanchez,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: dennis.sanchez
+cn: Dennis Sanchez
+sn: Sanchez
+givenName: Dennis
+mail: dennis.sanchez@example.com
+uidNumber: 1050
+gidNumber: 1001
+employeeNumber: 12394
+homeDirectory: /home/dennis.sanchez
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 8992
+mobile: +1 234 567 8993
+roomNumber: 148
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=maria.morris,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: maria.morris
+cn: Maria Morris
+sn: Morris
+givenName: Maria
+mail: maria.morris@example.com
+uidNumber: 1051
+gidNumber: 1001
+employeeNumber: 12395
+homeDirectory: /home/maria.morris
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: External
+homePhone: +1 234 567 8994
+mobile: +1 234 567 8995
+roomNumber: 149
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=gary.rogers,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: gary.rogers
+cn: Gary Rogers
+sn: Rogers
+givenName: Gary
+mail: gary.rogers@example.com
+uidNumber: 1052
+gidNumber: 1001
+employeeNumber: 12396
+homeDirectory: /home/gary.rogers
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Contractor
+homePhone: +1 234 567 8996
+mobile: +1 234 567 8997
+roomNumber: 150
+nsroledn: cn=role2,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
+
+dn: uid=heather.reed,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: heather.reed
+cn: Heather Reed
+sn: Reed
+givenName: Heather
+mail: heather.reed@example.com
+uidNumber: 1053
+gidNumber: 1001
+employeeNumber: 12397
+homeDirectory: /home/heather.reed
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Intern
+homePhone: +1 234 567 8998
+mobile: +1 234 567 8999
+roomNumber: 151
+nsroledn: cn=role3,ou=roles,o=example,c=us
+nsroledn: cn=role5,ou=roles,o=example,c=us
+nsroledn: cn=role7,ou=roles,o=example,c=us
+
+dn: uid=roger.cook,ou=people,o=example,c=us
+objectClass: posixAccount
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: roger.cook
+cn: Roger Cook
+sn: Cook
+givenName: Roger
+mail: roger.cook@example.com
+uidNumber: 1054
+gidNumber: 1001
+employeeNumber: 12398
+homeDirectory: /home/roger.cook
+loginShell: /bin/bash
+userPassword: {SSHA}password123
+employeeType: Employee
+homePhone: +1 234 567 9000
+mobile: +1 234 567 9001
+roomNumber: 152
+nsroledn: cn=role1,ou=roles,o=example,c=us
+nsroledn: cn=role4,ou=roles,o=example,c=us
+nsroledn: cn=role6,ou=roles,o=example,c=us
+nsroledn: cn=role8,ou=roles,o=example,c=us
 
 # Groups organizational unit
 dn: ou=groups,o=example,c=us
@@ -133,6 +1419,56 @@ memberUid: john.doe
 memberUid: jane.smith
 memberUid: bob.wilson
 memberUid: alice.jones
+memberUid: sarah.johnson
+memberUid: michael.brown
+memberUid: emily.davis
+memberUid: david.miller
+memberUid: lisa.garcia
+memberUid: robert.rodriguez
+memberUid: amanda.martinez
+memberUid: christopher.anderson
+memberUid: rachel.taylor
+memberUid: matthew.thomas
+memberUid: ashley.hernandez
+memberUid: daniel.moore
+memberUid: stephanie.martin
+memberUid: joseph.jackson
+memberUid: nicole.thompson
+memberUid: andrew.white
+memberUid: lauren.harris
+memberUid: kevin.clark
+memberUid: melissa.lewis
+memberUid: ryan.robinson
+memberUid: heather.walker
+memberUid: eric.young
+memberUid: amanda.allen
+memberUid: steven.king
+memberUid: michelle.wright
+memberUid: timothy.lopez
+memberUid: kimberly.hill
+memberUid: jeffrey.scott
+memberUid: angela.green
+memberUid: mark.adams
+memberUid: rebecca.baker
+memberUid: paul.gonzalez
+memberUid: laura.nelson
+memberUid: gregory.carter
+memberUid: christine.mitchell
+memberUid: ronald.perez
+memberUid: deborah.roberts
+memberUid: anthony.turner
+memberUid: sharon.phillips
+memberUid: kevin.campbell
+memberUid: cynthia.parker
+memberUid: larry.evans
+memberUid: amy.edwards
+memberUid: scott.collins
+memberUid: carol.stewart
+memberUid: dennis.sanchez
+memberUid: maria.morris
+memberUid: gary.rogers
+memberUid: heather.reed
+memberUid: roger.cook
 
 dn: cn=admins,ou=groups,o=example,c=us
 objectClass: posixGroup
@@ -174,3 +1510,94 @@ objectClass: nssimpleroledefinition
 objectClass: nsmanagedroledefinition
 cn: role3
 description: Role 3
+
+dn: cn=role4,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role4
+description: Role 4
+
+dn: cn=role5,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role5
+description: Role 5
+
+dn: cn=role6,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role6
+description: Role 6
+
+dn: cn=role7,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role7
+description: Role 7
+
+dn: cn=role8,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nssimpleroledefinition
+objectClass: nsmanagedroledefinition
+cn: role8
+description: Role 8
+
+# Filtered roles based on employeeType
+dn: cn=employee,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nsfilteredroledefinition
+cn: employee
+description: Role for regular employees
+nsRoleFilter: (employeeType=Employee)
+
+dn: cn=contractor,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nsfilteredroledefinition
+cn: contractor
+description: Role for contractors
+nsRoleFilter: (employeeType=Contractor)
+
+dn: cn=intern,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nsfilteredroledefinition
+cn: intern
+description: Role for interns
+nsRoleFilter: (employeeType=Intern)
+
+dn: cn=manager,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nsfilteredroledefinition
+cn: manager
+description: Role for managers
+nsRoleFilter: (employeeType=Manager)
+
+dn: cn=external,ou=roles,o=example,c=us
+objectClass: top
+objectClass: ldapsubentry
+objectClass: nsroledefinition
+objectClass: nsfilteredroledefinition
+cn: external
+description: Role for external users
+nsRoleFilter: (employeeType=External)

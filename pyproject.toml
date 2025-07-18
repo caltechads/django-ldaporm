@@ -169,6 +169,9 @@ ignore_missing_imports = true
 module = "rest_framework.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "crispy_bootstrap5.*"
+ignore_missing_imports = true
 
 [tool.basedpyright]
 python_version = "3.10"

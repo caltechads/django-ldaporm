@@ -295,7 +295,7 @@ class NewPasswordContentsAreOk(AbstractValidationRule):
         ]
         # the person may not have an employee number
         if hasattr(user, "employee_number") and user.employee_number:
-            forbidden_words.append(user.employee_number)
+            forbidden_words.append(str(user.employee_number))
         # the person may not have a first name
         if hasattr(user, "first_name") and user.first_name:
             forbidden_words.append(user.first_name.lower())
