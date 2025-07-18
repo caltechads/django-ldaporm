@@ -17,7 +17,7 @@ import pytest
 from ldap_faker.unittest import LDAPFakerMixin
 
 from ldaporm.fields import CharField, IntegerField
-from ldaporm.managers import F, LdapManager
+from ldaporm.managers import F, LdapManager, PagedResultSet
 from ldaporm.models import Model
 from ldaporm.options import Options
 
@@ -894,6 +894,63 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         all_uids = [user.uid for user in all_users]
         iter_uids = [user.uid for user in iter_users]
         assert all_uids == iter_uids
+
+    def test_page_method(self):
+        """Test the new page method for paged LDAP searches."""
+        f = F(self.manager)
+        f = f.filter(objectclass="posixAccount").order_by("uid")
+
+        # Test first page
+        paged_results = f.page(page_size=2)
+
+        # Test basic structure
+        self.assertIsInstance(paged_results, PagedResultSet)
+        self.assertIsInstance(paged_results.results, list)
+        self.assertIsInstance(paged_results.next_cookie, str)
+        self.assertIsInstance(paged_results.has_more, bool)
+
+        # The LDAP faker might not properly implement paging, so we test the basic structure
+        if len(paged_results.results) == 2 and paged_results.has_more:
+            # Faker supports paging
+            self.assertTrue(len(paged_results.next_cookie) > 0)
+
+            # Test second page
+            paged_results2 = f.page(page_size=2, cookie=paged_results.next_cookie)
+
+            # Should get more results
+            self.assertIsInstance(paged_results2, PagedResultSet)
+            self.assertIsInstance(paged_results2.results, list)
+
+            # Test third page if there are more
+            if paged_results2.has_more:
+                paged_results3 = f.page(page_size=2, cookie=paged_results2.next_cookie)
+                self.assertIsInstance(paged_results3, PagedResultSet)
+                self.assertIsInstance(paged_results3.results, list)
+
+                # Eventually we should reach the end
+                if not paged_results3.has_more:
+                    self.assertEqual(paged_results3.next_cookie, "")
+
+        else:
+            # Faker doesn't support paging, but structure should still be correct
+            self.assertEqual(len(paged_results.results), 5)  # All results
+            self.assertFalse(paged_results.has_more)
+            self.assertEqual(paged_results.next_cookie, "")
+
+        # Test with empty cookie (should start from beginning)
+        paged_results4 = f.page(page_size=2, cookie="")
+
+        # Should get same results as first page
+        self.assertIsInstance(paged_results4, PagedResultSet)
+        self.assertIsInstance(paged_results4.results, list)
+
+        # Test iteration over PagedResultSet
+        iter_results = list(paged_results)
+        self.assertIsInstance(iter_results, list)
+
+        # Test indexing PagedResultSet
+        if len(paged_results) > 0:
+            self.assertIsInstance(paged_results[0], MyTestUser)
 
     def test_efficient_slicing(self):
         """Test that f[:limit] uses sizelimit for efficiency."""

@@ -22,6 +22,7 @@ What's New (2025)
 - **Direct Iteration:** You can now iterate over query results directly, without needing to call ``.all()``.
 - **Slicing and Indexing:** Query results support Python slicing and indexing. Slicing with ``[:stop]`` is efficient; other slices fetch all results then slice in Python.
 - **Convenience Methods:** ``.count()``, ``.as_list()``, ``.get_or_none()``, and ``.first_or_none()`` are available on both F and LdapManager objects.
+- **LDAP Paging:** New ``.page()`` method and ``LdapCursorPagination`` for efficient server-side paging of large result sets.
 - **Backward Compatibility:** ``.all()`` is still supported and works as before.
 
 Examples:
@@ -52,6 +53,15 @@ Examples:
 
    # first_or_none
    user = User.objects.filter(is_active=True).first_or_none()
+
+   # LDAP paging
+   paged_results = User.objects.filter(is_active=True).page(page_size=50)
+   for user in paged_results:
+       print(user.uid)
+   if paged_results.has_more:
+       next_page = User.objects.filter(is_active=True).page(
+           page_size=50, cookie=paged_results.next_cookie
+       )
 
 .. note::
    You can still use ``.all()`` for backward compatibility:
@@ -468,6 +478,201 @@ Limiting Results
 
    # first_or_none
    user = User.objects.filter(is_active=True).first_or_none()
+
+LDAP Paging
+-----------
+
+LDAP paging allows you to retrieve large result sets in smaller chunks, preventing
+timeouts and reducing memory usage. This is especially important when dealing with
+un-indexed attributes or large LDAP directories.
+
+.. important::
+
+    LDAP paging uses the `SimplePagedResultsControl` (RFC 2696) and requires LDAP
+    server support for this control. Most modern LDAP servers (Active Directory,
+    389 Directory Server, OpenLDAP) support this control by default.
+
+    Paging is different from slicing - paging uses server-side cursors while
+    slicing fetches results up to a limit.
+
+Basic Paging
+^^^^^^^^^^^^
+
+Use the ``.page()`` method to get paged results:
+
+.. code-block:: python
+
+   # Get first page
+   paged_results = User.objects.filter(is_active=True).page(page_size=50)
+
+   # Access results and pagination info
+   users = paged_results.results
+   next_cookie = paged_results.next_cookie
+   has_more = paged_results.has_more
+
+   # Get next page
+   if paged_results.has_more:
+       next_page = User.objects.filter(is_active=True).page(
+           page_size=50,
+           cookie=paged_results.next_cookie
+       )
+
+   # Iterate over paged results
+   for user in paged_results:
+       print(f"Processing user: {user.username}")
+
+   # Check pagination status
+   print(f"Has more pages: {paged_results.has_more}")
+   print(f"Results in this page: {len(paged_results)}")
+
+PagedResultSet
+^^^^^^^^^^^^^
+
+The ``.page()`` method returns a ``PagedResultSet`` object that contains:
+
+- ``results``: List of model instances for the current page
+- ``next_cookie``: Cookie for the next page (empty string if no more pages)
+- ``has_more``: Boolean indicating if more pages exist
+
+.. code-block:: python
+
+   # Get paged results
+   paged_results = User.objects.all().page(page_size=25)
+
+   # Access individual results
+   first_user = paged_results[0]
+   user_count = len(paged_results)
+
+   # Iterate over results
+   for user in paged_results:
+       print(user.uid)
+
+   # Check pagination
+   if paged_results.has_more:
+       print(f"Next page cookie: {paged_results.next_cookie}")
+
+Complete Paging Example
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Here's how to process all results using paging:
+
+.. code-block:: python
+
+   def process_all_users():
+       """Process all users using paging to avoid memory issues."""
+       page_size = 50
+       cookie = ""
+       total_processed = 0
+
+       while True:
+           # Get current page
+           paged_results = User.objects.filter(is_active=True).page(
+               page_size=page_size,
+               cookie=cookie
+           )
+
+           # Process current page
+           for user in paged_results:
+               print(f"Processing user: {user.uid}")
+               # Do something with the user
+               total_processed += 1
+
+           # Check if there are more pages
+           if not paged_results.has_more:
+               break
+
+           # Get cookie for next page
+           cookie = paged_results.next_cookie
+
+       print(f"Total users processed: {total_processed}")
+
+Paging with Filters
+^^^^^^^^^^^^^^^^^^^
+
+Paging works with all filtering methods:
+
+.. code-block:: python
+
+   # Page filtered results
+   paged_results = User.objects.filter(
+       is_active=True
+   ).filter(
+       department="Engineering"
+   ).page(page_size=25)
+
+   # Page with complex filters
+   from ldaporm.managers import F
+   paged_results = User.objects.filter(
+       F(cn__icontains='john') | F(cn__icontains='admin')
+   ).page(page_size=50)
+
+   # Page with ordering
+   paged_results = User.objects.filter(
+       is_active=True
+   ).order_by('cn').page(page_size=30)
+
+Direct LDAP Paging
+^^^^^^^^^^^^^^^^^
+
+You can also use the manager's ``search_page()`` method directly for more control:
+
+.. code-block:: python
+
+   # Perform a single page search
+   results, next_cookie = User.objects.search_page(
+       searchfilter="(objectClass=person)",
+       attributes=["uid", "cn", "mail"],
+       page_size=50,
+       cookie=""  # Empty string for first page
+   )
+
+   # Get next page
+   if next_cookie:
+       next_results, next_cookie2 = User.objects.search_page(
+           searchfilter="(objectClass=person)",
+           attributes=["uid", "cn", "mail"],
+           page_size=50,
+           cookie=next_cookie
+       )
+
+REST Framework Integration
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For Django REST Framework integration, use ``LdapCursorPagination``:
+
+.. code-block:: python
+
+   from ldaporm.restframework import LdapCursorPagination
+   from rest_framework import viewsets
+
+   class UserViewSet(viewsets.ModelViewSet):
+       pagination_class = LdapCursorPagination
+       serializer_class = UserSerializer
+
+       def get_queryset(self):
+           return User.objects.all()
+
+   # API Usage:
+   # GET /api/users/?page_size=50
+   # Response includes 'next' URL for next page
+   # GET /api/users/?page_size=50&next_token=dGVzdF9jb29raWVfMTIz
+
+Benefits of Paging
+^^^^^^^^^^^^^^^^^
+
+1. **Performance**: Avoids loading entire result sets into memory
+2. **Reliability**: Prevents timeouts on large queries
+3. **Scalability**: Works efficiently with large LDAP directories
+4. **Standards Compliance**: Uses LDAP RFC standards for paging
+5. **Integration**: Works seamlessly with existing Django REST Framework code
+
+.. note::
+
+    Paging is especially useful when:
+    - Querying large LDAP directories
+    - Working with un-indexed attributes
+    - Building REST APIs that need to handle large result sets
+    - Processing results in batches to avoid memory issues
 
 Limiting the attributes returned
 --------------------------------

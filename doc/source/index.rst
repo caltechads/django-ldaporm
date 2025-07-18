@@ -15,6 +15,12 @@ django-ldaporm
    overview/implementation
 
 .. toctree::
+   :caption: Integrations
+   :hidden:
+
+   overview/restframework
+
+.. toctree::
    :caption: Users Guide
    :hidden:
 

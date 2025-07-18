@@ -19,9 +19,11 @@ from collections import namedtuple
 from collections.abc import Callable
 from contextlib import suppress
 
+# Handle StrictVersion import for Python < 3.13 and >= 3.13 compatibility
 try:
-    from distutils.version import StrictVersion
+    from distutils.version import StrictVersion  # type: ignore[import]
 except ImportError:
+    # Python 3.13+ - distutils is removed, use packaging.version
     from packaging.version import Version as StrictVersion  # type: ignore[assignment]
 
 from functools import wraps
@@ -502,7 +504,7 @@ class F:
             self._exclude_groups = []
 
     @property
-    def _filter(self) -> "GroupAnd":
+    def _filter(self) -> "GroupAnd":  # noqa: PLR0912
         """
         Return a list of filters ready to be converted to a filter string.
 
@@ -537,7 +539,8 @@ class F:
                 # Multiple conditions in single exclude call: combine with AND
                 exclude_filter = Filter.NOT(Filter.AND(group).simplify())
         else:
-            # Multiple exclude groups: combine each group with AND, then combine groups with OR
+            # Multiple exclude groups: combine each group with AND, then combine
+            # groups with OR
             group_filters = []
             for group in self._exclude_groups:
                 if len(group) == 1:
@@ -554,13 +557,12 @@ class F:
                 "You need to at least specify one filter in order to do LDAP searches."
             )
             raise self.NoFilterSpecified(msg)
-        elif main_filter is None:
+        if main_filter is None:
             return exclude_filter  # type: ignore[return-value]
-        elif exclude_filter is None:
+        if exclude_filter is None:
             return main_filter  # type: ignore[return-value]
-        else:
-            # Combine with AND: (main_filter) AND NOT (exclude_conditions)
-            return Filter.AND([main_filter, exclude_filter]).simplify()
+        # Combine with AND: (main_filter) AND NOT (exclude_conditions)
+        return Filter.AND([main_filter, exclude_filter]).simplify()
 
     def _create_sort_control(self) -> ServerSideSortControl | None:
         """
@@ -985,6 +987,50 @@ class F:
 
         return cast("list[Model]", objects)
 
+    def page(self, page_size: int = 100, cookie: str = "") -> "PagedResultSet":
+        """
+        Return a single page of results matching the query.
+
+        This method performs a paged LDAP search and returns both the results
+        and metadata needed for pagination.
+
+        Args:
+            page_size: Number of results per page.
+            cookie: Paging cookie from the previous page (empty string for first page).
+
+        Returns:
+            A PagedResultSet containing the results and pagination metadata.
+
+        """
+        self._require_manager()
+        sort_control = self._create_sort_control()
+
+        results, next_cookie = cast("LdapManager", self.manager).search_page(
+            str(self),
+            cast("list[str]", self._attributes),
+            page_size=page_size,
+            cookie=cookie,
+            sort_control=sort_control,
+        )
+
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", self._attributes),
+            results,
+            many=True,
+        )
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        return PagedResultSet(
+            results=cast("list[Model]", objects),
+            next_cookie=next_cookie,
+            has_more=bool(next_cookie),
+        )
+
     def count(self) -> int:
         """
         Return the number of objects for this model from LDAP.
@@ -1319,7 +1365,8 @@ class F:
 
         Note:
             Exclude conditions are applied after filter conditions.
-            The final LDAP filter will be: (filter_conditions) AND NOT (exclude_conditions)
+            The final LDAP filter will be: (filter_conditions) AND NOT
+            (exclude_conditions)
 
         """
         self._require_manager()
@@ -1365,8 +1412,9 @@ class F:
             # Handle different filter suffixes (same logic as filter, but for exclude)
             if suffix == "iexact":
                 if value is None:
-                    # Exclude attributes that don't exist (i.e., exclude users where attribute is NOT present)
-                    # This creates a filter that matches users where the attribute is NOT present
+                    # Exclude attributes that don't exist (i.e., exclude users
+                    # where attribute is NOT present) This creates a filter that
+                    # matches users where the attribute is NOT present
                     filter_obj = Filter.attribute(attr_name).present()
                 else:
                     filter_obj = Filter.attribute(attr_name).equal_to(value)
@@ -1433,25 +1481,83 @@ class F:
 
 class FIterator:
     """
-    Iterator wrapper for F query results.
+    Iterator for F objects.
 
-    This allows F instances to be iterable while maintaining the ability
-    to chain methods.
+    This class provides iteration over the results of an F query.
     """
 
     def __init__(self, objects: list["Model"]) -> None:
+        """
+        Initialize the iterator.
+
+        Args:
+            objects: List of model instances to iterate over.
+
+        """
         self.objects = objects
         self.index = 0
 
     def __iter__(self) -> "FIterator":
+        """
+        Return self as an iterator.
+
+        Returns:
+            Self as an iterator.
+
+        """
         return self
 
     def __next__(self) -> "Model":
+        """
+        Get the next model instance.
+
+        Returns:
+            The next model instance.
+
+        Raises:
+            StopIteration: When there are no more objects to iterate over.
+
+        """
         if self.index >= len(self.objects):
             raise StopIteration
-        result = self.objects[self.index]
+        obj = self.objects[self.index]
         self.index += 1
-        return result
+        return obj
+
+
+class PagedResultSet:
+    """
+    Represents a single page of LDAP search results.
+
+    This class encapsulates the results of a paged LDAP search along with
+    metadata needed for pagination.
+    """
+
+    def __init__(self, results: list["Model"], next_cookie: str, has_more: bool):
+        """
+        Initialize the paged result set.
+
+        Args:
+            results: List of model instances for this page.
+            next_cookie: Cookie for the next page (empty string if no more pages).
+            has_more: Whether there are more pages available.
+
+        """
+        self.results = results
+        self.next_cookie = next_cookie
+        self.has_more = has_more
+
+    def __iter__(self):
+        """Iterate over the results."""
+        return iter(self.results)
+
+    def __len__(self) -> int:
+        """Return the number of results in this page."""
+        return len(self.results)
+
+    def __getitem__(self, key):
+        """Get a result by index."""
+        return self.results[key]
 
 
 # -----------------------
@@ -1870,15 +1976,13 @@ class LdapManager:
         sort_control: ServerSideSortControl | None = None,
     ) -> list[LDAPData]:
         """
-        Perform an LDAP search with the given filter and attributes.
+        Search the LDAP server for objects matching the given filter.
 
         Args:
             searchfilter: The LDAP search filter string.
-            attributes: List of attribute names to retrieve.
-
-        Keyword Args:
-            sizelimit: Maximum number of results to return (0 for no limit).
-            basedn: Optional base DN to search from. If None, uses the model's basedn.
+            attributes: List of attributes to retrieve.
+            sizelimit: Maximum number of results to return.
+            basedn: The base DN to search from.
             scope: LDAP search scope.
             sort_control: Server-side sort control.
 
@@ -1910,6 +2014,85 @@ class LdapManager:
             basedn, scope, filterstr=searchfilter, attrlist=attributes
         )
         return [obj for obj in data if isinstance(obj[1], dict)]
+
+    @atomic(key="read")
+    def search_page(
+        self,
+        searchfilter: str,
+        attributes: list[str],
+        page_size: int = 100,
+        cookie: str = "",
+        sizelimit: int = 0,
+        basedn: str | None = None,
+        scope: int = ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
+        sort_control: ServerSideSortControl | None = None,
+    ) -> tuple[list[LDAPData], str]:
+        """
+        Perform a single page of LDAP search.
+
+        This method performs one page of LDAP search using SimplePagedResultsControl
+        and returns both the results and the cookie for the next page.
+
+        Args:
+            searchfilter: The LDAP search filter string.
+            attributes: List of attributes to retrieve.
+            page_size: Number of results per page.
+            cookie: The paging cookie from the previous page (empty string for
+                first page).
+            sizelimit: Maximum number of results to return.
+            basedn: The base DN to search from.
+            scope: LDAP search scope.
+            sort_control: Server-side sort control.
+
+        Returns:
+            Tuple of (results, next_cookie) where:
+            - results: List of LDAPData tuples (dn, attrs)
+            - next_cookie: Cookie for the next page (empty string if no more pages)
+
+        Raises:
+            ValueError: If no basedn is provided or configured.
+
+        """
+        if basedn is None:
+            basedn = self.basedn
+        if not basedn:
+            msg = (
+                "basedn is required either as a parameter or in the model's Meta class"
+            )
+            raise ValueError(msg)
+
+        # Initialize the LDAP controls for paging
+        paging = SimplePagedResultsControl(True, size=page_size, cookie=cookie)  # noqa: FBT003
+        controls = [paging]
+        if sort_control:
+            controls = [paging, sort_control]
+
+        # Send search request
+        msgid = self.connection.search_ext(
+            basedn,
+            scope,
+            searchfilter,
+            attributes,
+            serverctrls=controls,
+            sizelimit=sizelimit,
+        )
+        rtype, rdata, rmsgid, serverctrls = self.connection.result3(msgid)
+
+        # Process results
+        results: list[LDAPData] = []
+        for dn, attrs in rdata:
+            # AD returns an rdata at the end that is a reference that we
+            # want to ignore
+            if isinstance(attrs, dict):
+                results.append((dn, attrs))
+
+        # Get cookie for next request
+        paged_controls = self._get_pctrls(serverctrls)
+        next_cookie = ""
+        if paged_controls and paged_controls[0].cookie:
+            next_cookie = paged_controls[0].cookie
+
+        return results, next_cookie
 
     @atomic(key="write")
     def add(self, obj: "Model") -> None:

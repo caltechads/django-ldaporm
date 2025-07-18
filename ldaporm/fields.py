@@ -151,7 +151,6 @@ class Field:
             choices = list(choices)
         self.choices: list[Any] = choices or []
         self.help_text = help_text
-        self.blank = True
         self.db_column = db_column
 
         self.model: type[Model] | None = None
@@ -854,7 +853,6 @@ class BooleanField(Field):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.blank = True
 
     def to_python(self, value: None | bool | str) -> bool | None:
         """

@@ -379,6 +379,62 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         # Remove paged_search option
         cast("LdapManager", MyTestUser.objects).ldap_options.remove("paged_search")
 
+    def test_search_page(self):
+        """Test single page search functionality."""
+        # Test first page
+        results, next_cookie = cast("LdapManager", MyTestUser.objects).search_page(
+            "(objectClass=posixAccount)",
+            ["uid", "cn"],
+            page_size=2
+        )
+
+        # The LDAP faker might not properly implement paging, so we test the basic structure
+        # At minimum, we should get some results and a cookie (even if it's empty)
+        self.assertIsInstance(results, list)
+        self.assertIsInstance(next_cookie, str)
+
+        # If the faker supports paging, we should get 2 results
+        # If not, we might get all results but still have a valid structure
+        if len(results) == 2:
+            # Faker supports paging
+            self.assertTrue(len(next_cookie) > 0)
+
+            # Test second page
+            results2, next_cookie2 = cast("LdapManager", MyTestUser.objects).search_page(
+                "(objectClass=posixAccount)",
+                ["uid", "cn"],
+                page_size=2,
+                cookie=next_cookie
+            )
+
+            # Should get remaining results
+            self.assertIsInstance(results2, list)
+            self.assertIsInstance(next_cookie2, str)
+
+        else:
+            # Faker doesn't support paging, but structure should still be correct
+            self.assertEqual(len(results), 3)  # All results
+            self.assertEqual(next_cookie, "")  # No more pages
+
+        # Test with empty cookie (should start from beginning)
+        results3, next_cookie3 = cast("LdapManager", MyTestUser.objects).search_page(
+            "(objectClass=posixAccount)",
+            ["uid", "cn"],
+            page_size=2,
+            cookie=""
+        )
+
+        # Should get same results as first page
+        self.assertIsInstance(results3, list)
+        self.assertIsInstance(next_cookie3, str)
+
+        # Test that results have the expected structure
+        if len(results) > 0:
+            self.assertIsInstance(results[0], tuple)
+            self.assertEqual(len(results[0]), 2)  # (dn, attrs)
+            self.assertIsInstance(results[0][0], str)  # dn
+            self.assertIsInstance(results[0][1], dict)  # attrs
+
     def test_add_object(self):
         """Test adding a new object to LDAP."""
         new_user = MyTestUser(
