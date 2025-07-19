@@ -374,6 +374,8 @@ the ``__str__`` method on the :py:class:`~ldaporm.managers.F` object::
    (cn=*john*)
 
 
+.. _managers_ordering:
+
 Ordering
 --------
 

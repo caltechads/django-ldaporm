@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from rest_framework import serializers
+from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import BasePagination
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -499,3 +500,232 @@ class LdapCursorPagination(BasePagination):
             new_url = f"{new_url}?{new_query}"
 
         return new_url
+
+
+class LdapOrderingFilter(BaseFilterBackend):
+    """
+    A filter backend that provides ordering for LDAP ORM models.
+
+    This filter leverages LDAP ORM's built-in ordering capabilities, which use
+    server-side sorting when available and fall back to client-side sorting
+    when the LDAP server doesn't support server-side sorting.
+
+    The filter supports:
+
+    - Single and multiple field ordering
+    - Ascending and descending ordering (using '-' prefix)
+    - Field validation against the LDAP model's available fields
+    - Fallback to model's default ordering when no ordering is specified
+
+    Example usage:
+        class UserViewSet(viewsets.ModelViewSet):
+            filter_backends = [LdapOrderingFilter]
+            ordering_fields = ['uid', 'cn', 'mail', 'created']
+            ordering = ['uid']  # Default ordering
+
+            def get_queryset(self):
+                return User.objects.all()
+
+    Query parameters:
+        ?ordering=uid,-cn,mail  # Order by uid ascending, cn descending, mail ascending
+    """
+
+    #: The query parameter name for ordering
+    ordering_param = "ordering"
+    #: The fields that can be used for ordering (None means all fields)
+    ordering_fields = None
+    #: The default ordering to use when no ordering is specified
+    ordering = None
+
+    def get_ordering(self, request, queryset, view):
+        """
+        Get the ordering from the request and validate it.
+
+        Args:
+            request: The HTTP request
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            A list of ordering fields (with '-' prefix for descending)
+
+        Raises:
+            ValidationError: If invalid ordering fields are specified
+
+        """
+        params = request.query_params.get(self.ordering_param)
+        if not params:
+            return self.get_default_ordering(view, queryset)
+
+        fields = [param.strip() for param in params.split(",")]
+        ordering = []
+
+        for field in fields:
+            if not field:
+                continue
+
+            # Check if field is valid
+            if not self._is_valid_field(field, queryset, view):
+                from rest_framework.exceptions import ValidationError
+
+                available_fields = self._get_available_fields(queryset, view)
+                msg = (
+                    f"Invalid ordering field '{field}'. "
+                    f"Available fields: {', '.join(available_fields)}"
+                )
+                raise ValidationError(msg)
+
+            ordering.append(field)
+
+        return ordering
+
+    def filter_queryset(self, request, queryset, view):
+        """
+        Apply ordering to the LDAP ORM queryset.
+
+        This method leverages LDAP ORM's built-in ordering capabilities,
+        which automatically use server-side sorting when available and
+        fall back to client-side sorting when needed.
+
+        Args:
+            request: The HTTP request
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            The ordered LDAP ORM queryset
+
+        """
+        ordering = self.get_ordering(request, queryset, view)
+        if ordering:
+            return queryset.order_by(*ordering)
+        return queryset
+
+    def get_default_ordering(self, view, queryset=None):
+        """
+        Get the default ordering from the view or model.
+
+        Args:
+            view: The view instance
+            queryset: The LDAP ORM queryset (optional)
+
+        Returns:
+            A list of default ordering fields
+
+        """
+        # Check view's ordering attribute first
+        if hasattr(view, "ordering") and view.ordering is not None:
+            return view.ordering
+
+        # Check filter's default ordering
+        if self.ordering is not None:
+            return self.ordering
+
+        # Use provided queryset or get from view
+        if queryset is None and hasattr(view, "get_queryset"):
+            queryset = view.get_queryset()
+
+        # Fall back to model's default ordering
+        if queryset and hasattr(queryset, "model") and hasattr(queryset.model, "_meta"):
+            return getattr(queryset.model._meta, "ordering", [])
+
+        return []
+
+    def _is_valid_field(self, field, queryset, view):
+        """
+        Check if a field is valid for ordering.
+
+        Args:
+            field: The field name (with or without '-' prefix)
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            True if the field is valid, False otherwise
+
+        """
+        # Remove '-' prefix for validation
+        field_name = field.lstrip("-")
+
+        # Check against view's ordering_fields if specified
+        ordering_fields = self._get_ordering_fields(view)
+        if ordering_fields is not None:
+            return field_name in ordering_fields
+
+        # Check against model's available fields
+        if hasattr(queryset, "model") and hasattr(queryset.model, "_meta"):
+            model_fields = queryset.model._meta.fields
+            return field_name in [f.name for f in model_fields]
+
+        return True
+
+    def _get_ordering_fields(self, view):
+        """
+        Get the allowed ordering fields from the view.
+
+        Args:
+            view: The view instance
+
+        Returns:
+            A list of allowed ordering fields, or None if all fields are allowed
+
+        """
+        # Check view's ordering_fields attribute
+        if hasattr(view, "ordering_fields") and view.ordering_fields is not None:
+            return view.ordering_fields
+
+        # Check filter's ordering_fields attribute
+        return self.ordering_fields
+
+    def _get_available_fields(self, queryset, view):
+        """
+        Get the list of available fields for ordering.
+
+        Args:
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            A list of available field names
+
+        """
+        ordering_fields = self._get_ordering_fields(view)
+        if ordering_fields is not None:
+            return ordering_fields
+
+        if hasattr(queryset, "model") and hasattr(queryset.model, "_meta"):
+            return [f.name for f in queryset.model._meta.fields]
+
+        return []
+
+    def get_schema_operation_parameters(self, view):
+        """
+        Get the schema operation parameters for OpenAPI documentation.
+
+        Args:
+            view: The view instance
+
+        Returns:
+            A list of parameter definitions for OpenAPI
+
+        """
+        available_fields = []
+        if hasattr(view, "get_queryset"):
+            queryset = view.get_queryset()
+            available_fields = self._get_available_fields(queryset, view)
+
+        return [
+            {
+                "name": self.ordering_param,
+                "required": False,
+                "in": "query",
+                "description": (
+                    "Ordering field(s). Use '-' prefix for descending order. "
+                    f"Available fields: {', '.join(available_fields)}"
+                ),
+                "schema": {
+                    "type": "string",
+                    "example": "uid,-cn,mail",
+                },
+            }
+        ]

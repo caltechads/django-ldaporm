@@ -15,12 +15,6 @@ django-ldaporm
    overview/implementation
 
 .. toctree::
-   :caption: Integrations
-   :hidden:
-
-   overview/restframework
-
-.. toctree::
    :caption: Users Guide
    :hidden:
 
@@ -29,6 +23,16 @@ django-ldaporm
    overview/admin
    overview/authentication
    overview/best_practices
+
+.. toctree::
+   :caption: REST Framework Integration
+   :hidden:
+
+   overview/restframework/restframework
+   overview/restframework/serializers
+   overview/restframework/paging
+   overview/restframework/ordering
+   overview/restframework/viewsets
 
 .. toctree::
    :caption: Reference
