@@ -28,7 +28,7 @@ copyright = "Caltech IMSS ADS"  # noqa: A001
 author = "Caltech IMSS ADS"
 
 # The full version, including alpha/beta/rc tags
-release = "1.1.1"
+release = "1.2.0"
 
 
 # -- General configuration ---------------------------------------------------
