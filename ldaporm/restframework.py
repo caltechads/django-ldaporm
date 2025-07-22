@@ -17,6 +17,64 @@ if TYPE_CHECKING:
     from ldaporm.options import Options as LdapOptions
 
 
+class BinaryField(serializers.Field):
+    """
+    A custom serializer field for handling binary data.
+
+    This field handles the conversion between base64-encoded strings in JSON
+    and Python bytes objects for LDAP binary attributes.
+    """
+
+    def to_internal_value(self, data):
+        """
+        Convert base64-encoded string to bytes.
+
+        Args:
+            data: Base64-encoded string data.
+
+        Returns:
+            Decoded bytes data.
+
+        Raises:
+            ValidationError: If the data cannot be decoded.
+
+        """
+        if data is None:
+            return None
+
+        if isinstance(data, bytes):
+            return data
+
+        if isinstance(data, str):
+            try:
+                return base64.b64decode(data.encode("utf-8"))
+            except Exception as e:
+                msg = f"Invalid base64 data: {e}"
+                raise serializers.ValidationError(msg) from e
+
+        msg = "Binary field must be a base64-encoded string or bytes"
+        raise serializers.ValidationError(msg)
+
+    def to_representation(self, value):
+        """
+        Convert bytes to base64-encoded string.
+
+        Args:
+            value: Bytes data.
+
+        Returns:
+            Base64-encoded string.
+
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode("utf-8")
+
+        return value
+
+
 class LdapModelSerializer(serializers.Serializer):
     """
     A DRF Serializer for ldaporm.Model subclasses.
@@ -99,6 +157,11 @@ class LdapModelSerializer(serializers.Serializer):
             )
         elif isinstance(ldap_field, fields.DateField):
             field = serializers.DateField(required=is_required, allow_null=allow_null)
+        elif isinstance(ldap_field, fields.BinaryField):
+            field = BinaryField(
+                required=is_required,
+                allow_null=allow_null,
+            )
         else:
             field = serializers.CharField(
                 required=is_required,
@@ -127,6 +190,9 @@ class LdapModelSerializer(serializers.Serializer):
             # Convert date objects to ISO format strings for JSON serialization
             if isinstance(value, datetime.date):
                 ret[field.name] = value.isoformat()
+            # Convert binary data to base64 for JSON serialization
+            elif isinstance(field, fields.BinaryField) and value is not None:
+                ret[field.name] = base64.b64encode(value).decode("utf-8")
             else:
                 ret[field.name] = value
         if hasattr(instance, "dn"):
