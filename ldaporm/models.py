@@ -123,6 +123,17 @@ class LdapModelBase(type):
         class_prepared.send(sender=cls)
 
 
+class classproperty(property):  # noqa: N801
+    """
+    A property that can be accessed as a class attribute.
+
+    This is a copy of the classproperty decorator from Django.
+    """
+
+    def __get__(self, obj, objtype=None):
+        return self.fget(objtype)
+
+
 class Model(metaclass=LdapModelBase):
     """
     Base class for LDAP ORM models.
@@ -324,7 +335,7 @@ class Model(metaclass=LdapModelBase):
 
         return instance
 
-    @classmethod
+    @classproperty
     def _default_manager(cls) -> "LdapManager":
         """
         Get the default manager for this model.
@@ -527,7 +538,7 @@ class Model(metaclass=LdapModelBase):
     def clean(self) -> None:
         """
         Hook for doing any extra model-wide validation after we've cleaned
-        field via :py:meth:`clean_fields`. Any ``ValidationError``raised
+        field via :py:meth:`clean_fields`. Any ``ValidationError`` raised
         by this method will not be associated with a particular field; it will
         have a special-case association with the field defined by NON_FIELD_ERRORS.
         """
