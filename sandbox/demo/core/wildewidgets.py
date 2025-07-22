@@ -32,7 +32,7 @@ from wildewidgets import (
 from ldaporm.managers import F, LdapManager
 from ldaporm.models import Model as LdapModel
 from ldaporm.wildewidgets import LdapModelTableMixin
-from sandbox.demo.core.forms import (
+from .forms import (
     LDAPGroupAddMemberForm,
     LDAPGroupEditForm,
     LDAPPersonAddForm,

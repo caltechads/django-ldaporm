@@ -278,9 +278,14 @@ class UserListView(
 
     """
 
-    queryset = LDAPUser.objects.all()
     navbar_class: type[Navbar] = Sidebar
     menu_item: str = "Users"
+
+    def get_queryset(self) -> F:
+        """
+        Get the queryset for the user list view.
+        """
+        return cast("LdapManager", LDAPUser.objects).all()
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: ARG002
         """
@@ -769,9 +774,14 @@ class GroupListView(
 
     """
 
-    queryset = LDAPGroup.objects.all()
     navbar_class: type[Navbar] = Sidebar
     menu_item: str = "Groups"
+
+    def get_queryset(self) -> F:
+        """
+        Get the queryset for the group list view.
+        """
+        return cast("LdapManager", LDAPGroup.objects).all()
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: ARG002
         """
@@ -915,9 +925,14 @@ class RoleListView(
     View for displaying a list of roles.
     """
 
-    queryset = NSRole.objects.all()
     navbar_class: type[Navbar] = Sidebar
     menu_item: str = "Roles"
+
+    def get_queryset(self) -> F:
+        """
+        Get the queryset for the role list view.
+        """
+        return cast("LdapManager", NSRole.objects).all()
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: ARG002
         """

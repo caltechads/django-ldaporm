@@ -67,7 +67,7 @@
             "is_staff": true,
             "is_active": true,
             "date_joined": "2022-09-28T23:59:18.190Z",
-            "groups": [1],
+            "groups": [],
             "user_permissions": []
         }
     },
@@ -85,7 +85,7 @@
             "is_staff": true,
             "is_active": true,
             "date_joined": "2022-09-28T23:59:18.190Z",
-            "groups": [4, 5],
+            "groups": [],
             "user_permissions": []
         }
     }

@@ -10,7 +10,7 @@ from .logging import censor_password_processor, request_context_logging_processo
 # The name of our project
 # ------------------------------------------------------------------------------
 PROJECT_NAME: str = "demo"
-HUMAN_PROJECT_NAME: str = "Sphinx Hosting Demo"
+HUMAN_PROJECT_NAME: str = "django-ldaporm Demo"
 
 # Load our environment with django-environ
 BASE_DIR: environ.Path = environ.Path(__file__) - 2
@@ -127,6 +127,7 @@ THIRD_PARTY_APPS: list[str] = [
 LOCAL_APPS: list[str] = [
     "demo.users",
     "demo.core",
+    "demo.api",
 ]
 # https://docs.djangoproject.com/en/3.2/ref/settings/#installed-apps
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -292,7 +293,7 @@ EMAIL_PORT: int = env.int("EMAIL_PORT", default=1025)  # type: ignore[arg-type, 
 ADMIN_URL: str = env("DJANGO_ADMIN_URL", default="admin/")  # type: ignore[arg-type, assignment]
 # https://docs.djangoproject.com/en/3.2/ref/settings/#admins
 ADMINS: list[tuple[str, str]] = [
-    ("Sphinx Hosting Demo Admins", "sphinx-hosting-demo@example.com")
+    ("django-ldaporm Admins", "django-ldaporm@example.com")
 ]
 # https://docs.djangoproject.com/en/3.2/ref/settings/#managers
 MANAGERS = ADMINS

@@ -20,8 +20,6 @@ services:
     volumes:
       - ./demo:/ve/lib/python3.13/site-packages/sandbox/demo
       - ../ldaporm:/ve/lib/python3.13/site-packages/ldaporm
-      - ../../django-wildewidgets/wildewidgets:/ve/lib/python3.13/site-packages/wildewidgets
-      - .:/app
 
   ldap:
     image: 389ds/dirsrv:latest

@@ -8,3 +8,4 @@ class ApiConfig(AppConfig):
 
     name: str = "demo.api"
     verbose_name: str = "demo:api"
+    app_name: str = "api"

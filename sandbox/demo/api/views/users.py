@@ -1,91 +1,98 @@
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
-from rest_framework import status, viewsets
-from rest_framework.jdecorators import action
-from rest_framework.permissions import BasePermission, IsAuthenticated
-from rest_framework.request import Request
-from rest_framework.response import Response
+from rest_framework import viewsets
+from rest_framework.filters import BaseFilterBackend
+from rest_framework.pagination import PageNumberPagination
 
 from demo.core.ldap.models import LDAPUser
+from ldaporm.restframework import LdapFilterBackend, LdapOrderingFilter
 
 from ..serializers import LDAPUserSerializer
 
+if TYPE_CHECKING:
+    from ldaporm.managers import LdapManager
 
-class LDAPUserViewSet(viewsets.GenericViewSet):
+
+class LDAPUserFilter(LdapFilterBackend):
+    """
+    Filter backend for LDAPUser using the abstracted LdapFilterBackend.
+    """
+
+    filter_fields: ClassVar[dict[str, dict[str, str]]] = {
+        "uid": {"lookup": "iexact", "type": "string"},
+        "mail": {"lookup": "icontains", "type": "string"},
+        "employee_number": {"lookup": "iexact", "type": "integer"},
+        "employee_type": {"lookup": "iexact", "type": "string"},
+        "full_name": {"lookup": "icontains", "type": "string"},
+        "gid_number": {"lookup": "iexact", "type": "integer"},
+        "uid_number": {"lookup": "iexact", "type": "integer"},
+        "login_shell": {"lookup": "iexact", "type": "string"},
+    }
+
+
+class LDAPUserViewSet(viewsets.ModelViewSet):
     """
     ViewSet for LDAP User operations.
-    Provides CRUD operations for LDAP users.
+    Provides CRUD operations for LDAP users with filtering and ordering support.
+
+    This ViewSet demonstrates how to use LdapOrderingFilter alongside a custom
+    filter backend for LDAP models. The ordering filter leverages LDAP ORM's
+    server-side sorting capabilities when available.
+
+    Example API calls:
+    - GET /api/users/                           # Default ordering (uid)
+    - GET /api/users/?ordering=cn               # Order by cn ascending
+    - GET /api/users/?ordering=-cn              # Order by cn descending
+    - GET /api/users/?ordering=uid,-cn,mail     # Multiple field ordering
+    - GET /api/users/?uid=testuser1             # Filter by uid
+    - GET /api/users/?employee_type=staff       # Filter by employee type
+    - GET /api/users/?employee_type=staff&ordering=uid  # Filter + ordering
     """
 
     serializer_class = LDAPUserSerializer
-    permission_classes: ClassVar[list[type[BasePermission]]] = [IsAuthenticated]
+    model = LDAPUser
+    lookup_field = "uid"  # Use uid as the primary key for LDAP users
+    pagination_class = PageNumberPagination  # Use standard pagination for testing
+    filter_backends: ClassVar[list[BaseFilterBackend]] = [
+        LDAPUserFilter,
+        LdapOrderingFilter,
+    ]
+
+    # Define which fields can be used for searching
+    search_fields = (
+        "uid",
+        "full_name",
+        "mail",
+        "employee_number",
+        "employee_type",
+        "gid_number",
+        "uid_number",
+        "login_shell",
+        "home_directory",
+        "home_phone",
+        "mobile",
+        "nsroledn",
+    )
+
+    # Define which fields can be used for ordering
+    ordering_fields = (
+        "uid",
+        "full_name",
+        "mail",
+        "employee_number",
+        "employee_type",
+        "gid_number",
+        "uid_number",
+        "login_shell",
+        "home_directory",
+        "home_phone",
+        "mobile",
+    )
+
+    ordering = ("uid",)
 
     def get_queryset(self):
-        """Return all LDAP users."""
-        return LDAPUser.objects.all()
-
-    def get_object(self):
-        """Get a specific LDAP user by uid."""
-        uid = self.kwargs.get("pk")
-        return LDAPUser.objects.get(uid=uid)
-
-    def list(self, request: Request) -> Response:  # noqa: ARG002
-        """List all LDAP users."""
-        users = self.get_queryset()
-        serializer = self.get_serializer(users, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request: Request, pk: str | None = None) -> Response:  # noqa: ARG002
-        """Retrieve a specific LDAP user."""
-        try:
-            user = self.get_object()
-            serializer = self.get_serializer(user)
-            return Response(serializer.data)
-        except LDAPUser.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-    def create(self, request: Request) -> Response:
-        """Create a new LDAP user."""
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def update(self, request: Request, pk: str | None = None) -> Response:  # noqa: ARG002
-        """Update an LDAP user."""
-        try:
-            user = self.get_object()
-            serializer = self.get_serializer(user, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except LDAPUser.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-    def destroy(self, request: Request, pk: str | None = None) -> Response:  # noqa: ARG002
-        """Delete an LDAP user."""
-        try:
-            user = self.get_object()
-            user.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except LDAPUser.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-    @action(detail=True, methods=["get"])
-    def full_name(self, request: Request, pk: str | None = None) -> Response:  # noqa: ARG002
-        """Get the full name of a user."""
-        try:
-            user = self.get_object()
-            return Response({"full_name": user.full_name})
-        except LDAPUser.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+        """
+        Return the LDAP user queryset.
+        """
+        return cast("LdapManager", LDAPUser.objects).all()

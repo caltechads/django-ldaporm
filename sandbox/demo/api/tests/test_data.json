@@ -1,0 +1,102 @@
+[
+  [
+    "uid=binduser,ou=people,o=example,c=us",
+    {
+      "uid": ["binduser"],
+      "cn": ["Bind User"],
+      "sn": ["User"],
+      "givenName": ["Bind"],
+      "mail": ["bind@example.com"],
+      "employeeNumber": ["99999"],
+      "employeeType": ["staff"],
+      "gidNumber": ["1000"],
+      "uidNumber": ["9999"],
+      "loginShell": ["/bin/bash"],
+      "homeDirectory": ["/home/binduser"],
+      "roomNumber": ["A999"],
+      "homePhone": ["555-9999"],
+      "mobile": ["555-9999"],
+      "nsroledn": ["cn=staff,ou=roles,o=example,c=us"],
+      "objectclass": ["top", "inetOrgPerson", "posixAccount"],
+      "userPassword": ["password123"]
+    }
+  ],
+  [
+    "uid=testuser1,ou=people,o=example,c=us",
+    {
+      "uid": ["testuser1"],
+      "cn": ["Test User 1"],
+      "sn": ["User"],
+      "givenName": ["Test"],
+      "mail": ["testuser1@example.com"],
+      "employeeNumber": ["12345"],
+      "employeeType": ["staff"],
+      "gidNumber": ["1000"],
+      "uidNumber": ["1001"],
+      "loginShell": ["/bin/bash"],
+      "homeDirectory": ["/home/testuser1"],
+      "roomNumber": ["A101"],
+      "homePhone": ["555-1234"],
+      "mobile": ["555-5678"],
+      "nsroledn": ["cn=testrole,ou=roles,o=example,c=us"],
+      "objectclass": ["top", "inetOrgPerson", "posixAccount"]
+    }
+  ],
+  [
+    "uid=testuser2,ou=people,o=example,c=us",
+    {
+      "uid": ["testuser2"],
+      "cn": ["Test User 2"],
+      "sn": ["User"],
+      "givenName": ["Test"],
+      "mail": ["testuser2@example.com"],
+      "employeeNumber": ["12346"],
+      "employeeType": ["student"],
+      "gidNumber": ["1000"],
+      "uidNumber": ["1002"],
+      "loginShell": ["/bin/bash"],
+      "homeDirectory": ["/home/testuser2"],
+      "roomNumber": ["B202"],
+      "homePhone": ["555-1235"],
+      "mobile": ["555-5679"],
+      "nsroledn": ["cn=testrole,ou=roles,o=example,c=us"],
+      "objectclass": ["top", "inetOrgPerson", "posixAccount"]
+    }
+  ],
+  [
+    "cn=testgroup1,ou=groups,o=example,c=us",
+    {
+      "cn": ["testgroup1"],
+      "gidNumber": ["2000"],
+      "description": ["Test Group 1"],
+      "memberUid": ["testuser1", "testuser2"],
+      "objectclass": ["top", "posixGroup"]
+    }
+  ],
+  [
+    "cn=testgroup2,ou=groups,o=example,c=us",
+    {
+      "cn": ["testgroup2"],
+      "gidNumber": ["2001"],
+      "description": ["Test Group 2"],
+      "memberUid": ["testuser1"],
+      "objectclass": ["top", "posixGroup"]
+    }
+  ],
+  [
+    "cn=testrole1,ou=roles,o=example,c=us",
+    {
+      "cn": ["testrole1"],
+      "description": ["Test Role 1"],
+      "objectclass": ["top", "ldapsubentry", "nsroledefinition", "nssimpleroledefinition", "nsmanagedroledefinition"]
+    }
+  ],
+  [
+    "cn=testrole2,ou=roles,o=example,c=us",
+    {
+      "cn": ["testrole2"],
+      "description": ["Test Role 2"],
+      "objectclass": ["top", "ldapsubentry", "nsroledefinition", "nssimpleroledefinition", "nsmanagedroledefinition"]
+    }
+  ]
+]

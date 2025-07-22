@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Final, cast
+from typing import Final
 
 from django.urls import reverse
 
@@ -10,10 +10,6 @@ from ldaporm.fields import (
 )
 from ldaporm.models import Model
 from ldaporm.validators import EmailForwardValidator
-
-if TYPE_CHECKING:
-    from ldaporm.managers import LdapManager
-
 
 
 class LDAPUser(Model):

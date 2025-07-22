@@ -11,13 +11,13 @@ from django import forms
 from django.core.validators import validate_email
 from django.urls import reverse
 
-from ldaporm.models import Model as LdapModel
-from sandbox.demo.core.ldap.models import LDAPGroup, LDAPUser, NSRole
-from sandbox.demo.core.ldap.utils import (
+from demo.core.ldap.models import LDAPGroup, LDAPUser, NSRole
+from demo.core.ldap.utils import (
     get_next_employee_number,
     get_next_group_gid,
     get_next_user_uid,
 )
+from ldaporm.models import Model as LdapModel
 
 if TYPE_CHECKING:
     from ldaporm.managers import LdapManager
@@ -82,7 +82,11 @@ class LDAPPersonAddForm(forms.ModelForm):
         """
         Clean the uid.
         """
-        if LDAPUser.objects.filter(uid=self.cleaned_data["uid"]).exists():
+        if (
+            cast("LdapManager", LDAPUser.objects)
+            .filter(uid=self.cleaned_data["uid"])
+            .exists()
+        ):
             msg = f'User with uid "{self.cleaned_data["uid"]}" already exists'
             raise forms.ValidationError(msg)
         return self.cleaned_data["uid"]
@@ -102,7 +106,7 @@ class LDAPPersonAddForm(forms.ModelForm):
         """
         Clean the form data.
         """
-        data = super().clean()
+        data = cast("dict[str, Any]", super().clean())
         official_email = (
             f"{data['first_name'].lower()}.{data['last_name'].lower()}@example.com"
         )
@@ -112,7 +116,7 @@ class LDAPPersonAddForm(forms.ModelForm):
             data["mail"] = official_email
         data["uid_number"] = get_next_user_uid()
         data["employee_number"] = get_next_employee_number()
-        group = LDAPGroup.objects.get(cn="users")
+        group = cast("LdapManager", LDAPGroup.objects).get(cn="users")
         data["gid_number"] = group.gid_number
         data["home_directory"] = f"/home/{data['uid']}"
         return data
@@ -306,7 +310,11 @@ class LDAPGroupAddForm(forms.ModelForm):
         """
         Clean the cn.
         """
-        if LDAPGroup.objects.filter(cn=self.cleaned_data["cn"]).exists():
+        if (
+            cast("LdapManager", LDAPGroup.objects)
+            .filter(cn=self.cleaned_data["cn"])
+            .exists()
+        ):
             msg = f'Group with cn "{self.cleaned_data["cn"]}" already exists'
             raise forms.ValidationError(msg)
         return self.cleaned_data["cn"]
@@ -315,7 +323,7 @@ class LDAPGroupAddForm(forms.ModelForm):
         """
         Clean the form data.
         """
-        data = super().clean()
+        data = cast("dict[str, Any]", super().clean())
         data["gid_number"] = get_next_group_gid()
         return data
 
@@ -395,9 +403,10 @@ class LDAPGroupAddMemberForm(forms.Form):
     def __init__(self, group: LDAPGroup, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.group = group
-        member_uids = group.member_uids or []
+        member_uids: list[str] = group.member_uids or []  # type: ignore[assignment]
         choices = [
-            (u.uid, u.full_name) for u in LDAPUser.objects.exclude(uid__in=member_uids)
+            (u.uid, u.full_name)
+            for u in cast("LdapManager", LDAPUser.objects).exclude(uid__in=member_uids)
         ]
         self.fields["member_uid"] = forms.CharField(
             widget=forms.Select(choices=choices),
@@ -430,9 +439,11 @@ class LDAPGroupAddMemberForm(forms.Form):
                     member of the group.
 
             """
-            if not LDAPUser.objects.filter(
-                uid=self.cleaned_data["member_uid"]
-            ).exists():
+            if (
+                not cast("LdapManager", LDAPUser.objects)
+                .filter(uid=self.cleaned_data["member_uid"])
+                .exists()
+            ):
                 msg = "User does not exist"
                 raise forms.ValidationError(msg)
             if not self.group.member_uids:
