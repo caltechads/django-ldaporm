@@ -2236,3 +2236,145 @@ class ActiveDirectoryTimestampField(DateTimeField):
         # Convert to 100-nanosecond intervals
         total_seconds = delta.total_seconds()
         return int(total_seconds * self.INTERVALS_PER_SECOND)
+
+
+class BinaryField(Field):
+    """
+    A field for storing binary data.
+
+    This field handles binary data, converting between Python bytes objects
+    and LDAP binary attributes. It's commonly used for storing photos,
+    certificates, and other binary data in LDAP.
+
+    Keyword Args:
+        **kwargs: Keyword arguments passed to the parent class.
+
+    Args:
+        *args: Positional arguments passed to the parent class.
+
+    """
+
+    #: Binary fields don't allow empty strings.
+    empty_strings_allowed: bool = False
+    #: Error messages for binary validation.
+    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+        "invalid": _("'%(value)s' value must be bytes or bytearray."),  # type: ignore[dict-item]
+    }
+    #: Human-readable description of the field type.
+    description: str = _("Binary data")  # type: ignore[assignment]
+
+    def check(self, **kwargs) -> list[checks.Error | checks.Warning]:  # noqa: ARG002
+        """
+        Run field validation checks.
+
+        Returns:
+            A list of validation errors and warnings.
+
+        """
+        return [
+            *super().check(),
+            *self._check_max_length_warning(),
+        ]
+
+    def _check_max_length_warning(self) -> list[checks.Warning]:
+        """
+        Warn that max_length is ignored for BinaryField.
+
+        Returns:
+            A list of warnings about max_length usage.
+
+        """
+        if self.max_length is not None:
+            return [
+                checks.Warning(
+                    "'max_length' is ignored when used with BinaryField",
+                    hint="Remove 'max_length' from field",
+                    obj=self,
+                    id="fields.W123",
+                )
+            ]
+        return []
+
+    def to_python(self, value: bytes | bytearray | None) -> bytes | None:
+        """
+        Convert the value to Python bytes.
+
+        Args:
+            value: The value to convert. Can be bytes, bytearray, or None.
+
+        Returns:
+            The converted bytes value or None.
+
+        Raises:
+            ValidationError: If the value cannot be converted to bytes.
+
+        """
+        if value is None:
+            return value
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, bytearray):
+            return bytes(value)
+        raise exceptions.ValidationError(
+            self.error_messages["invalid"],
+            code="invalid",
+            params={"value": value},
+        )
+
+    def from_db_value(self, value: list[bytes]) -> bytes | None:  # type: ignore[override]
+        """
+        Convert LDAP data to Python bytes.
+
+        Args:
+            value: A list of byte strings from LDAP.
+
+        Returns:
+            The binary data as bytes or None if empty.
+
+        """
+        if not value:
+            return None
+        return value[0]
+
+    def to_db_value(self, value: bytes | bytearray | None) -> dict[str, list[bytes]]:
+        """
+        Convert Python bytes to LDAP format.
+
+        Args:
+            value: The binary data to convert.
+
+        Returns:
+            A dictionary mapping LDAP attribute name to list of bytes.
+
+        """
+        if value is None:
+            return {self.ldap_attribute: []}
+        if isinstance(value, bytearray):
+            value = bytes(value)
+        return {self.ldap_attribute: [value]}
+
+    def formfield(
+        self,
+        form_class: type[forms.Field] | None = None,
+        choices_form_class: type[forms.Field] | None = None,
+        **kwargs,
+    ) -> forms.Field:
+        """
+        Return a Django form field for this binary field.
+
+        Args:
+            form_class: The form field class to use.
+            choices_form_class: The form field class to use for choices.
+            **kwargs: Additional keyword arguments for the form field.
+
+        Returns:
+            A Django form field instance.
+
+        """
+        if not form_class:
+            form_class = forms.FileField
+        return super().formfield(
+            form_class=form_class,
+            choices_form_class=choices_form_class,
+            **kwargs,
+        )
