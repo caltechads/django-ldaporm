@@ -503,6 +503,34 @@ class F:
         if self._exclude_groups is None:
             self._exclude_groups = []
 
+    def _execute_query(self) -> list["Model"]:
+        """
+        Execute the query and return the results as a list.
+
+        Returns:
+            A list of model instances matching the query.
+
+        """
+        self._require_manager()
+        sort_control = self._create_sort_control()
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", self._attributes),
+            cast("LdapManager", self.manager).search(
+                str(self),
+                cast("list[str]", self._attributes),
+                sort_control=sort_control,
+            ),
+            many=True,
+        )
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        return cast("list[Model]", objects)
+
     @property
     def _filter(self) -> "GroupAnd":  # noqa: PLR0912
         """
@@ -959,33 +987,15 @@ class F:
         return len(objects) > 0
 
     @needs_pk
-    def all(self) -> list["Model"]:
+    def all(self) -> "F":
         """
-        Return all results matching the query, sorted if order_by is set.
+        Return the F object itself for compatibility with Django REST Framework.
 
         Returns:
-            A sequence of model instances matching the query.
+            The F object itself, which is iterable and supports pagination.
 
         """
-        self._require_manager()
-        sort_control = self._create_sort_control()
-        objects = cast("Model", self.model).from_db(
-            cast("list[str]", self._attributes),
-            cast("LdapManager", self.manager).search(
-                str(self),
-                cast("list[str]", self._attributes),
-                sort_control=sort_control,
-            ),
-            many=True,
-        )
-
-        # If we have ordering but no sort control was created (server doesn't
-        # support it), or if we have ordering and got a list of objects, apply
-        # client-side sorting
-        if self._order_by and (sort_control is None or isinstance(objects, list)):
-            objects = self._sort_objects_client_side(cast("list[Model]", objects))
-
-        return cast("list[Model]", objects)
+        return self
 
     def page(self, page_size: int = 100, cookie: str = "") -> "PagedResultSet":
         """
@@ -1049,7 +1059,7 @@ class F:
             A list of all model instances from LDAP.
 
         """
-        return self.all()
+        return self._execute_query()
 
     def delete(self) -> None:
         """
@@ -1274,7 +1284,7 @@ class F:
             An iterator over the query results.
 
         """
-        return FIterator(self.all())
+        return FIterator(self._execute_query())
 
     def __len__(self) -> int:
         """
@@ -1284,7 +1294,7 @@ class F:
             The count of matching objects.
 
         """
-        return len(self.all())
+        return len(self._execute_query())
 
     def __getitem__(self, key: int | slice) -> "Model | list[Model]":
         """
@@ -1307,10 +1317,10 @@ class F:
             ):
                 return self._fetch_with_sizelimit(key.stop)
             # Inefficient case: fetch all, then slice in Python
-            objects = self.all()
+            objects = self._execute_query()
             return objects[key]
         # Single index: fetch all, then index
-        objects = self.all()
+        objects = self._execute_query()
         return objects[key]
 
     def _fetch_with_sizelimit(self, limit: int) -> list["Model"]:
@@ -2362,20 +2372,15 @@ class LdapManager:
         # Call the logic directly (no super())
         return self.get(*args)
 
-    def all(self) -> list["Model"]:
+    def all(self) -> "F":
         """
-        Return all objects for this model from LDAP, after applying any filters.
-
-        Note:
-            Unlike the Django QuerySet version of this, this actually
-            runs the query against LDAP and returns the result.  The Django
-            version returns an iterator, I think.
+        Return the F object for compatibility with Django REST Framework.
 
         Returns:
-            A sequence of all model instances from LDAP matching the filters.
+            The F object, which is iterable and supports pagination.
 
         """
-        return self.__filter().all()
+        return self.__filter()
 
     def values(self, *args: str) -> list[dict[str, Any]]:
         """
@@ -2420,6 +2425,23 @@ class LdapManager:
 
         """
         return self.__filter().order_by(*args)
+
+    def page(self, page_size: int = 100, cookie: str = "") -> "PagedResultSet":
+        """
+        Return a single page of results matching the query.
+
+        This method performs a paged LDAP search and returns both the results
+        and metadata needed for pagination.
+
+        Args:
+            page_size: Number of results per page.
+            cookie: Paging cookie from the previous page (empty string for first page).
+
+        Returns:
+            A PagedResultSet containing the results and pagination metadata.
+
+        """
+        return self.__filter().page(page_size=page_size, cookie=cookie)
 
     def reset_password(
         self, username: str, new_password: str, attributes: dict[str, Any] | None = None
