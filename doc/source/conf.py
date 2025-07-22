@@ -16,7 +16,7 @@ from typing import Any
 
 import sphinx_rtd_theme  # pylint: disable=unused-import  # noqa:F401
 
-sys.path.insert(0, os.path.abspath("../.."))  # noqa: PTH100
+sys.path.insert(0, os.path.abspath("../../sandbox"))  # noqa: PTH100
 
 # -- Project information -----------------------------------------------------
 
@@ -65,7 +65,7 @@ add_function_parentheses: bool = False
 add_module_names: bool = True
 
 # Configure the path to the Django settings module
-django_settings: str = "settings_docs"
+django_settings: str = "demo.settings_test"
 # Include the database table names of Django models
 django_show_db_tables: bool = True
 
@@ -76,6 +76,10 @@ intersphinx_mapping: dict[str, tuple[str, str | None]] = {
     "django": (
         "http://docs.djangoproject.com/en/dev/",
         "http://docs.djangoproject.com/en/dev/_objects/",
+    ),
+    "django-wildewidgets": (
+        "https://django-wildewidgets.readthedocs.io/en/latest/",
+        "https://django-wildewidgets.readthedocs.io/en/latest/_objects/",
     ),
 }
 

@@ -4,7 +4,7 @@ Development Guide
 This guide covers the development workflow for django-ldaporm contributors.
 
 Setting Up the Development Environment
-------------------------------------
+--------------------------------------
 
 Clone the repository:
 
@@ -30,7 +30,7 @@ Install pre-commit hooks:
    pre-commit install
 
 Code Style and Standards
------------------------
+------------------------
 
 django-ldaporm follows these coding standards:
 
@@ -81,7 +81,7 @@ Run the test suite:
    pytest
 
 Documentation
-------------
+-------------
 
 Build the documentation:
 
@@ -98,7 +98,7 @@ View the documentation:
    open doc/build/html/index.html
 
 Adding New Features
-------------------
+-------------------
 
 When adding new features:
 
@@ -116,6 +116,7 @@ When adding new features:
           pass
 
 3. **Implement the feature**:
+
    .. code-block:: python
 
       # ldaporm/new_feature.py
@@ -124,11 +125,13 @@ When adding new features:
           pass
 
 4. **Add documentation**:
+
    - Update docstrings in Sphinx Napoleon format
    - Add examples to the documentation
    - Update the API reference
 
 5. **Run all checks**:
+
    .. code-block:: bash
 
       ruff check ldaporm/

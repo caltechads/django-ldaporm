@@ -36,44 +36,88 @@ Best Practices
 Complete Example
 ----------------
 
-Here's a complete example showing both serializers in action, with viewsets:
+Here's a complete example showing all LDAP ORM REST Framework components in action:
 
 .. code-block:: python
 
     from ldaporm import fields, models
-    from ldaporm.restframework import LdapModelSerializer, HyperlinkedModelSerializer, LdapCursorPagination
+    from ldaporm.restframework import (
+        LdapModelSerializer, HyperlinkedModelSerializer, LdapCursorPagination,
+        LdapFilterBackend, LdapOrderingFilter
+    )
+    from rest_framework import viewsets
 
     # LDAP ORM Models
     class Department(models.Model):
         name = fields.CharField(max_length=100)
         description = fields.CharField(max_length=500, blank=True)
         location = fields.CharField(max_length=100, blank=True)
+        created = fields.DateTimeField(auto_now_add=True)
+        is_active = fields.BooleanField(default=True)
 
         class Meta:
             object_classes = ['organizationalUnit']
+            ordering = ['name']
 
     class User(models.Model):
         username = fields.CharField(max_length=50, primary_key=True)
         first_name = fields.CharField(max_length=50)
         last_name = fields.CharField(max_length=50)
         email = fields.EmailField()
+        employee_id = fields.IntegerField(blank=True, null=True)
+        salary = fields.FloatField(blank=True, null=True)
+        hire_date = fields.DateField(blank=True, null=True)
         department_dn = fields.CharField(max_length=500, blank=True)
         manager_dn = fields.CharField(max_length=500, blank=True)
         is_active = fields.BooleanField(default=True)
+        created = fields.DateTimeField(auto_now_add=True)
+        photo = fields.BinaryField(blank=True)
+        certificate = fields.BinaryField(blank=True)
+        email_list = fields.CharListField(max_length=100, blank=True)
+        password_hash = fields.CaseInsensitiveSHA1Field(blank=True)
+        ldap_password = fields.LDAPPasswordField(blank=True)
+        ad_password = fields.ADPasswordField(blank=True)
+        email_forward = fields.EmailForwardField(blank=True)
 
         class Meta:
             object_classes = ['person', 'organizationalPerson', 'inetOrgPerson']
+            ordering = ['username']
+
+    # Custom Filter Backends
+    class DepartmentFilterBackend(LdapFilterBackend):
+        filter_fields = {
+            'name': {'lookup': 'icontains'},
+            'description': {'lookup': 'icontains'},
+            'location': {'lookup': 'icontains'},
+            'is_active': {'lookup': 'exact'},
+            'created': {'lookup': 'gte', 'type': 'date'},
+        }
+
+    class UserFilterBackend(LdapFilterBackend):
+        filter_fields = {
+            'username': {'lookup': 'icontains'},
+            'first_name': {'lookup': 'icontains'},
+            'last_name': {'lookup': 'icontains'},
+            'email': {'lookup': 'icontains'},
+            'employee_id': {'lookup': 'exact', 'type': 'integer'},
+            'salary': {'lookup': 'gte', 'type': 'float'},
+            'hire_date': {'lookup': 'gte', 'type': 'date'},
+            'is_active': {'lookup': 'exact', 'type': 'boolean'},
+            'created': {'lookup': 'gte', 'type': 'date'},
+            'photo': {'lookup': 'exact', 'type': 'binary'},
+            'certificate': {'lookup': 'exact', 'type': 'binary'},
+        }
 
     # Basic Serializer
     class DepartmentSerializer(LdapModelSerializer):
         class Meta:
             model = Department
 
-    # Hyperlinked Serializer
+    # Hyperlinked Serializer with all field types
     class UserSerializer(HyperlinkedModelSerializer):
         class Meta:
             model = User
-            lookup_field = 'uid'
+            lookup_field = 'username'
             relationship_fields = ['department_dn', 'manager_dn']
             relationship_models = {
                 'department_dn': Department,
@@ -82,22 +126,25 @@ Here's a complete example showing both serializers in action, with viewsets:
             extra_kwargs = {
                 'url': {
                     'view_name': 'api:user-detail',
-                    'lookup_field': 'uid',
+                    'lookup_field': 'username',
                 },
                 'department_dn': {
                     'view_name': 'api:department-detail',
-                    'lookup_field': 'cn',
+                    'lookup_field': 'name',
                 },
                 'manager_dn': {
                     'view_name': 'api:user-detail',
-                    'lookup_field': 'uid',
+                    'lookup_field': 'username',
                 }
             }
 
-    # ViewSets
+    # ViewSets with all components
     class DepartmentViewSet(viewsets.ModelViewSet):
         serializer_class = DepartmentSerializer
         pagination_class = LdapCursorPagination
+        filter_backends = [DepartmentFilterBackend, LdapOrderingFilter]
+        ordering_fields = ['name', 'description', 'location', 'created', 'is_active']
+        ordering = ['name']  # Default ordering
         lookup_field = 'dn'
 
         def get_queryset(self):
@@ -106,7 +153,25 @@ Here's a complete example showing both serializers in action, with viewsets:
     class UserViewSet(viewsets.ModelViewSet):
         serializer_class = UserSerializer
         pagination_class = LdapCursorPagination
+        filter_backends = [UserFilterBackend, LdapOrderingFilter]
+        ordering_fields = [
+            'username', 'first_name', 'last_name', 'email', 'employee_id',
+            'salary', 'hire_date', 'created', 'is_active'
+        ]
+        ordering = ['username']  # Default ordering
         lookup_field = 'dn'
 
         def get_queryset(self):
             return User.objects.all()
+
+    # URL Configuration
+    from django.urls import path, include
+    from rest_framework.routers import DefaultRouter
+
+    router = DefaultRouter()
+    router.register(r'departments', DepartmentViewSet, basename='department')
+    router.register(r'users', UserViewSet, basename='user')
+
+    urlpatterns = [
+        path('api/', include(router.urls)),
+    ]

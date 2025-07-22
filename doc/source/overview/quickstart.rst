@@ -5,7 +5,7 @@ This guide will walk you through setting up django-ldaporm in your Django projec
 and creating your first LDAP model.
 
 Installation
------------
+------------
 
 First, install django-ldaporm:
 
@@ -77,7 +77,7 @@ Create a model for LDAP users:
            verbose_name_plural = 'LDAP Users'
 
 Basic Usage
-----------
+-----------
 
 Query LDAP users:
 
@@ -168,10 +168,10 @@ Register your model with Django admin:
        readonly_fields = ['created', 'modified']
 
 Advanced Features
-----------------
+-----------------
 
 Active Directory Timestamps
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For Active Directory environments, use the specialized timestamp field:
 

@@ -1,5 +1,5 @@
 Model Construction and Implementation
-====================================
+=====================================
 
 This document describes how LDAP ORM models are constructed from their field
 definitions and Meta classes, and how this process compares to Django's own
@@ -21,7 +21,7 @@ The construction process involves several key components:
 * :py:class:`~ldaporm.managers.LdapManager` - The default manager for model operations
 
 Model Construction Process
--------------------------
+--------------------------
 
 When you define a model class, the following sequence occurs:
 
@@ -168,7 +168,7 @@ This Meta class would result in:
 * Automatic addition of an objectclass field to the model
 
 Comparison with Django's Model Construction
-------------------------------------------
+-------------------------------------------
 
 The LDAP ORM model construction process closely mirrors Django's approach, with
 some key differences:

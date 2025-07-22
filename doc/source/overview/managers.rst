@@ -1,5 +1,5 @@
 Managers Guide
-=============
+==============
 
 This guide covers using :py:class:`~ldaporm.managers.LdapManager` and its
 subclasses to query and manipulate LDAP data.
@@ -385,7 +385,8 @@ supported by 389 Directory Server and Active Directory by default.  OpenLDAP
 supports this control, but it is not enabled by default; you must enable it in
 your server's configuration.
 
-.. info::
+.. note::
+
     To enable server-side sorting in OpenLDAP, you must add the following to
     your ``slapd.conf`` file (old style):
 
@@ -393,7 +394,7 @@ your server's configuration.
 
         overlay sssvlv
 
-    Or the following to your ``cn=config`` entry (new style):
+    Or the following to your ``cn=config`` entry (new style)::
 
         dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config
         objectClass: olcOverlayConfig
@@ -528,7 +529,7 @@ Use the ``.page()`` method to get paged results:
    print(f"Results in this page: {len(paged_results)}")
 
 PagedResultSet
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 The ``.page()`` method returns a ``PagedResultSet`` object that contains:
 
@@ -614,7 +615,7 @@ Paging works with all filtering methods:
    ).order_by('cn').page(page_size=30)
 
 Direct LDAP Paging
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 You can also use the manager's ``search_page()`` method directly for more control:
 
@@ -638,7 +639,7 @@ You can also use the manager's ``search_page()`` method directly for more contro
        )
 
 REST Framework Integration
-^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For Django REST Framework integration, use ``LdapCursorPagination``:
 
@@ -660,7 +661,7 @@ For Django REST Framework integration, use ``LdapCursorPagination``:
    # GET /api/users/?page_size=50&next_token=dGVzdF9jb29raWVfMTIz
 
 Benefits of Paging
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 1. **Performance**: Avoids loading entire result sets into memory
 2. **Reliability**: Prevents timeouts on large queries
@@ -926,7 +927,7 @@ Implement caching for frequently accessed data:
        return user
 
 Selective Field Loading
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Load only needed fields:
 

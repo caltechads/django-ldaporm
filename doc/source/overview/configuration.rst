@@ -4,7 +4,7 @@ Configuration Guide
 This guide covers all configuration options for ``django-ldaporm``.
 
 Basic Configuration
-------------------
+-------------------
 
 The main configuration is done through ``settings.LDAP_SERVERS`` in your Django
 settings.  This is a dictionary of server identifiers to server configurations.
@@ -65,7 +65,7 @@ Inside the ``read`` and ``write`` dictionaries, we have the following options:
   exist and be a file.
 
 Server Configuration Options
-----------------------------
+-----------------------------
 
 URL Configuration
 ^^^^^^^^^^^^^^^^^^
@@ -87,7 +87,7 @@ Advanced Configuration
 ----------------------
 
 Connection Options
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 Configure connection behavior:
 
@@ -106,7 +106,7 @@ Configure connection behavior:
    }
 
 TLS Configuration
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 Disable TLS/SSL:
 
@@ -160,7 +160,7 @@ Configure TLS/SSL settings:
    }
 
 Search Options
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 Configure search behavior:
 
@@ -221,7 +221,7 @@ Configure multiple LDAP servers for different purposes:
 
 
 Security Considerations
----------------------
+-----------------------
 
 * Use LDAPS (ldaps://) or STARTTLS for encrypted connections
 * You must provide a bind DN and password for the LDAP server.  We don't support
@@ -232,7 +232,7 @@ Security Considerations
 * Monitor LDAP access logs
 
 Troubleshooting Configuration
----------------------------
+-----------------------------
 
 Common configuration issues:
 

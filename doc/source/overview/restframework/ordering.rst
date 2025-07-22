@@ -21,7 +21,7 @@ The ``LdapOrderingFilter`` provides:
 * **Default ordering**: Falls back to model's default ordering when no ordering is specified
 
 Basic Usage
-----------
+-----------
 
 Add the ``LdapOrderingFilter`` to your ViewSet's ``filter_backends``:
 
@@ -44,7 +44,7 @@ Add the ``LdapOrderingFilter`` to your ViewSet's ``filter_backends``:
             return YourLdapModel.objects.all()
 
 Configuration Options
---------------------
+---------------------
 
 ordering_fields
 ~~~~~~~~~~~~~~~
@@ -88,7 +88,7 @@ API Usage
 ---------
 
 Single Field Ordering
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -99,7 +99,7 @@ Single Field Ordering
     GET /api/users/?ordering=-uid
 
 Multiple Field Ordering
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -271,10 +271,9 @@ Example Complete Implementation
 
     from ldaporm import fields, models
     from ldaporm.restframework import (
-        LdapModelSerializer, LdapOrderingFilter, LdapCursorPagination
+        LdapModelSerializer, LdapOrderingFilter, LdapCursorPagination, LdapFilterBackend
     )
     from rest_framework import viewsets
-    from django_filters import rest_framework as filters
 
     # LDAP ORM Model
     class User(models.Model):
@@ -288,16 +287,14 @@ Example Complete Implementation
             object_classes = ['person', 'organizationalPerson', 'inetOrgPerson']
             ordering = ['uid']  # Default ordering
 
-    # Filter Set
-    class UserFilter(filters.FilterSet):
-        uid = filters.CharFilter(field_name="uid", lookup_expr="icontains")
-        cn = filters.CharFilter(field_name="cn", lookup_expr="icontains")
-        mail = filters.CharFilter(field_name="mail", lookup_expr="icontains")
-        is_active = filters.BooleanFilter(field_name="is_active")
-
-        class Meta:
-            model = User
-            fields = ['uid', 'cn', 'mail', 'is_active']
+    # Custom Filter Backend
+    class UserFilterBackend(LdapFilterBackend):
+        filter_fields = {
+            'uid': {'lookup': 'icontains'},
+            'cn': {'lookup': 'icontains'},
+            'mail': {'lookup': 'icontains'},
+            'is_active': {'lookup': 'exact'},
+        }
 
     # Serializer
     class UserSerializer(LdapModelSerializer):
@@ -308,8 +305,7 @@ Example Complete Implementation
     class UserViewSet(viewsets.ModelViewSet):
         serializer_class = UserSerializer
         pagination_class = LdapCursorPagination
-        filter_backends = [filters.DjangoFilterBackend, LdapOrderingFilter]
-        filterset_class = UserFilter
+        filter_backends = [UserFilterBackend, LdapOrderingFilter]
         ordering_fields = ['uid', 'cn', 'mail', 'created', 'is_active']
         ordering = ['uid']  # Default ordering
         lookup_field = 'dn'
@@ -331,7 +327,7 @@ Example Complete Implementation
 This implementation provides:
 
 - Full CRUD operations for LDAP users
-- Filtering by uid, cn, mail, and is_active
+- Filtering by uid, cn, mail, and is_active using a custom UserFilterBackend
 - Ordering by any of the specified fields
 - Pagination with cursor-based navigation
 - Server-side sorting when available

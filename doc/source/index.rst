@@ -15,16 +15,6 @@ django-ldaporm
    overview/implementation
 
 .. toctree::
-   :caption: Users Guide
-   :hidden:
-
-   overview/forms
-   overview/views
-   overview/admin
-   overview/authentication
-   overview/best_practices
-
-.. toctree::
    :caption: REST Framework Integration
    :hidden:
 
@@ -35,6 +25,12 @@ django-ldaporm
    overview/restframework/viewsets
 
 .. toctree::
+   :caption: django-wildewidgets Integration
+   :hidden:
+
+   overview/wildewidgets
+
+.. toctree::
    :caption: Reference
    :hidden:
 
@@ -43,6 +39,8 @@ django-ldaporm
    api/managers
    api/options
    api/forms
+   api/restframework
+   api/wildewidgets
 
 .. toctree::
    :caption: Runbook
@@ -50,7 +48,7 @@ django-ldaporm
 
    runbook/development
    runbook/testing
-   runbook/deployment
+   runbook/demo
 
 ``django-ldaporm`` is a Django ORM-like module that allows you to treat LDAP
 object classes like RDBMS tables. This enables you to use Django forms, fields,
@@ -119,7 +117,7 @@ Key Features
 * **CRUD Operations**: Create, read, update, and delete LDAP objects
 
 Installation
------------
+------------
 
 ``django-ldaporm`` is a pure Python package that can be installed via pip:
 
@@ -136,13 +134,13 @@ For development installation:
    pip install -e .
 
 Quick Start
-----------
+-----------
 
 See the :doc:`quickstart guide <overview/quickstart>` for a complete example
 of setting up and using django-ldaporm in your Django project.
 
 Important People
----------------
+----------------
 
 * `Chris Malek <https://directory.caltech.edu/personnel/cmalek>`_ -
   Primary maintainer and contact for this package.

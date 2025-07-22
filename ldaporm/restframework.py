@@ -1,15 +1,16 @@
 import base64
 import datetime
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from rest_framework import serializers
+from rest_framework import Request, View, serializers
 from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import BasePagination
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 from ldaporm import fields
+from ldaporm.managers import F
 from ldaporm.models import Model as LdapModel
 
 if TYPE_CHECKING:
@@ -425,20 +426,43 @@ class LdapCursorPagination(BasePagination):
     to maintain pagination state.
 
     Example usage:
-        class UserViewSet(viewsets.ModelViewSet):
-            pagination_class = LdapCursorPagination
-            serializer_class = UserSerializer
 
-            def get_queryset(self):
-                return User.objects.all()
+        .. code-block:: python
+
+            from rest_framework import viewsets
+            from ldaporm.restframework import LdapCursorPagination
+
+            from .models import User
+
+            class UserSerializer(LdapModelSerializer):
+                class Meta:
+                    model = User
+                    fields = '__all__'
+
+            class UserViewSet(viewsets.ModelViewSet):
+                pagination_class = LdapCursorPagination
+                serializer_class = UserSerializer
+
+                def get_queryset(self):
+                    return User.objects.all()
+
     """
 
+    #: The default page size.
     page_size = 100
+    #: The query parameter name for the page size.
     page_size_query_param = "page_size"
+    #: The maximum page size.
     max_page_size = 1000
+    #: The query parameter name for the cursor.
     cursor_query_param = "next_token"
 
-    def paginate_queryset(self, queryset, request, view=None):  # noqa: ARG002
+    def paginate_queryset(
+        self,
+        queryset: F,
+        request: Request,
+        view: View | None = None,  # noqa: ARG002
+    ) -> list[LdapModel]:
         """
         Paginate the queryset using LDAP paging.
 
@@ -475,7 +499,7 @@ class LdapCursorPagination(BasePagination):
 
         return paged_results.results
 
-    def get_paginated_response(self, data):
+    def get_paginated_response(self, data: list[Any]) -> Response:
         """
         Return a paginated response with cursor-based navigation.
 
@@ -500,7 +524,7 @@ class LdapCursorPagination(BasePagination):
 
         return Response(response_data)
 
-    def get_page_size(self, request):
+    def get_page_size(self, request: Request) -> int:
         """
         Get the page size from the request.
 
@@ -531,7 +555,7 @@ class LdapCursorPagination(BasePagination):
                 pass
         return self.page_size
 
-    def _get_next_url(self, cursor):
+    def _get_next_url(self, cursor: str) -> str:
         """
         Generate the URL for the next page.
 
@@ -584,16 +608,25 @@ class LdapOrderingFilter(BaseFilterBackend):
     - Fallback to model's default ordering when no ordering is specified
 
     Example usage:
-        class UserViewSet(viewsets.ModelViewSet):
-            filter_backends = [LdapOrderingFilter]
-            ordering_fields = ['uid', 'cn', 'mail', 'created']
-            ordering = ['uid']  # Default ordering
 
-            def get_queryset(self):
-                return User.objects.all()
+        .. code-block:: python
+
+            from ldaporm.restframework import LdapOrderingFilter
+            from rest_framework import viewsets
+
+            from .models import User
+
+            class UserViewSet(viewsets.ModelViewSet):
+                filter_backends = [LdapOrderingFilter]
+                ordering_fields = ['uid', 'cn', 'mail', 'created']
+                ordering = ['uid']  # Default ordering
+
+                def get_queryset(self):
+                    return User.objects.all()
 
     Query parameters:
-        ?ordering=uid,-cn,mail  # Order by uid ascending, cn descending, mail ascending
+        ``?ordering=uid,-cn,mail``  # Order by uid ascending, cn descending,
+        mail ascending
     """
 
     #: The query parameter name for ordering
@@ -615,9 +648,6 @@ class LdapOrderingFilter(BaseFilterBackend):
         Returns:
             A list of ordering fields (with '-' prefix for descending)
 
-        Raises:
-            ValidationError: If invalid ordering fields are specified
-
         """
         params = request.query_params.get(self.ordering_param)
         if not params:
@@ -631,17 +661,9 @@ class LdapOrderingFilter(BaseFilterBackend):
                 continue
 
             # Check if field is valid
-            if not self._is_valid_field(field, queryset, view):
-                from rest_framework.exceptions import ValidationError
-
-                available_fields = self._get_available_fields(queryset, view)
-                msg = (
-                    f"Invalid ordering field '{field}'. "
-                    f"Available fields: {', '.join(available_fields)}"
-                )
-                raise ValidationError(msg)
-
-            ordering.append(field)
+            if self._is_valid_field(field, queryset, view):
+                ordering.append(field)
+            # If field is invalid, just ignore it instead of raising an error
 
         return ordering
 
@@ -795,3 +817,188 @@ class LdapOrderingFilter(BaseFilterBackend):
                 },
             }
         ]
+
+
+class LdapFilterBackend(BaseFilterBackend):
+    """
+    Base class for LDAP model filtering backends.
+
+    This class provides a foundation for creating custom filter backends
+    that work with LDAP ORM models. It handles common filtering patterns
+    and provides a consistent interface for LDAP-specific filtering.
+
+    Subclasses should override:
+
+    - filter_fields: Define the fields that can be filtered.  There should
+      be a dictionary of field names to their configurations.  The
+      configurations should include:
+
+      - lookup: The lookup type to use for the field.  This should be one of
+        the following:
+
+        - iexact: case-insensitive exact match
+        - icontains: case-insensitive contains
+        - istartswith: starts with
+        - iendswith: ends with
+        - gt: greater than (numeric)
+        - gte: greater than or equal to (numeric)
+        - lt: less than (numeric)
+        - lte: less than or equal to (numeric)
+
+      - type: The field type to use for the field.  This should be one of the
+        following:
+
+        - string: string
+        - integer: integer
+        - boolean: boolean
+        - binary: binary
+
+    Example usage:
+
+        .. code-block:: python
+
+            from rest_framework import viewsets
+            from ldaporm.restframework import LdapFilterBackend
+            from .models import User
+
+            class UserFilterBackend(LdapFilterBackend):
+                filter_fields = {
+                    'uid': {'lookup': 'iexact', 'type': 'string'},
+                    'mail': {'lookup': 'icontains', 'type': 'string'},
+                    'employee_number': {'lookup': 'iexact', 'type': 'integer'},
+                }
+
+            class UserViewSet(viewsets.ModelViewSet):
+                model = User
+                filter_backends = [UserFilterBackend]
+
+    """
+
+    #: Dictionary defining filterable fields and their configurations
+    filter_fields: ClassVar[dict[str, dict[str, str]]] = {}
+
+    def filter_queryset(self, request, queryset, view):
+        """
+        Filter the queryset based on query parameters.
+
+        Args:
+            request: The HTTP request
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            The filtered LDAP ORM queryset
+
+        """
+        return self.get_filter_queryset(request, queryset, view)
+
+    def get_filter_queryset(self, request: Request, queryset: F, view: View) -> F:  # noqa: ARG002
+        """
+        Apply filters to the queryset. Override this method in subclasses.  This
+        method is called by :py:meth:`filter_queryset` and should return the
+        filtered queryset.
+
+        Args:
+            request: The HTTP request
+            queryset: The LDAP ORM queryset
+            view: The view instance
+
+        Returns:
+            The filtered LDAP ORM queryset
+
+        """
+        return self.apply_filters(request, queryset)
+
+    def apply_filters(self, request: Request, queryset: F) -> F:
+        """
+        Apply filters based on the filter_fields configuration.  This method is
+        called by :py:meth:`get_filter_queryset` and should return the filtered
+        queryset.
+
+        Args:
+            request: The HTTP request
+            queryset: The LDAP ORM queryset
+
+        Returns:
+            The filtered LDAP ORM queryset
+
+        """
+        for field_name, field_config in self.filter_fields.items():
+            value = request.query_params.get(field_name)
+            if value is not None:
+                lookup = field_config.get("lookup", "iexact")
+                field_type = field_config.get("type", "string")
+
+                # Convert value based on field type
+                if field_type == "integer":
+                    try:
+                        value = int(value)
+                    except (ValueError, TypeError):
+                        continue  # Skip invalid integer values
+                elif field_type == "boolean":
+                    if value.lower() in ("true", "1", "yes", "on"):
+                        value = True
+                    elif value.lower() in ("false", "0", "no", "off"):
+                        value = False
+                    else:
+                        continue  # Skip invalid boolean values
+                elif field_type == "binary":
+                    try:
+                        # Decode base64-encoded binary data
+                        value = base64.b64decode(value.encode("utf-8"))
+                    except Exception:  # noqa: BLE001, S112
+                        continue  # Skip invalid base64 values
+
+                # Apply the filter
+                filter_kwargs = {f"{field_name}__{lookup}": value}
+                queryset = queryset.filter(**filter_kwargs)
+
+        return queryset
+
+    def get_schema_operation_parameters(self, view: View) -> list[dict[str, Any]]:  # noqa: ARG002
+        """
+        Return schema operation parameters for OpenAPI documentation.
+
+        Args:
+            view: The view instance
+
+        Returns:
+            A list of parameter definitions for OpenAPI
+
+        """
+        parameters = []
+        for field_name, field_config in self.filter_fields.items():
+            field_type = field_config.get("type", "string")
+            lookup = field_config.get("lookup", "iexact")
+
+            # Generate description based on lookup type
+            lookup_descriptions = {
+                "iexact": "case-insensitive exact match",
+                "icontains": "case-insensitive contains",
+                "exact": "exact match",
+                "contains": "contains",
+                "startswith": "starts with",
+                "endswith": "ends with",
+            }
+            lookup_desc = lookup_descriptions.get(lookup, lookup)
+
+            # Map field type to OpenAPI schema type
+            schema_type = {
+                "string": "string",
+                "integer": "integer",
+                "boolean": "boolean",
+                "float": "number",
+                "binary": "string",  # Binary data is transmitted as base64 string
+            }.get(field_type, "string")
+
+            parameters.append(
+                {
+                    "name": field_name,
+                    "required": False,
+                    "in": "query",
+                    "description": f"Filter by {field_name} ({lookup_desc})",
+                    "schema": {"type": schema_type},
+                }
+            )
+
+        return parameters

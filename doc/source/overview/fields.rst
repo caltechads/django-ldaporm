@@ -454,7 +454,7 @@ Extend existing field types:
             ...
 
 Field Conversion Examples
-------------------------
+-------------------------
 
 First, it is important to understand that ``python-ldap`` will return the
 values for every attribute in the format of a list of bytes, whether that attribute is
@@ -511,10 +511,10 @@ Here's how Python values are converted back to LDAP format:
    ldap_value = CharListField('memberOf').to_db_value(python_value)  # {'memberOf': [b'group1', b'group2', b'group3']}
 
 Best Practices
--------------
+--------------
 
 Field Naming
-^^^^^^^^^^^
+^^^^^^^^^^^^
 
 * If you want to use a different name for the python field than for the LDAP
   attribute, use the `db_column` parameter.  This can be useful if you want your
@@ -530,7 +530,7 @@ Validation
 * Use model-level validation for complex business rules by implementing the :py:meth:`~ldaporm.models.Model.clean` method.
 
 Example: Complete Field Usage
-----------------------------
+-----------------------------
 
 Here's a complete example showing various field types:
 

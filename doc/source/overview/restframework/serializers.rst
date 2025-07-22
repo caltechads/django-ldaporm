@@ -36,31 +36,7 @@ Basic Usage
 Field Type Support
 ~~~~~~~~~~~~~~~~~~
 
-The serializer automatically maps LDAP ORM field types to appropriate DRF fields:
-
-+------------------------+------------------+----------------------------------+
-| LDAP ORM Field         | DRF Field        | Notes                            |
-+========================+==================+==================================+
-| ``CharField``          | ``CharField``    | Standard string field            |
-+------------------------+------------------+----------------------------------+
-| ``IntegerField``       | ``IntegerField`` | Integer field                    |
-+------------------------+------------------+----------------------------------+
-| ``BooleanField``       | ``BooleanField`` | Boolean field                    |
-+------------------------+------------------+----------------------------------+
-| ``AllCapsBooleanField``| ``BooleanField`` | Boolean field (uppercase LDAP)   |
-+------------------------+------------------+----------------------------------+
-| ``DateTimeField``      | ``DateTimeField``| DateTime field                   |
-+------------------------+------------------+----------------------------------+
-| ``ActiveDirectoryTimestampField``| ``DateTimeField``| DateTime field                   |
-+------------------------+------------------+----------------------------------+
-| ``DateField``          | ``DateField``    | Date field                       |
-+------------------------+------------------+----------------------------------+
-| ``EmailForwardField``  | ``EmailField``   | Email field with forwarding      |
-+------------------------+------------------+----------------------------------+
-| ``EmailField``         | ``EmailField``   | Email field with validation      |
-+------------------------+------------------+----------------------------------+
-| ``CharListField``      | ``ListField``    | List of strings                  |
-+------------------------+------------------+----------------------------------+
+The serializer automatically maps LDAP ORM field types to appropriate DRF fields.
 
 API Response Format
 ~~~~~~~~~~~~~~~~~~~
@@ -182,7 +158,7 @@ The serializer automatically detects relationship fields by:
 2. **Explicit configuration**: Fields listed in ``Meta.relationship_fields``
 
 Automatic Detection
-^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 

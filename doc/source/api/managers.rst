@@ -1,8 +1,8 @@
 Managers API Reference
-=====================
+======================
 
 Manager Classes
---------------
+---------------
 
 .. autoclass:: ldaporm.managers.LdapManager
    :members:

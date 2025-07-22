@@ -12,7 +12,7 @@ Requirements
 * Access to an LDAP server
 
 Installing django-ldaporm
-------------------------
+-------------------------
 
 Using pip (recommended):
 
@@ -35,7 +35,7 @@ Using uv (modern Python package manager):
    uv add django-ldaporm
 
 Django Configuration
--------------------
+--------------------
 
 Add django-ldaporm to your Django settings:
 
@@ -53,7 +53,7 @@ Add django-ldaporm to your Django settings:
    ]
 
 LDAP Server Configuration
-------------------------
+-------------------------
 
 Configure your LDAP servers via the ``LDAP_SERVERS`` setting in your Django
 settings.  See :doc:`/overview/configuration` for more information.
@@ -77,7 +77,7 @@ settings.  See :doc:`/overview/configuration` for more information.
    }
 
 Troubleshooting
---------------
+---------------
 
 Common Installation Issues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -15,7 +15,7 @@ Models must:
 * Define fields as class attributes using :py:class:`~ldaporm.fields.Field`
 
 The ``Meta`` class is used to configure the model.  It is a subclass of
-:py:class:`~django.db.models.options.Options`.  See :doc:`/overview/options` for
+:py:class:`~django.db.models.options.Options`.  See :doc:`/api/options` for
 more information about how the ``Meta`` class informs your model.
 
 .. code-block:: python
@@ -67,7 +67,7 @@ The ``Meta`` class configures how the model interacts with LDAP.   See :py:class
 
 
 Field Types
-----------
+-----------
 
 ``django-ldaporm`` provides field types that map Python types to LDAP attributes:
 See :doc:`/overview/fields` for more information about the field types.
@@ -282,10 +282,10 @@ Add model-level validation:
            super().save(*args, **kwargs)
 
 Inheritance
-----------
+-----------
 
 Model Inheritance
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 Create base models for common functionality.  There are no ``abstract`` or
 ``proxy`` models in ``django-ldaporm``.  Instead, you can create a base model
@@ -323,7 +323,7 @@ with the common fields and then inherit from it.
            objectclass = 'user'
 
 Best Practices
--------------
+--------------
 
 Naming Conventions
 ^^^^^^^^^^^^^^^^^^

@@ -2,7 +2,7 @@ Fields API Reference
 ====================
 
 Field Classes
-------------
+-------------
 
 .. autoclass:: ldaporm.fields.Field
    :members:
@@ -20,6 +20,11 @@ Field Classes
    :show-inheritance:
 
 .. autoclass:: ldaporm.fields.BooleanField
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: ldaporm.fields.AllCapsBooleanField
    :members:
    :undoc-members:
    :show-inheritance:

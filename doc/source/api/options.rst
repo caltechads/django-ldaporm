@@ -1,5 +1,5 @@
 Options API Reference
-====================
+=====================
 
 Options Classes
 ---------------

@@ -98,7 +98,7 @@ API Response Format
     }
 
 Query Parameters
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 * ``page_size``: Number of results per page (default: 100, max: 1000)
 * ``next_token``: Base64-encoded cursor for the next page.  You don't need to
@@ -111,7 +111,7 @@ Query Parameters
     user.
 
 Example Requests
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
