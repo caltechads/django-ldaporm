@@ -65,7 +65,7 @@ test = [
 ]
 docs = [
     "sphinx<=7",
-    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-rtd-theme<=2.0.0",
     "sphinxcontrib-django>=2.5",
     "sphinxcontrib-images>=0.10.0",
 ]
