@@ -63,6 +63,7 @@ from rest_framework.test import APIRequestFactory
 
 from ldaporm import fields, models
 from ldaporm.restframework import HyperlinkedModelSerializer, LdapModelSerializer, LdapCursorPagination
+from ldaporm.restframework import LdapFilterBackend
 
 
 class TestUser(models.Model):
@@ -81,6 +82,8 @@ class TestUser(models.Model):
     ldap_password = fields.LDAPPasswordField(blank=True)
     ad_password = fields.ADPasswordField(blank=True)
     email_forward = fields.EmailForwardField(blank=True)
+    photo = fields.BinaryField(blank=True, null=True)
+    certificate = fields.BinaryField(blank=True, null=True)
 
     class Meta:
         basedn = "ou=users,dc=example,dc=com"
@@ -339,6 +342,114 @@ class LdapModelSerializerTestCase(unittest.TestCase):
 
             # Check that save was called
             mock_save.assert_called_once()
+
+    def test_binary_field_serialization(self):
+        """Test binary field serialization and deserialization."""
+        class UserSerializer(LdapModelSerializer):
+            class Meta:
+                model = TestUser
+
+        # Test binary data
+        test_photo_data = b'fake_photo_data'
+        test_cert_data = b'fake_certificate_data'
+
+        # Create a mock instance with binary data
+        instance = Mock()
+        # Create proper field objects
+        username_field = Mock()
+        username_field.name = 'username'
+        username_field.__class__ = fields.CharField
+
+        photo_field = Mock()
+        photo_field.name = 'photo'
+        photo_field.__class__ = fields.BinaryField
+
+        cert_field = Mock()
+        cert_field.name = 'certificate'
+        cert_field.__class__ = fields.BinaryField
+
+        instance._meta.fields = [username_field, photo_field, cert_field]
+        instance.username = 'testuser'
+        instance.photo = test_photo_data
+        instance.certificate = test_cert_data
+        instance.dn = 'cn=testuser,ou=users,dc=example,dc=com'
+
+        # Test serialization (to_representation)
+        serializer = UserSerializer()
+        result = serializer.to_representation(instance)
+
+        # Verify binary data is base64 encoded
+        import base64
+        expected_photo = base64.b64encode(test_photo_data).decode('utf-8')
+        expected_cert = base64.b64encode(test_cert_data).decode('utf-8')
+
+        self.assertEqual(result['photo'], expected_photo)
+        self.assertEqual(result['certificate'], expected_cert)
+        self.assertEqual(result['username'], 'testuser')
+        self.assertEqual(result['dn'], 'cn=testuser,ou=users,dc=example,dc=com')
+
+    def test_binary_field_deserialization(self):
+        """Test binary field deserialization from base64."""
+        class UserSerializer(LdapModelSerializer):
+            class Meta:
+                model = TestUser
+
+        serializer = UserSerializer()
+
+        # Test data with base64-encoded binary data
+        test_photo_data = b'fake_photo_data'
+        test_cert_data = b'fake_certificate_data'
+
+        import base64
+        photo_base64 = base64.b64encode(test_photo_data).decode('utf-8')
+        cert_base64 = base64.b64encode(test_cert_data).decode('utf-8')
+
+        # Test deserialization
+        data = {
+            'username': 'testuser',
+            'photo': photo_base64,
+            'certificate': cert_base64,
+        }
+
+        # Get the binary field from the serializer
+        binary_field = serializer.fields['photo']
+
+        # Test to_internal_value
+        photo_result = binary_field.to_internal_value(photo_base64)
+        cert_result = binary_field.to_internal_value(cert_base64)
+
+        self.assertEqual(photo_result, test_photo_data)
+        self.assertEqual(cert_result, test_cert_data)
+
+    def test_binary_field_null_handling(self):
+        """Test binary field handling of null values."""
+        class UserSerializer(LdapModelSerializer):
+            class Meta:
+                model = TestUser
+
+        serializer = UserSerializer()
+        binary_field = serializer.fields['photo']
+
+        # Test null values
+        self.assertIsNone(binary_field.to_internal_value(None))
+        self.assertIsNone(binary_field.to_representation(None))
+
+    def test_binary_field_invalid_data(self):
+        """Test binary field validation with invalid data."""
+        class UserSerializer(LdapModelSerializer):
+            class Meta:
+                model = TestUser
+
+        serializer = UserSerializer()
+        binary_field = serializer.fields['photo']
+
+        # Test invalid base64 data
+        with self.assertRaises(serializers.ValidationError):
+            binary_field.to_internal_value('invalid_base64_data')
+
+        # Test non-string/non-bytes data
+        with self.assertRaises(serializers.ValidationError):
+            binary_field.to_internal_value(123)
 
 
 class HyperlinkedModelSerializerTestCase(unittest.TestCase):
@@ -999,5 +1110,213 @@ class LdapCursorPaginationTestCase(unittest.TestCase):
             next_url = self.pagination._get_next_url('test_cursor')
             self.assertIn('page_size=25', next_url)
             self.assertIn('next_token=test_cursor', next_url)
+
+
+class DummyModel:
+    def __init__(self, name, age, active, photo=None):
+        self.name = name
+        self.age = age
+        self.active = active
+        self.photo = photo
+
+class DummyQuerySet:
+    def __init__(self, items):
+        self.items = items
+        self._filters = []
+    def filter(self, **kwargs):
+        self._filters.append(kwargs)
+        results = self.items
+        for key, value in kwargs.items():
+            if key.endswith('__iexact'):
+                field = key[:-8]
+                field_value = getattr(results[0], field, '')
+                if isinstance(field_value, (int, bool)):
+                    results = [item for item in results if getattr(item, field) == value]
+                else:
+                    results = [item for item in results if str(getattr(item, field, '')).lower() == str(value).lower()]
+            elif key.endswith('__icontains'):
+                field = key[:-11]
+                field_value = getattr(results[0], field, '')
+                if isinstance(field_value, (int, bool)):
+                    results = [item for item in results if str(value).lower() in str(getattr(item, field)).lower()]
+                else:
+                    results = [item for item in results if str(value).lower() in str(getattr(item, field, '')).lower()]
+            elif key.endswith('__exact'):
+                field = key[:-7]
+                results = [item for item in results if getattr(item, field) == value]
+            elif key.endswith('__contains'):
+                field = key[:-10]
+                results = [item for item in results if str(value) in str(getattr(item, field))]
+            else:
+                results = [item for item in results if getattr(item, key) == value]
+        return DummyQuerySet(results)
+    def __iter__(self):
+        return iter(self.items)
+    def __len__(self):
+        return len(self.items)
+    def all(self):
+        return DummyQuerySet(self.items)
+
+class LdapFilterBackendTestCase(unittest.TestCase):
+    """Test cases for LdapFilterBackend."""
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.items = [
+            DummyModel('Alice', 30, True),
+            DummyModel('Bob', 25, False),
+            DummyModel('Charlie', 40, True),
+        ]
+        self.queryset = DummyQuerySet(self.items)
+
+    def _create_request(self, params):
+        """Create a mock request with query_params."""
+        request = Mock()
+        request.query_params = params
+        return request
+
+    def test_string_iexact_filter(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'name': {'lookup': 'iexact', 'type': 'string'}}
+        backend = TestFilter()
+        request = self._create_request({'name': 'alice'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered.items[0].name, 'Alice')
+
+    def test_string_icontains_filter(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'name': {'lookup': 'icontains', 'type': 'string'}}
+        backend = TestFilter()
+        request = self._create_request({'name': 'li'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 2)
+        self.assertIn('Alice', [i.name for i in filtered])
+        self.assertIn('Charlie', [i.name for i in filtered])
+
+    def test_integer_filter(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'age': {'lookup': 'iexact', 'type': 'integer'}}
+        backend = TestFilter()
+        request = self._create_request({'age': '25'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered.items[0].name, 'Bob')
+
+    def test_boolean_filter(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'active': {'lookup': 'exact', 'type': 'boolean'}}
+        backend = TestFilter()
+        request = self._create_request({'active': 'True'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 2)
+        self.assertIn('Alice', [i.name for i in filtered])
+        self.assertIn('Charlie', [i.name for i in filtered])
+
+    def test_invalid_integer_value(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'age': {'lookup': 'iexact', 'type': 'integer'}}
+        backend = TestFilter()
+        request = self._create_request({'age': 'notanumber'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        # Should not filter out any items due to invalid int
+        self.assertEqual(len(filtered), 3)
+
+    def test_multiple_filters(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {
+                'name': {'lookup': 'icontains', 'type': 'string'},
+                'active': {'lookup': 'exact', 'type': 'boolean'},
+            }
+        backend = TestFilter()
+        request = self._create_request({'name': 'li', 'active': 'True'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 2)
+        self.assertIn('Alice', [i.name for i in filtered])
+        self.assertIn('Charlie', [i.name for i in filtered])
+
+    def test_openapi_schema_generation(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {
+                'name': {'lookup': 'icontains', 'type': 'string'},
+                'age': {'lookup': 'iexact', 'type': 'integer'},
+                'active': {'lookup': 'exact', 'type': 'boolean'},
+            }
+        backend = TestFilter()
+        params = backend.get_schema_operation_parameters(None)
+        self.assertEqual(len(params), 3)
+        self.assertEqual(params[0]['name'], 'name')
+        self.assertEqual(params[0]['schema']['type'], 'string')
+        self.assertEqual(params[1]['name'], 'age')
+        self.assertEqual(params[1]['schema']['type'], 'integer')
+        self.assertEqual(params[2]['name'], 'active')
+        self.assertEqual(params[2]['schema']['type'], 'boolean')
+
+    def test_custom_get_filter_queryset(self):
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'name': {'lookup': 'iexact', 'type': 'string'}}
+            def get_filter_queryset(self, request, queryset, view):
+                # Only allow filtering if a special param is present
+                if request.query_params.get('special') == 'yes':
+                    return self.apply_filters(request, queryset)
+                return queryset
+        backend = TestFilter()
+        request = self._create_request({'name': 'alice', 'special': 'yes'})
+        filtered = backend.filter_queryset(request, self.queryset, None)
+        self.assertEqual(len(filtered), 1)
+        request2 = self._create_request({'name': 'alice'})
+        filtered2 = backend.filter_queryset(request2, self.queryset, None)
+        self.assertEqual(len(filtered2), 3)
+
+    def test_binary_filter(self):
+        """Test binary field filtering with base64-encoded data."""
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'photo': {'lookup': 'exact', 'type': 'binary'}}
+
+        filter_instance = TestFilter()
+
+        # Test with valid base64 data
+        test_photo_data = b'fake_photo_data'
+        import base64
+        photo_base64 = base64.b64encode(test_photo_data).decode('utf-8')
+
+        request = self._create_request({'photo': photo_base64})
+        queryset = DummyQuerySet([DummyModel('test', 25, True, photo=test_photo_data)])
+
+        result = filter_instance.filter_queryset(request, queryset, None)
+        # Should not raise an exception and should process the filter
+        self.assertIsNotNone(result)
+
+    def test_binary_filter_invalid_data(self):
+        """Test binary field filtering with invalid base64 data."""
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {'photo': {'lookup': 'exact', 'type': 'binary'}}
+
+        filter_instance = TestFilter()
+
+        # Test with invalid base64 data
+        request = self._create_request({'photo': 'invalid_base64_data'})
+        queryset = DummyQuerySet([DummyModel('test', 25, True, photo=b'some_data')])
+
+        result = filter_instance.filter_queryset(request, queryset, None)
+        # Should skip invalid data and return original queryset
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.items[0].name, 'test')
+
+    def test_binary_filter_schema_generation(self):
+        """Test OpenAPI schema generation for binary fields."""
+        class TestFilter(LdapFilterBackend):
+            filter_fields = {
+                'photo': {'lookup': 'exact', 'type': 'binary'},
+                'certificate': {'lookup': 'exact', 'type': 'binary'},
+            }
+
+        filter_instance = TestFilter()
+        params = filter_instance.get_schema_operation_parameters(None)
+
+        self.assertEqual(len(params), 2)
+        self.assertEqual(params[0]['name'], 'photo')
+        self.assertEqual(params[0]['schema']['type'], 'string')  # Binary data as base64 string
+        self.assertEqual(params[1]['name'], 'certificate')
+        self.assertEqual(params[1]['schema']['type'], 'string')  # Binary data as base64 string
 
 

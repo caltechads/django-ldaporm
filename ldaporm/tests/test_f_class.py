@@ -1026,7 +1026,7 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         # Test with single result
         single_f = F(self.manager).filter(uid="alice")
         self.assertEqual(len(single_f), 1)
-        self.assertEqual(single_f[:5], single_f.all())
+        self.assertEqual(single_f[:5], single_f.as_list())
         self.assertEqual(single_f[5:], [])
 
     # ========================================

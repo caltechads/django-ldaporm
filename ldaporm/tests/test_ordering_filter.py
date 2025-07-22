@@ -64,7 +64,7 @@ class MockLdapModel:
     """Mock LDAP model for testing."""
 
     class Meta:
-        fields = []
+        fields: list[str] = []
         ordering = ['uid']
 
     _meta = Meta
@@ -151,26 +151,26 @@ class LdapOrderingFilterTestCase(unittest.TestCase):
         self.assertEqual(ordering, ['cn'])
 
     def test_get_ordering_invalid_field(self):
-        """Test that invalid fields raise ValidationError."""
+        """Test that invalid fields are ignored gracefully."""
         request = self.factory.get('/api/users/?ordering=invalid_field')
         request.query_params = {'ordering': 'invalid_field'}
         view = MockViewSet(ordering_fields=['uid', 'cn', 'mail'])
         queryset = MockLdapQueryset()
 
-        with self.assertRaises(ValidationError):
-            self.filter_backend.get_ordering(request, queryset, view)
+        # Invalid fields should be ignored, not raise ValidationError
+        ordering = self.filter_backend.get_ordering(request, queryset, view)
+        self.assertEqual(ordering, [])  # No valid fields, so empty list
 
     def test_get_ordering_invalid_field_with_available_fields(self):
-        """Test that ValidationError includes available fields."""
+        """Test that invalid fields are ignored when available fields are specified."""
         request = self.factory.get('/api/users/?ordering=invalid_field')
         request.query_params = {'ordering': 'invalid_field'}
         view = MockViewSet(ordering_fields=['uid', 'cn', 'mail'])
         queryset = MockLdapQueryset()
 
-        try:
-            self.filter_backend.get_ordering(request, queryset, view)
-        except ValidationError as e:
-            self.assertIn('Available fields: uid, cn, mail', str(e))
+        # Invalid fields should be ignored, not raise ValidationError
+        ordering = self.filter_backend.get_ordering(request, queryset, view)
+        self.assertEqual(ordering, [])  # No valid fields, so empty list
 
     def test_filter_queryset_with_ordering(self):
         """Test that filter_queryset applies ordering."""
