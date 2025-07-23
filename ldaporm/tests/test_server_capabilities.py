@@ -451,5 +451,90 @@ class TestLdapServerCapabilitiesSettings(unittest.TestCase):
             self.assertGreater(stats["valid_entries"], 0)
 
 
+class TestLdapServerCapabilitiesVLV(unittest.TestCase):
+    """Test VLV support detection."""
+
+    def setUp(self):
+        self.mock_connection = Mock()
+        self.key = "test_server"
+
+        # Clear cache before each test
+        LdapServerCapabilities.clear_cache()
+
+    def test_vlv_support_detection(self):
+        """Test VLV support detection."""
+        # Mock server with VLV support
+        self.mock_connection.search_s.return_value = [
+            ("", {
+                "supportedControl": [
+                    b"1.2.840.113556.1.4.319",  # Paging
+                    b"1.2.840.113556.1.4.473",  # Server-side sort
+                    b"2.16.840.1.113730.3.4.9"  # VLV
+                ]
+            })
+        ]
+
+        supported = LdapServerCapabilities.check_control_support(
+            self.mock_connection, "2.16.840.1.113730.3.4.9", "virtual list view", self.key
+        )
+        self.assertTrue(supported)
+
+    def test_vlv_support_detection_not_supported(self):
+        """Test VLV support detection when not supported."""
+        # Mock server without VLV support
+        self.mock_connection.search_s.return_value = [
+            ("", {
+                "supportedControl": [
+                    b"1.2.840.113556.1.4.319",  # Paging
+                    b"1.2.840.113556.1.4.473"   # Server-side sort
+                ]
+            })
+        ]
+
+        supported = LdapServerCapabilities.check_control_support(
+            self.mock_connection, "2.16.840.1.113730.3.4.9", "virtual list view", self.key
+        )
+        self.assertFalse(supported)
+
+    def test_vlv_support_detection_openldap_warning(self):
+        """Test OpenLDAP warning when VLV not supported."""
+        # Mock OpenLDAP without VLV support
+        self.mock_connection.search_s.return_value = [
+            ("", {
+                "vendorName": [b"OpenLDAP Foundation"],
+                "supportedControl": [
+                    b"1.2.840.113556.1.4.319"  # Only paging
+                ]
+            })
+        ]
+
+        with self.assertLogs('ldaporm.server_capabilities', level='WARNING') as log:
+            supported = LdapServerCapabilities.check_server_vlv_support(
+                self.mock_connection, self.key
+            )
+
+            self.assertFalse(supported)
+            self.assertIn("overlay sssvlv", log.output[0])
+
+    def test_vlv_support_detection_openldap_with_support(self):
+        """Test OpenLDAP with VLV support (no warning)."""
+        # Mock OpenLDAP with VLV support
+        self.mock_connection.search_s.return_value = [
+            ("", {
+                "vendorName": [b"OpenLDAP Foundation"],
+                "supportedControl": [
+                    b"1.2.840.113556.1.4.319",  # Paging
+                    b"2.16.840.1.113730.3.4.9"  # VLV
+                ]
+            })
+        ]
+
+        supported = LdapServerCapabilities.check_server_vlv_support(
+            self.mock_connection, self.key
+        )
+
+        self.assertTrue(supported)
+
+
 if __name__ == '__main__':
     unittest.main()

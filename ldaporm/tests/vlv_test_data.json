@@ -1,0 +1,140 @@
+[
+  [
+    "cn=admin,dc=example,dc=com",
+    {
+      "cn": ["admin"],
+      "userPassword": ["admin"],
+      "objectclass": ["simpleSecurityObject", "organizationalRole", "top"]
+    }
+  ],
+  [
+    "uid=alice,ou=users,dc=example,dc=com",
+    {
+      "uid": ["alice"],
+      "cn": ["Alice Johnson"],
+      "sn": ["Johnson"],
+      "uidNumber": ["1001"],
+      "gidNumber": ["1001"],
+      "homeDirectory": ["/home/alice"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=bob,ou=users,dc=example,dc=com",
+    {
+      "uid": ["bob"],
+      "cn": ["Bob Smith"],
+      "sn": ["Smith"],
+      "uidNumber": ["1002"],
+      "gidNumber": ["1002"],
+      "homeDirectory": ["/home/bob"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=charlie,ou=users,dc=example,dc=com",
+    {
+      "uid": ["charlie"],
+      "cn": ["Charlie Brown"],
+      "sn": ["Brown"],
+      "uidNumber": ["1003"],
+      "gidNumber": ["1003"],
+      "homeDirectory": ["/home/charlie"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=diana,ou=users,dc=example,dc=com",
+    {
+      "uid": ["diana"],
+      "cn": ["Diana Prince"],
+      "sn": ["Prince"],
+      "uidNumber": ["1004"],
+      "gidNumber": ["1004"],
+      "homeDirectory": ["/home/diana"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=edward,ou=users,dc=example,dc=com",
+    {
+      "uid": ["edward"],
+      "cn": ["Edward Norton"],
+      "sn": ["Norton"],
+      "uidNumber": ["1005"],
+      "gidNumber": ["1005"],
+      "homeDirectory": ["/home/edward"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=fiona,ou=users,dc=example,dc=com",
+    {
+      "uid": ["fiona"],
+      "cn": ["Fiona Gallagher"],
+      "sn": ["Gallagher"],
+      "uidNumber": ["1006"],
+      "gidNumber": ["1006"],
+      "homeDirectory": ["/home/fiona"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=george,ou=users,dc=example,dc=com",
+    {
+      "uid": ["george"],
+      "cn": ["George Washington"],
+      "sn": ["Washington"],
+      "uidNumber": ["1007"],
+      "gidNumber": ["1007"],
+      "homeDirectory": ["/home/george"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=helen,ou=users,dc=example,dc=com",
+    {
+      "uid": ["helen"],
+      "cn": ["Helen Keller"],
+      "sn": ["Keller"],
+      "uidNumber": ["1008"],
+      "gidNumber": ["1008"],
+      "homeDirectory": ["/home/helen"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=ian,ou=users,dc=example,dc=com",
+    {
+      "uid": ["ian"],
+      "cn": ["Ian McKellen"],
+      "sn": ["McKellen"],
+      "uidNumber": ["1009"],
+      "gidNumber": ["1009"],
+      "homeDirectory": ["/home/ian"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=jackie,ou=users,dc=example,dc=com",
+    {
+      "uid": ["jackie"],
+      "cn": ["Jackie Chan"],
+      "sn": ["Chan"],
+      "uidNumber": ["1010"],
+      "gidNumber": ["1010"],
+      "homeDirectory": ["/home/jackie"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ]
+]

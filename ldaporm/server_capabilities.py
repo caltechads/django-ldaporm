@@ -32,6 +32,7 @@ class LdapServerCapabilities:
     # Constants for known controls
     SORTING_OID = "1.2.840.113556.1.4.473"
     PAGING_OID = "1.2.840.113556.1.4.319"
+    VLV_OID = "2.16.840.1.113730.3.4.9"
 
     # Cache structure:
     # {
@@ -82,6 +83,21 @@ class LdapServerCapabilities:
         return cls._get_config("CACHE_TTL", 3600)  # 1 hour default
 
     @classmethod
+    def _get_vlv_context_ttl(cls) -> int:
+        """Get VLV context TTL from settings or use fallback."""
+        return cls._get_config("VLV_CONTEXT_TTL", 60)  # 60 seconds default
+
+    @classmethod
+    def _get_vlv_default_before_count(cls) -> int:
+        """Get VLV default before count from settings or use fallback."""
+        return cls._get_config("VLV_DEFAULT_BEFORE_COUNT", 0)
+
+    @classmethod
+    def _get_vlv_default_after_count(cls) -> int:
+        """Get VLV default after count from settings or use fallback."""
+        return cls._get_config("VLV_DEFAULT_AFTER_COUNT", 0)
+
+    @classmethod
     def _validate_settings(cls) -> None:
         """
         Validate Django settings for consistency.
@@ -114,6 +130,11 @@ class LdapServerCapabilities:
         ttl = cls._get_cache_ttl()
         if ttl <= 0:
             msg = f"LDAPORM_CACHE_TTL ({ttl}) must be positive"
+            raise ImproperlyConfigured(msg)
+
+        vlv_ttl = cls._get_vlv_context_ttl()
+        if vlv_ttl <= 0:
+            msg = f"LDAPORM_VLV_CONTEXT_TTL ({vlv_ttl}) must be positive"
             raise ImproperlyConfigured(msg)
 
     @classmethod
@@ -232,6 +253,7 @@ class LdapServerCapabilities:
             "capabilities": {
                 "server-side sorting": cls.SORTING_OID in control_oids,
                 "paged results": cls.PAGING_OID in control_oids,
+                "virtual_list_view": cls.VLV_OID in control_oids,
             },
             "logged_features": set(),
         }
@@ -337,6 +359,7 @@ class LdapServerCapabilities:
             "capabilities": {
                 "server-side sorting": False,
                 "paged results": False,
+                "virtual_list_view": False,
             },
             "logged_features": set(),
             "cached_at": time.time(),
@@ -375,6 +398,26 @@ class LdapServerCapabilities:
         logger.warning(
             "OpenLDAP server '%s' does not support server-side sorting. "
             "To enable server-side sorting, add 'overlay sssvlv' to your OpenLDAP "
+            "configuration (slapd.conf) or add the following to your cn=config: "
+            "dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config "
+            "objectClass: olcOverlayConfig "
+            "objectClass: olcSssVlvConfig "
+            "olcOverlay: sssvlv",
+            key,
+        )
+
+    @classmethod
+    def _log_openldap_vlv_warning(cls, key: str) -> None:
+        """
+        Log a helpful warning for OpenLDAP users about enabling server-side VLV.
+
+        Args:
+            key: Configuration key for the LDAP server
+
+        """
+        logger.warning(
+            "OpenLDAP server '%s' does not support server-side Virtual List View. "
+            "To enable server-side Virtual List View, add 'overlay sssvlv' to your OpenLDAP "
             "configuration (slapd.conf) or add the following to your cn=config: "
             "dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config "
             "objectClass: olcOverlayConfig "
@@ -466,6 +509,36 @@ class LdapServerCapabilities:
         return cls.check_control_support(
             connection, cls.PAGING_OID, feature_name="paged results", key=key
         )
+
+    @classmethod
+    def check_server_vlv_support(cls, connection: Any, key: str = "read") -> bool:
+        """
+        Check if server supports Virtual List View.
+
+        Args:
+            connection: LDAP connection from LdapManager
+            key: Configuration key for the LDAP server
+
+        Returns:
+            True if Virtual List View is supported, False otherwise
+
+        Raises:
+            ldap.SERVER_DOWN, ldap.CONNECT_ERROR: Propagated up
+
+        """
+        server_info = cls._get_server_info(connection, key)
+        server_flavor = server_info["flavor"]
+
+        # Check if VLV is supported
+        is_supported = cls.check_control_support(
+            connection, cls.VLV_OID, feature_name="virtual list view", key=key
+        )
+
+        # Log specific warning for OpenLDAP without VLV support
+        if not is_supported and server_flavor == "openldap":
+            cls._log_openldap_vlv_warning(key)
+
+        return is_supported
 
     @classmethod
     def get_server_page_size_limit(cls, connection: Any, key: str = "read") -> int:

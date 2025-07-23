@@ -9,6 +9,7 @@ building LDAP queries.
 """
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, cast
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from ldap import modlist
 from ldap.controls import LDAPControl, SimplePagedResultsControl
@@ -167,6 +169,173 @@ class ServerSideSortControl(LDAPControl):
         # The control value is a BER-encoded sequence of sort keys
         control_value = build_sort_control_value(sort_key_list)
         super().__init__(self.control_type, criticality, control_value)
+
+
+# VLV Control definitions
+class VlvRequest(univ.Sequence):
+    """
+    ``VlvRequest`` is a sequence of beforeCount, afterCount, offset, count, and
+    contextID.
+
+    This is used to build the control value for the Virtual List View control.
+
+    See RFC 2891 for more details.
+    """
+
+    componentType: ClassVar[namedtype.NamedTypes] = namedtype.NamedTypes(  # noqa: N815
+        namedtype.NamedType("beforeCount", univ.Integer()),
+        namedtype.NamedType("afterCount", univ.Integer()),
+        namedtype.NamedType("offset", univ.Integer()),
+        namedtype.NamedType("count", univ.Integer()),
+        namedtype.OptionalNamedType(
+            "contextID",
+            univ.OctetString().subtype(
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
+            ),
+        ),
+    )
+
+
+class VlvResponse(univ.Sequence):
+    """
+    ``VlvResponse`` is a sequence of targetPosition, contentCount,
+    virtualListViewResult, and contextID.
+
+    This is used to parse the response from the Virtual List View control.
+
+    See RFC 2891 for more details.
+    """
+
+    componentType: ClassVar[namedtype.NamedTypes] = namedtype.NamedTypes(  # noqa: N815
+        namedtype.NamedType("targetPosition", univ.Integer()),
+        namedtype.NamedType("contentCount", univ.Integer()),
+        namedtype.OptionalNamedType(
+            "virtualListViewResult",
+            univ.Enumerated().subtype(
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
+            ),
+        ),
+        namedtype.OptionalNamedType(
+            "contextID",
+            univ.OctetString().subtype(
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
+            ),
+        ),
+    )
+
+
+class VirtualListViewControl(LDAPControl):
+    """
+    LDAP Control Extension for Virtual List View (RFC 2891).
+
+    This control allows the client to request a specific range of results from
+    a sorted list. The OID 2.16.840.1.113730.3.4.9 is used by 389 Directory Server
+    and some Active Directory implementations.
+    """
+
+    control_type = "2.16.840.1.113730.3.4.9"
+
+    def __init__(
+        self,
+        criticality: bool = False,
+        before_count: int = 0,
+        after_count: int = 0,
+        offset: int = 0,
+        count: int = 0,
+        context_id: bytes | None = None,
+    ) -> None:
+        """
+        Initialize the Virtual List View control.
+
+        Args:
+            criticality: Whether the control is critical.
+            before_count: Number of entries before the target.
+            after_count: Number of entries after the target.
+            offset: Target offset (1-based).
+            count: Maximum number of entries to return.
+            context_id: Context ID from previous VLV response.
+
+        """
+        # Build the control value according to RFC 2891
+        control_value = build_vlv_control_value(
+            before_count, after_count, offset, count, context_id
+        )
+        super().__init__(self.control_type, criticality, control_value)
+
+
+def build_vlv_control_value(
+    before_count: int,
+    after_count: int,
+    offset: int,
+    count: int,
+    context_id: bytes | None = None,
+) -> bytes:
+    """
+    Build the BER-encoded control value for Virtual List View.
+
+    Args:
+        before_count: Number of entries before the target.
+        after_count: Number of entries after the target.
+        offset: Target offset (1-based).
+        count: Maximum number of entries to return.
+        context_id: Context ID from previous VLV response.
+
+    Returns:
+        BER-encoded control value.
+
+    """
+    vlv_request = VlvRequest()
+    vlv_request.setComponentByName("beforeCount", univ.Integer(before_count))
+    vlv_request.setComponentByName("afterCount", univ.Integer(after_count))
+    vlv_request.setComponentByName("offset", univ.Integer(offset))
+    vlv_request.setComponentByName("count", univ.Integer(count))
+
+    if context_id is not None:
+        vlv_request.setComponentByName(
+            "contextID",
+            univ.OctetString(context_id).subtype(
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
+            ),
+        )
+
+    return encoder.encode(vlv_request)
+
+
+def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
+    """
+    Parse the BER-encoded VLV response control value.
+
+    Args:
+        control_value: BER-encoded VLV response control value.
+
+    Returns:
+        Dictionary containing VLV response data.
+
+    """
+    from pyasn1.codec.ber import decoder  # type: ignore[import]
+
+    try:
+        vlv_response, _ = decoder.decode(control_value, asn1Spec=VlvResponse())
+
+        result = {
+            "target_position": int(vlv_response.getComponentByName("targetPosition")),
+            "content_count": int(vlv_response.getComponentByName("contentCount")),
+        }
+
+        # Optional components
+        if vlv_response.getComponentByName("virtualListViewResult") is not None:
+            result["virtual_list_view_result"] = int(
+                vlv_response.getComponentByName("virtualListViewResult")
+            )
+
+        if vlv_response.getComponentByName("contextID") is not None:
+            result["context_id"] = vlv_response.getComponentByName("contextID")
+
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to parse VLV response: %s", str(e))
+        return {}
+    else:
+        return result
 
 
 # -----------------------
@@ -613,6 +782,215 @@ class F:
         if not self.manager._check_server_sorting_support():
             return None
         return ServerSideSortControl(sort_key_list=self._order_by)
+
+    def _create_vlv_control(
+        self,
+        offset: int,
+        count: int,
+        context_id: bytes | None = None,
+    ) -> VirtualListViewControl | None:
+        """
+        Create a Virtual List View control for LDAP queries if supported by the server.
+
+        Args:
+            offset: Target offset (1-based).
+            count: Maximum number of entries to return.
+            context_id: Context ID from previous VLV response.
+
+        Returns:
+            VirtualListViewControl if supported, otherwise None.
+
+        Raises:
+            F.UnboundFilter: If the F instance is not bound to a manager.
+
+        """
+        self._require_manager()
+        if self.manager is None:
+            msg = "F instance is not bound to a manager."
+            raise F.UnboundFilter(msg)
+        if not self.manager._check_server_vlv_support():
+            return None
+
+        before_count = LdapServerCapabilities._get_vlv_default_before_count()
+        after_count = LdapServerCapabilities._get_vlv_default_after_count()
+
+        return VirtualListViewControl(
+            before_count=before_count,
+            after_count=after_count,
+            offset=offset,
+            count=count,
+            context_id=context_id,
+        )
+
+    def _get_vlv_context_id(self, search_hash: str) -> bytes | None:
+        """
+        Get VLV context ID from cache for the given search.
+
+        Args:
+            search_hash: Hash of the search parameters.
+
+        Returns:
+            Context ID if found in cache, otherwise None.
+
+        """
+        self._require_manager()
+        if self.manager is None:
+            return None
+
+        cache_key = f"vlv_context:{self.manager._get_server_key()}:{search_hash}"
+        return cache.get(cache_key)
+
+    def _set_vlv_context_id(self, search_hash: str, context_id: bytes) -> None:
+        """
+        Store VLV context ID in cache for the given search.
+
+        Args:
+            search_hash: Hash of the search parameters.
+            context_id: Context ID to store.
+
+        """
+        self._require_manager()
+        if self.manager is None:
+            return
+
+        cache_key = f"vlv_context:{self.manager._get_server_key()}:{search_hash}"
+        ttl = LdapServerCapabilities._get_vlv_context_ttl()
+        cache.set(cache_key, context_id, ttl)
+
+    def _generate_search_hash(self) -> str:
+        """
+        Generate a hash for the current search to use as a cache key.
+
+        Returns:
+            Hash string for the search.
+
+        """
+        # Create a hash of the filter and ordering
+        search_data = {
+            "filter": str(self._filter),
+            "order_by": self._order_by,
+            "exclude": str(self._exclude_chain) if self._exclude_chain else "",
+        }
+        return hashlib.md5(json.dumps(search_data, sort_keys=True).encode()).hexdigest()  # noqa: S324
+
+    def _should_use_vlv(self, start: int, count: int) -> bool:
+        """
+        Determine if VLV should be used for this slice.
+
+        Args:
+            start: Start offset (0-based).
+            count: Number of items to fetch.
+
+        Returns:
+            True if VLV should be used, False otherwise.
+
+        """
+        if self.manager is None:
+            return False
+
+        # Check if manager supports VLV
+        if not cast("LdapManager", self.manager).supports_vlv():
+            return False
+
+        # VLV is most beneficial for large offsets or when we need sorting
+        if start > 100 or self._order_by:  # noqa: PLR2004
+            return True
+
+        # For small slices, use client-side unless we have ordering
+        return count > 50 or bool(self._order_by)  # noqa: PLR2004
+
+    def _execute_vlv_slice(self, start: int, count: int) -> list["Model"]:
+        """
+        Execute VLV slice operation.
+
+        Args:
+            start: Start offset (0-based).
+            count: Number of items to fetch.
+
+        Returns:
+            List of model instances.
+
+        """
+        self._require_manager()
+        if self.manager is None:
+            msg = "F instance is not bound to a manager."
+            raise F.UnboundFilter(msg)
+
+        # Generate search hash for context ID management
+        search_hash = self._generate_search_hash()
+        context_id = self._get_vlv_context_id(search_hash)
+
+        # Create VLV control
+        vlv_control = self._create_vlv_control(
+            offset=start + 1,  # VLV uses 1-based offset
+            count=count,
+            context_id=context_id,
+        )
+
+        if vlv_control is None:
+            msg = "Failed to create VLV control"
+            raise ValueError(msg)
+
+        # Execute search with VLV control
+        try:
+            results, response_controls = cast(
+                "LdapManager", self.manager
+            ).search_with_controls(
+                str(self),
+                cast("list[str]", self._attributes),
+                sort_control=self._create_sort_control(),
+                vlv_control=vlv_control,
+            )
+
+            # Parse VLV response and extract context ID
+            vlv_response_data = self._parse_vlv_response_controls(response_controls)
+            if vlv_response_data and "context_id" in vlv_response_data:
+                self._set_vlv_context_id(search_hash, vlv_response_data["context_id"])
+
+            objects = cast(
+                "list[Model]",
+                cast("Model", self.model).from_db(
+                    cast("list[str]", self._attributes), results, many=True
+                ),
+            )
+
+        except (
+            ldap.OPERATIONS_ERROR,
+            ldap.UNWILLING_TO_PERFORM,
+            ldap.PROTOCOL_ERROR,
+        ) as e:
+            logger.warning("VLV search failed (server error): %s", str(e))
+            raise
+        except (ValueError, TypeError) as e:
+            logger.warning("VLV search failed (control error): %s", str(e))
+            raise
+        except ldap.LDAPError as e:
+            logger.warning("VLV search failed (LDAP error): %s", str(e))
+            raise
+        else:
+            return objects
+
+    def _parse_vlv_response_controls(
+        self, response_controls: list[Any]
+    ) -> dict[str, Any]:
+        """
+        Parse VLV response controls to extract metadata.
+
+        Args:
+            response_controls: List of response controls from LDAP search.
+
+        Returns:
+            Dictionary containing VLV response data.
+
+        """
+        for control in response_controls:
+            if (
+                hasattr(control, "controlType")
+                and control.controlType == VirtualListViewControl.control_type
+            ):
+                if hasattr(control, "controlValue") and control.controlValue:
+                    return parse_vlv_response(control.controlValue)
+        return {}
 
     def _sort_objects_client_side(self, objects: list["Model"]) -> list["Model"]:
         """
@@ -1307,56 +1685,83 @@ class F:
 
         """
         if isinstance(key, slice):
-            # Handle slicing
-            if (
-                key.start is None
-                and key.step is None
-                and key.stop is not None
-                and (isinstance(key.stop, int) and key.stop >= 0)
-            ):
-                return self._fetch_with_sizelimit(key.stop)
-            # Inefficient case: fetch all, then slice in Python
-            objects = self._execute_query()
-            return objects[key]
+            # Handle slicing with VLV, paging, or client-side fallback
+            return self._handle_slice(key)
         # Single index: fetch all, then index
         objects = self._execute_query()
         return objects[key]
 
-    def _fetch_with_sizelimit(self, limit: int) -> list["Model"]:
+    def _handle_slice(self, key: slice) -> list["Model"]:
         """
-        Fetch results with a size limit for efficient slicing.
+        Handle slicing with VLV, paging, or client-side fallback.
 
         Args:
-            limit: Maximum number of results to fetch.
+            key: Slice object.
 
         Returns:
-            List of model instances up to the limit.
+            List of model instances for the slice.
 
         """
-        self._require_manager()
-        sort_control = self._create_sort_control()
-        objects = cast("Model", self.model).from_db(
-            cast("list[str]", self._attributes),
-            cast("LdapManager", self.manager).search(
-                str(self),
-                cast("list[str]", self._attributes),
-                sizelimit=0,  # Fetch all, apply limit after sorting if needed
-                sort_control=sort_control,
-            ),
-            many=True,
-        )
+        # Calculate slice parameters
+        start = key.start or 0
+        stop = key.stop
+        step = key.step or 1
 
-        # If we have ordering but no sort control was created (server doesn't
-        # support it), or if we have ordering and got a list of objects, apply
-        # client-side sorting
-        if self._order_by and (sort_control is None or isinstance(objects, list)):
-            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+        # Handle simple [:stop] case first (most efficient)
+        if (
+            key.start is None
+            and key.step is None
+            and key.stop is not None
+            and (isinstance(key.stop, int) and key.stop >= 0)
+        ):
+            return self._fetch_with_sizelimit(key.stop)
 
-        # Apply the limit after sorting
-        if limit is not None and limit >= 0:
-            objects = cast("list[Model]", objects)[:limit]
+        # Handle step != 1 (not supported by VLV or paging)
+        if step != 1:
+            logger.warning(
+                "Slice with step != 1 not supported by VLV or paging. "
+                "Falling back to client-side slicing."
+            )
+            objects = self._execute_query()
+            return objects[key]
 
-        return cast("list[Model]", objects)
+        # Calculate count for the slice
+        if stop is None:
+            # [start:] - get all from start
+            count = 0  # 0 means no limit
+        else:
+            count = stop - start
+            if count <= 0:
+                return []
+
+        # Try VLV first
+        try:
+            if self._should_use_vlv(start, count):
+                return self._execute_vlv_slice(start, count)
+        except (
+            ldap.OPERATIONS_ERROR,
+            ldap.UNWILLING_TO_PERFORM,
+            ldap.PROTOCOL_ERROR,
+        ) as e:
+            logger.warning(
+                "VLV slicing failed (server error), falling back to client-side: %s",
+                str(e),
+            )
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "VLV slicing failed (control error), falling back to client-side: %s",
+                str(e),
+            )
+        except ldap.LDAPError as e:
+            logger.warning(
+                "VLV slicing failed (LDAP error), falling back to client-side: %s",
+                str(e),
+            )
+
+        # Fallback to client-side slicing
+        logger.info("Using client-side slicing for slice %s", key)
+        objects = self._execute_query()
+        return objects[key]
 
     def exclude(self, *args, **kwargs) -> "F":  # noqa: PLR0912, PLR0915
         """
@@ -1486,6 +1891,42 @@ class F:
             new_f._exclude_groups.append(exclude_filters)
 
         return new_f
+
+    def _fetch_with_sizelimit(self, limit: int) -> list["Model"]:
+        """
+        Fetch results with a size limit for efficient slicing.
+
+        Args:
+            limit: Maximum number of results to fetch.
+
+        Returns:
+            List of model instances up to the limit.
+
+        """
+        self._require_manager()
+        sort_control = self._create_sort_control()
+        objects = cast("Model", self.model).from_db(
+            cast("list[str]", self._attributes),
+            cast("LdapManager", self.manager).search(
+                str(self),
+                cast("list[str]", self._attributes),
+                sizelimit=0,  # Fetch all, apply limit after sorting if needed
+                sort_control=sort_control,
+            ),
+            many=True,
+        )
+
+        # If we have ordering but no sort control was created (server doesn't
+        # support it), or if we have ordering and got a list of objects, apply
+        # client-side sorting
+        if self._order_by and (sort_control is None or isinstance(objects, list)):
+            objects = self._sort_objects_client_side(cast("list[Model]", objects))
+
+        # Apply the limit after sorting
+        if limit is not None and limit >= 0:
+            objects = cast("list[Model]", objects)[:limit]
+
+        return cast("list[Model]", objects)
 
 
 class FIterator:
@@ -1980,6 +2421,7 @@ class LdapManager:
         basedn: str | None = None,
         scope: int = ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
         sort_control: ServerSideSortControl | None = None,
+        vlv_control: VirtualListViewControl | None = None,
     ) -> list[LDAPData]:
         """
         Search the LDAP server for objects matching the given filter.
@@ -1991,6 +2433,7 @@ class LdapManager:
             basedn: The base DN to search from.
             scope: LDAP search scope.
             sort_control: Server-side sort control.
+            vlv_control: Virtual List View control.
 
         Returns:
             List of LDAPData tuples (dn, attrs).
@@ -2006,8 +2449,18 @@ class LdapManager:
                 "basedn is required either as a parameter or in the model's Meta class"
             )
             raise ValueError(msg)
-        # Check if server supports paging and use it automatically
-        if LdapServerCapabilities.check_server_paging_support(self.connection):
+
+        # Build server controls list
+        serverctrls = []
+        if sort_control:
+            serverctrls.append(sort_control)
+        if vlv_control:
+            serverctrls.append(vlv_control)
+
+        # Check if server supports paging and use it automatically (unless VLV is used)
+        if not vlv_control and LdapServerCapabilities.check_server_paging_support(
+            self.connection
+        ):
             page_size = LdapServerCapabilities.get_server_page_size_limit(
                 self.connection
             )
@@ -2020,10 +2473,22 @@ class LdapManager:
                 scope=scope,
                 sort_control=sort_control,
             )
+
+        # Execute search with controls
+        if serverctrls:
+            data = self.connection.search_ext_s(
+                basedn,
+                scope,
+                filterstr=searchfilter,
+                attrlist=attributes,
+                serverctrls=serverctrls,
+            )
+        else:
+            data = self.connection.search_s(
+                basedn, scope, filterstr=searchfilter, attrlist=attributes
+            )
+
         # We have to filter out and references that AD puts in
-        data = self.connection.search_s(
-            basedn, scope, filterstr=searchfilter, attrlist=attributes
-        )
         return [obj for obj in data if isinstance(obj[1], dict)]
 
     @atomic(key="read")
@@ -2213,7 +2678,7 @@ class LdapManager:
         else:
             self.logger.debug("ldaporm.manager.modify.no-changes dn=%s", obj.dn)
 
-    def only(self, *names: str) -> "F":
+    def only(self, *names) -> "F":
         """
         Return a QuerySet-like F object restricted to the given attribute names.
 
@@ -2558,6 +3023,43 @@ class LdapManager:
 
         return LdapServerCapabilities.check_server_sorting_support(self.connection, key)
 
+    def _check_server_vlv_support(self, key: str = "read") -> bool:
+        """
+        Check if the LDAP server supports Virtual List View.
+
+        Args:
+            key: Configuration key for the LDAP server.
+
+        Returns:
+            True if Virtual List View is supported, False otherwise.
+
+        """
+        return LdapServerCapabilities.check_server_vlv_support(self.connection, key)
+
+    def supports_vlv(self, key: str = "read") -> bool:
+        """
+        Check if the LDAP server supports Virtual List View.
+
+        Args:
+            key: Configuration key for the LDAP server.
+
+        Returns:
+            True if Virtual List View is supported, False otherwise.
+
+        """
+        return self._check_server_vlv_support(key)
+
+    def _get_server_key(self) -> str:
+        """
+        Get the server key for cache operations.
+
+        Returns:
+            Server key string.
+
+        """
+        model = cast("type[Model]", self.model)
+        return cast("Options", model._meta).ldap_server
+
     def count(self) -> int:
         """
         Return the number of objects for this model from LDAP.
@@ -2581,3 +3083,423 @@ class LdapManager:
         Return the first result of the query, or None if no match.
         """
         return self.__filter().first_or_none(*args, **kwargs)
+
+    def _handle_slice(self, key: slice) -> list["Model"]:
+        """
+        Handle slicing with VLV, paging, or client-side fallback.
+
+        Args:
+            key: Slice object.
+
+        Returns:
+            List of model instances for the slice.
+
+        """
+        # Calculate slice parameters
+        start = key.start or 0
+        stop = key.stop
+        step = key.step or 1
+
+        # Handle simple [:stop] case first (most efficient)
+        if (
+            key.start is None
+            and key.step is None
+            and key.stop is not None
+            and (isinstance(key.stop, int) and key.stop >= 0)
+        ):
+            return self._fetch_with_sizelimit(key.stop)
+
+        # Handle step != 1 (not supported by VLV or paging)
+        if step != 1:
+            logger.warning(
+                "Slice with step != 1 not supported by VLV or paging. "
+                "Falling back to client-side slicing."
+            )
+            objects = self._execute_query()
+            return objects[key]
+
+        # Calculate count for the slice
+        if stop is None:
+            # [start:] - get all from start
+            count = 0  # 0 means no limit
+        else:
+            count = stop - start
+            if count <= 0:
+                return []
+
+        # Try VLV first
+        try:
+            if self._should_use_vlv(start, count):
+                return self._execute_vlv_slice(start, count)
+        except (
+            ldap.OPERATIONS_ERROR,
+            ldap.UNWILLING_TO_PERFORM,
+            ldap.PROTOCOL_ERROR,
+        ) as e:
+            logger.warning(
+                "VLV slicing failed (server error), falling back to client-side: %s",
+                str(e),
+            )
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "VLV slicing failed (control error), falling back to client-side: %s",
+                str(e),
+            )
+        except ldap.LDAPError as e:
+            logger.warning(
+                "VLV slicing failed (LDAP error), falling back to client-side: %s",
+                str(e),
+            )
+
+        # Fallback to client-side slicing
+        logger.info("Using client-side slicing for slice %s", key)
+        objects = self._execute_query()
+        return objects[key]
+
+    @atomic(key="read")
+    def search_with_controls(
+        self,
+        searchfilter: str,
+        attributes: list[str],
+        sizelimit: int = 0,
+        basedn: str | None = None,
+        scope: int = ldap.SCOPE_SUBTREE,  # type: ignore[attr-defined]
+        sort_control: ServerSideSortControl | None = None,
+        vlv_control: VirtualListViewControl | None = None,
+    ) -> tuple[list[LDAPData], list[Any]]:
+        """
+        Search the LDAP server with controls and return both results and
+        response controls.
+
+        Args:
+            searchfilter: The LDAP search filter string.
+            attributes: List of attributes to retrieve.
+            sizelimit: Maximum number of results to return.
+            basedn: The base DN to search from.
+            scope: LDAP search scope.
+            sort_control: Server-side sort control.
+            vlv_control: Virtual List View control.
+
+        Returns:
+            Tuple of (results, response_controls) where:
+            - results: List of LDAPData tuples (dn, attrs)
+            - response_controls: List of response controls from the server
+
+        Raises:
+            ValueError: If no basedn is provided or configured.
+
+        """
+        if basedn is None:
+            basedn = self.basedn
+        if not basedn:
+            msg = (
+                "basedn is required either as a parameter or in the model's Meta class"
+            )
+            raise ValueError(msg)
+
+        # Build server controls list
+        serverctrls = []
+        if sort_control:
+            serverctrls.append(sort_control)
+        if vlv_control:
+            serverctrls.append(vlv_control)
+
+        # Execute search with controls and get response controls
+        if serverctrls:
+            msgid = self.connection.search_ext(
+                basedn,
+                scope,
+                filterstr=searchfilter,
+                attrlist=attributes,
+                serverctrls=serverctrls,
+                sizelimit=sizelimit,
+            )
+
+            # Get results and response controls
+            result_type, results, msgid, response_controls = self.connection.result3(
+                msgid
+            )
+
+            # Filter out and references that AD puts in
+            filtered_results = [obj for obj in results if isinstance(obj[1], dict)]
+
+            return filtered_results, response_controls
+        # No controls, use simple search
+        data = self.connection.search_s(
+            basedn,
+            scope,
+            filterstr=searchfilter,
+            attrlist=attributes,
+            sizelimit=sizelimit,
+        )
+
+        # Filter out and references that AD puts in
+        filtered_results = [obj for obj in data if isinstance(obj[1], dict)]
+
+        return filtered_results, []
+
+
+# -----------------------
+# Django Pagination Integration
+# -----------------------
+
+
+class LdapVlvPagination:
+    """
+    Django pagination class that uses VLV internally for efficient pagination.
+
+    This pagination class integrates with Django REST Framework's pagination
+    system while using VLV for efficient server-side pagination of LDAP results.
+    """
+
+    def __init__(self, page_size: int = 100):
+        """
+        Initialize the VLV pagination.
+
+        Args:
+            page_size: Number of items per page.
+
+        """
+        self.page_size = page_size
+
+    def paginate_queryset(self, queryset: "F", request: Any) -> dict[str, Any]:
+        """
+        Paginate the queryset using VLV.
+
+        Args:
+            queryset: The F queryset to paginate.
+            request: Django request object.
+
+        Returns:
+            Dictionary containing paginated results and metadata.
+
+        """
+        # Get page number from request
+        page_number = self.get_page_number(request)
+
+        # Calculate offset
+        offset = (page_number - 1) * self.page_size
+
+        # Use VLV slicing for efficient pagination
+        try:
+            results = queryset[offset : offset + self.page_size]
+
+            # Get total count (this might require a separate count query)
+            total_count = self._get_total_count(queryset)
+
+            return {
+                "results": results,
+                "count": total_count,
+                "next": self.get_next_link(request, page_number, total_count),
+                "previous": self.get_previous_link(request, page_number),
+                "page_size": self.page_size,
+                "current_page": page_number,
+                "total_pages": (total_count + self.page_size - 1) // self.page_size,
+            }
+        except (
+            ldap.OPERATIONS_ERROR,
+            ldap.UNWILLING_TO_PERFORM,
+            ldap.PROTOCOL_ERROR,
+        ) as e:
+            logger.warning(
+                "VLV pagination failed (server error), falling back to client-side: %s",
+                str(e),
+            )
+            # Fallback to client-side pagination
+            return self._fallback_pagination(queryset, request)
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "VLV pagination failed (control error), falling back to "
+                "client-side: %s",
+                str(e),
+            )
+            # Fallback to client-side pagination
+            return self._fallback_pagination(queryset, request)
+        except ldap.LDAPError as e:
+            logger.warning(
+                "VLV pagination failed (LDAP error), falling back to client-side: %s",
+                str(e),
+            )
+            # Fallback to client-side pagination
+            return self._fallback_pagination(queryset, request)
+
+    def get_page_number(self, request: Any) -> int:
+        """
+        Get the page number from the request.
+
+        Args:
+            request: Django request object.
+
+        Returns:
+            Page number (1-based).
+
+        """
+        try:
+            page = int(request.GET.get("page", 1))
+            return max(1, page)
+        except (ValueError, TypeError):
+            return 1
+
+    def _get_total_count(self, queryset: "F") -> int:
+        """
+        Get the total count of results.
+
+        Args:
+            queryset: The F queryset.
+
+        Returns:
+            Total count of results.
+
+        """
+        # This is a simplified implementation
+        # In practice, you might want to cache this or use a more efficient method
+        return len(queryset)
+
+    def get_next_link(
+        self, request: Any, page_number: int, total_count: int
+    ) -> str | None:
+        """
+        Get the next page link.
+
+        Args:
+            request: Django request object.
+            page_number: Current page number.
+            total_count: Total number of results.
+
+        Returns:
+            Next page URL or None if no next page.
+
+        """
+        if page_number * self.page_size >= total_count:
+            return None
+
+        url = request.build_absolute_uri()
+        if "?" in url:
+            url += "&"
+        else:
+            url += "?"
+        return url + f"page={page_number + 1}"
+
+    def get_previous_link(self, request: Any, page_number: int) -> str | None:
+        """
+        Get the previous page link.
+
+        Args:
+            request: Django request object.
+            page_number: Current page number.
+
+        Returns:
+            Previous page URL or None if no previous page.
+
+        """
+        if page_number <= 1:
+            return None
+
+        url = request.build_absolute_uri()
+        if "?" in url:
+            url += "&"
+        else:
+            url += "?"
+        return url + f"page={page_number - 1}"
+
+    def _fallback_pagination(self, queryset: "F", request: Any) -> dict[str, Any]:
+        """
+        Fallback to client-side pagination when VLV fails.
+
+        Args:
+            queryset: The F queryset.
+            request: Django request object.
+
+        Returns:
+            Dictionary containing paginated results and metadata.
+
+        """
+        page_number = self.get_page_number(request)
+        offset = (page_number - 1) * self.page_size
+
+        # Get all results and slice client-side
+        all_results = list(queryset)
+        total_count = len(all_results)
+        results = all_results[offset : offset + self.page_size]
+
+        return {
+            "results": results,
+            "count": total_count,
+            "next": self.get_next_link(request, page_number, total_count),
+            "previous": self.get_previous_link(request, page_number),
+            "page_size": self.page_size,
+            "current_page": page_number,
+            "total_pages": (total_count + self.page_size - 1) // self.page_size,
+        }
+
+    def test_vlv_support(self, key: str = "read") -> dict[str, Any]:
+        """
+        Test VLV support and return detailed information.
+
+        Args:
+            key: Configuration key for the LDAP server.
+
+        Returns:
+            Dictionary containing VLV test results.
+
+        """
+        try:
+            # Check if server supports VLV
+            vlv_supported = self._check_server_vlv_support(key)
+
+            # Check if server supports sorting (required for VLV)
+            sorting_supported = self._check_server_sorting_support(key)
+
+            # Get server flavor
+            server_flavor = LdapServerCapabilities.detect_server_flavor(
+                self.connection, key
+            )
+
+            # Get server capabilities
+            server_info = LdapServerCapabilities._get_server_info(self.connection, key)
+
+            return {
+                "vlv_supported": vlv_supported,
+                "sorting_supported": sorting_supported,
+                "server_flavor": server_flavor,
+                "capabilities": server_info.get("capabilities", {}),
+                "page_size_limit": server_info.get("page_size", 0),
+                "vlv_ready": vlv_supported and sorting_supported,
+            }
+        except (
+            ldap.OPERATIONS_ERROR,
+            ldap.UNWILLING_TO_PERFORM,
+            ldap.PROTOCOL_ERROR,
+        ) as e:
+            logger.error("Error testing VLV support (server error): %s", str(e))  # noqa: TRY400
+            return {
+                "vlv_supported": False,
+                "sorting_supported": False,
+                "server_flavor": "unknown",
+                "capabilities": {},
+                "page_size_limit": 0,
+                "vlv_ready": False,
+                "error": str(e),
+            }
+        except (ValueError, TypeError) as e:
+            logger.error("Error testing VLV support (control error): %s", str(e))  # noqa: TRY400
+            return {
+                "vlv_supported": False,
+                "sorting_supported": False,
+                "server_flavor": "unknown",
+                "capabilities": {},
+                "page_size_limit": 0,
+                "vlv_ready": False,
+                "error": str(e),
+            }
+        except ldap.LDAPError as e:
+            logger.error("Error testing VLV support (LDAP error): %s", str(e))  # noqa: TRY400
+            return {
+                "vlv_supported": False,
+                "sorting_supported": False,
+                "server_flavor": "unknown",
+                "capabilities": {},
+                "page_size_limit": 0,
+                "vlv_ready": False,
+                "error": str(e),
+            }

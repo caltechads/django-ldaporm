@@ -516,7 +516,7 @@ test = [
     { name = "mock", specifier = ">=3.0.5" },
     { name = "nose", specifier = ">=1.3.7" },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "python-ldap-faker", specifier = ">=1.2.1" },
+    { name = "python-ldap-faker", specifier = ">=1.3.0" },
     { name = "testfixtures", specifier = ">=6.10.0" },
     { name = "unittest-xml-reporting", specifier = ">=3.0.4" },
 ]
@@ -573,16 +573,16 @@ wheels = [
 
 [[package]]
 name = "django-wildewidgets"
-version = "1.1.6"
+version = "1.1.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "crispy-bootstrap5" },
     { name = "django" },
     { name = "django-crispy-forms" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/f2/a28a26fd200872789101d5b8fb6fe705ff575dbd838c5e9134f0c4807221/django_wildewidgets-1.1.6.tar.gz", hash = "sha256:39c51c359ef9d185f8fccab7bbce72fae117a6eb8b1ed05f56aab35f8379cf9f", size = 178457, upload-time = "2025-06-27T18:27:17.046Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/f2/549d51ec3bd10eb2372c514c38b01d1ad0a7c4e45f1192e536633c5608f6/django_wildewidgets-1.1.7.tar.gz", hash = "sha256:e4a8c792072a5825b0f39657aa6dfe8f3cf26f8414252ae74e323cb94c166400", size = 178554, upload-time = "2025-07-22T22:24:47.78Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/f4/b130a514996d353a2592c6d24735871ed5501d332d4eccb96865089852f2/django_wildewidgets-1.1.6-py3-none-any.whl", hash = "sha256:e71d70964aee7655121148162399df25308d1c22bffde6fc9974fec7b04f0abb", size = 214322, upload-time = "2025-06-27T18:27:15.476Z" },
+    { url = "https://files.pythonhosted.org/packages/68/22/d738493eed27e5fc935e959860b88100387d0d9bef7d7f533e1d677904ec/django_wildewidgets-1.1.7-py3-none-any.whl", hash = "sha256:4423a3889df5c1075d55cc9057413127ddd6780ce5c181d4e37670059b608ad5", size = 214385, upload-time = "2025-07-22T22:24:46.068Z" },
 ]
 
 [[package]]
@@ -1206,7 +1206,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/fd/8b/1eeb4025dc1d3ac2f
 
 [[package]]
 name = "python-ldap-faker"
-version = "1.2.1"
+version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asn1" },
@@ -1214,9 +1214,9 @@ dependencies = [
     { name = "ldap-filter" },
     { name = "python-ldap" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/21/5075bda1cdff9c6aa0bff21f2c0af24c976e84f1f050a57738d997d6afec/python_ldap_faker-1.2.1.tar.gz", hash = "sha256:78f85a49d110a81d5ddb492f4522aa1495e555f801c0a9d6c90768ab5a2c9cbf", size = 70885, upload-time = "2025-07-22T16:43:21.663Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/5c/ee789ee675b7eaf5c2fb01adc526788e37ee2927f17733c8064ef68990e7/python_ldap_faker-1.3.2.tar.gz", hash = "sha256:4d48406863a6f0692fe2d8de05c146c36c73f6233b1855cfb3058084bc6a5935", size = 74079, upload-time = "2025-07-23T23:24:43.342Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/25/a4548d0876d79e3d84a47189e36da4ab475990d2fac365492494a176c4be/python_ldap_faker-1.2.1-py3-none-any.whl", hash = "sha256:1bc2697c7c0959c7c65f60a86d7b25b27cfa54920d99519b24532a04863030de", size = 82479, upload-time = "2025-07-22T16:43:20.351Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/6b/0d95bc03581a805ba960b960cbf72eee2e72ef84fe445ebf69d146245e00/python_ldap_faker-1.3.2-py3-none-any.whl", hash = "sha256:a95e982d18a201310548a9e9bdab9842706fce891419655c27fccc0acdd076e1", size = 86157, upload-time = "2025-07-23T23:24:42.015Z" },
 ]
 
 [[package]]

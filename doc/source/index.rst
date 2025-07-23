@@ -12,6 +12,7 @@ django-ldaporm
    overview/models
    overview/fields
    overview/managers
+   overview/vlv
    overview/implementation
 
 .. toctree::

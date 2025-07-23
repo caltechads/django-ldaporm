@@ -178,7 +178,7 @@ python-ldap==3.4.4
     # via
     #   django-ldaporm (pyproject.toml)
     #   python-ldap-faker
-python-ldap-faker==1.2.1
+python-ldap-faker==1.3.2
     # via django-ldaporm (pyproject.toml:test)
 pytz==2025.2
     # via django-ldaporm (pyproject.toml)

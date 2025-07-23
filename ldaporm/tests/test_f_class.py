@@ -821,15 +821,17 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_slice_with_empty_result(self):
         """Test slicing with empty results."""
-        f = F(self.manager)
-        f = f.filter(uid="nonexistent")
+        # Mock VLV support to False to force client-side slicing
+        with patch.object(self.manager, 'supports_vlv', return_value=False):
+            f = F(self.manager)
+            f = f.filter(uid="nonexistent")
 
-        # Slicing empty result should return empty list
-        empty_slice = f[:5]
-        assert len(empty_slice) == 0
+            # Slicing empty result should return empty list
+            empty_slice = f[:5]
+            assert len(empty_slice) == 0
 
-        empty_slice = f[1:3]
-        assert len(empty_slice) == 0
+            empty_slice = f[1:3]
+            assert len(empty_slice) == 0
 
     def test_convenience_methods_with_complex_queries(self):
         """Test convenience methods with complex query chains."""
@@ -976,58 +978,64 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
 
     def test_inefficient_slicing(self):
         """Test that other slice types fall back to fetching all records."""
-        f = F(self.manager)
-        f = f.filter(objectclass="posixAccount").order_by("uid")
+        # Mock VLV support to False to force client-side slicing
+        with patch.object(self.manager, 'supports_vlv', return_value=False):
+            f = F(self.manager)
+            f = f.filter(objectclass="posixAccount").order_by("uid")
 
-        # Test slice with start (inefficient)
-        skip_first = f[1:3]
-        assert len(skip_first) == 2
-        assert skip_first[0].uid == "bob"
-        assert skip_first[1].uid == "charlie"
+            # Test slice with start (inefficient)
+            skip_first = f[1:3]
+            assert len(skip_first) == 2
+            assert skip_first[0].uid == "bob"
+            assert skip_first[1].uid == "charlie"
 
-        # Test slice with step (inefficient)
-        every_other = f[::2]
-        assert len(every_other) == 3
-        assert every_other[0].uid == "alice"
-        assert every_other[1].uid == "charlie"
-        assert every_other[2].uid == "edward"
+            # Test slice with step (inefficient)
+            every_other = f[::2]
+            assert len(every_other) == 3
+            assert every_other[0].uid == "alice"
+            assert every_other[1].uid == "charlie"
+            assert every_other[2].uid == "edward"
 
-        # Test slice with start and stop (inefficient)
-        middle_three = f[1:4]
-        assert len(middle_three) == 3
-        assert middle_three[0].uid == "bob"
-        assert middle_three[1].uid == "charlie"
-        assert middle_three[2].uid == "diana"
+            # Test slice with start and stop (inefficient)
+            middle_three = f[1:4]
+            assert len(middle_three) == 3
+            assert middle_three[0].uid == "bob"
+            assert middle_three[1].uid == "charlie"
+            assert middle_three[2].uid == "diana"
 
     def test_slicing_with_filters(self):
         """Test that slicing works correctly with filters."""
-        f = F(self.manager)
-        f = f.filter(loginShell="/bin/bash").order_by("uid")
+        # Mock VLV support to False to force client-side slicing
+        with patch.object(self.manager, 'supports_vlv', return_value=False):
+            f = F(self.manager)
+            f = f.filter(loginShell="/bin/bash").order_by("uid")
 
-        # Test efficient slicing with filter
-        first_two_bash = f[:2]
-        assert len(first_two_bash) == 2
-        assert first_two_bash[0].uid == "alice"
-        assert first_two_bash[1].uid == "bob"
+            # Test efficient slicing with filter
+            first_two_bash = f[:2]
+            assert len(first_two_bash) == 2
+            assert first_two_bash[0].uid == "alice"
+            assert first_two_bash[1].uid == "bob"
 
-        # Test inefficient slicing with filter
-        skip_first_bash = f[1:]
-        assert len(skip_first_bash) == 2  # bob and diana
-        assert skip_first_bash[0].uid == "bob"
-        assert skip_first_bash[1].uid == "diana"
+            # Test inefficient slicing with filter
+            skip_first_bash = f[1:]
+            assert len(skip_first_bash) == 2  # bob and diana
+            assert skip_first_bash[0].uid == "bob"
+            assert skip_first_bash[1].uid == "diana"
 
     def test_slicing_edge_cases(self):
         """Test slicing with edge cases."""
-        # Test with empty result
-        empty_f = F(self.manager).filter(uid="nonexistent")
-        self.assertEqual(len(empty_f), 0)
-        self.assertEqual(empty_f[:5], [])
+        # Mock VLV support to False to force client-side slicing
+        with patch.object(self.manager, 'supports_vlv', return_value=False):
+            # Test with empty result
+            empty_f = F(self.manager).filter(uid="nonexistent")
+            self.assertEqual(len(empty_f), 0)
+            self.assertEqual(empty_f[:5], [])
 
-        # Test with single result
-        single_f = F(self.manager).filter(uid="alice")
-        self.assertEqual(len(single_f), 1)
-        self.assertEqual(single_f[:5], single_f.as_list())
-        self.assertEqual(single_f[5:], [])
+            # Test with single result
+            single_f = F(self.manager).filter(uid="alice")
+            self.assertEqual(len(single_f), 1)
+            self.assertEqual(single_f[:5], single_f.as_list())
+            self.assertEqual(single_f[5:], [])
 
     # ========================================
     # Exclude Method Tests
@@ -1357,6 +1365,161 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         self.assertIn("bob", user_uids)
         # Should include charlie (who is not alice but has zsh)
         self.assertIn("charlie", user_uids)
+
+
+class TestFVlvSlicing(LDAPFakerMixin, unittest.TestCase):
+    """Test VLV slicing functionality in F class."""
+
+    ldap_modules = ['ldaporm']
+    ldap_fixtures = 'vlv_test_data.json'
+
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        if not hasattr(self, 'ldap_faker'):
+            LDAPFakerMixin.setUp(self)
+
+        # Set up Django settings patcher
+        self.settings_patcher = patch('django.conf.settings.LDAP_SERVERS', {
+            "test_server": {
+                "read": {
+                    "url": "ldap://localhost:389",
+                    "user": "cn=admin,dc=example,dc=com",
+                    "password": "admin",
+                    "use_starttls": False,
+                    "tls_verify": "never"
+                },
+                "write": {
+                    "url": "ldap://localhost:389",
+                    "user": "cn=admin,dc=example,dc=com",
+                    "password": "admin",
+                    "use_starttls": False,
+                    "tls_verify": "never"
+                }
+            }
+        })
+        self.settings_patcher.start()
+
+        # Initialize the manager
+        self.manager = LdapManager()
+        self.manager.contribute_to_class(MyTestUser, 'objects')
+
+    def tearDown(self):
+        """Clean up after tests."""
+        if hasattr(self, 'settings_patcher'):
+            self.settings_patcher.stop()
+        super().tearDown()
+
+    def test_vlv_slicing_basic(self):
+        """Test basic VLV slicing functionality."""
+        # Mock VLV support
+        with patch.object(self.manager, 'supports_vlv', return_value=True):
+            # Mock search_with_controls to return VLV results
+            mock_results = [
+                ("uid=alice,ou=users,dc=example,dc=com", {"uid": [b"alice"]}),
+                ("uid=bob,ou=users,dc=example,dc=com", {"uid": [b"bob"]}),
+            ]
+            mock_response_controls = [
+                ("2.16.840.1.113730.3.4.9", b"mock_vlv_response_data")
+            ]
+
+            with patch.object(self.manager, 'search_with_controls') as mock_search:
+                mock_search.return_value = (mock_results, mock_response_controls)
+
+                # Test slicing
+                f_obj = F(self.manager)
+                result = f_obj[1:3]  # Should use VLV
+
+                # Verify search_with_controls was called
+                mock_search.assert_called_once()
+                call_args = mock_search.call_args
+                self.assertIn('controls', call_args[1])
+
+                # Check that VLV control was included
+                controls = call_args[1]['controls']
+                from ldaporm.managers import VirtualListViewControl
+                vlv_controls = [c for c in controls if isinstance(c, VirtualListViewControl)]
+                self.assertEqual(len(vlv_controls), 1)
+
+                vlv_control = vlv_controls[0]
+                self.assertEqual(vlv_control.offset, 1)
+                self.assertEqual(vlv_control.count, 2)
+
+    def test_vlv_slicing_fallback_to_client_side(self):
+        """Test fallback to client-side slicing when VLV not supported."""
+        # Mock no VLV support
+        with patch.object(self.manager, 'supports_vlv', return_value=False):
+            # Mock regular search
+            with patch.object(self.manager, 'search') as mock_search:
+                mock_search.return_value = [
+                    ("uid=alice,ou=users,dc=example,dc=com", {"uid": [b"alice"]}),
+                    ("uid=bob,ou=users,dc=example,dc=com", {"uid": [b"bob"]}),
+                    ("uid=charlie,ou=users,dc=example,dc=com", {"uid": [b"charlie"]}),
+                    ("uid=diana,ou=users,dc=example,dc=com", {"uid": [b"diana"]}),
+                ]
+
+                # Test slicing
+                f_obj = F(self.manager)
+                result = f_obj[1:3]
+
+                # Verify regular search was called (not search_with_controls)
+                mock_search.assert_called_once()
+
+                # Verify result contains expected items
+                self.assertEqual(len(result), 2)
+                # The result should be model objects, not raw LDAP data
+                self.assertEqual(result[0].uid, "bob")
+                self.assertEqual(result[1].uid, "charlie")
+
+    def test_vlv_slicing_with_ordering(self):
+        """Test VLV slicing with ordering."""
+        # Mock VLV support
+        with patch.object(self.manager, 'supports_vlv', return_value=True):
+            with patch.object(self.manager, 'search_with_controls') as mock_search:
+                mock_search.return_value = ([], [])
+
+                f_obj = F(self.manager).order_by('uid')
+                result = f_obj[1:3]
+
+                # Verify search_with_controls was called with ordering
+                mock_search.assert_called_once()
+                call_args = mock_search.call_args
+                self.assertIn('controls', call_args[1])
+
+    def test_vlv_slicing_with_filtering(self):
+        """Test VLV slicing with filtering."""
+        # Mock VLV support
+        with patch.object(self.manager, 'supports_vlv', return_value=True):
+            with patch.object(self.manager, 'search_with_controls') as mock_search:
+                mock_search.return_value = ([], [])
+
+                f_obj = F(self.manager).filter(uid='alice')
+                result = f_obj[0:1]
+
+                # Verify search_with_controls was called with filter
+                mock_search.assert_called_once()
+                call_args = mock_search.call_args
+                self.assertIn('controls', call_args[1])
+
+    def test_vlv_slicing_error_handling(self):
+        """Test VLV slicing error handling."""
+        # Mock VLV support
+        with patch.object(self.manager, 'supports_vlv', return_value=True):
+            # Mock search_with_controls to raise an exception
+            with patch.object(self.manager, 'search_with_controls') as mock_search:
+                mock_search.side_effect = ldap.OPERATIONS_ERROR("VLV not supported")
+
+                # Should fallback to client-side slicing
+                with patch.object(self.manager, 'search') as mock_regular_search:
+                    mock_regular_search.return_value = [
+                        ("uid=alice,ou=users,dc=example,dc=com", {"uid": [b"alice"]}),
+                    ]
+
+                    f_obj = F(self.manager)
+                    result = f_obj[0:1]
+
+                    # Should fallback to regular search
+                    mock_regular_search.assert_called_once()
 
 
 if __name__ == "__main__":
