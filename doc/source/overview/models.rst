@@ -39,6 +39,30 @@ more information about how the ``Meta`` class informs your model.
            verbose_name = 'LDAP User'
            verbose_name_plural = 'LDAP Users'
 
+Using different field names from LDAP attribute names
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can use different field names from LDAP attribute names by using the
+``db_column`` parameter.
+
+.. code-block:: python
+
+   class LDAPUser(Model):
+       username = CharField('Username', primary_key=True, max_length=50, db_column='uid')
+       full_name = CharField('Full Name', max_length=100, db_column='cn')
+       last_name = CharField('Surname', max_length=100, db_column='sn')
+       first_name = CharField('Given Name', max_length=100, db_column='givenName')
+       email = EmailField('Email', max_length=254, db_column='mail')
+       is_active = BooleanField('Active', default=True, db_column='userAccountControl')
+
+       class Meta:
+           ldap_server = 'default'
+           basedn = 'ou=users,dc=example,dc=com'
+           objectclass = 'person'
+           verbose_name = 'LDAP User'
+           verbose_name_plural = 'LDAP Users'
+           ordering = ['uid']
+
 Model Meta Options
 ------------------
 
@@ -48,22 +72,26 @@ The ``Meta`` class configures how the model interacts with LDAP.   See :py:class
 
    class Meta:
        # LDAP server configuration
-       ldap_server = 'default'  # Server name from LDAP_SERVERS
+       ldap_server = 'default'  # Server name from settings.LDAP_SERVERS
        # The base DN for searches.  If not provided, we'll use the basedn from
        # the LDAP_SERVERS configuration.
        basedn = 'ou=users,dc=example,dc=com'  # Base DN for searches
-       objectclass = 'person'  # LDAP object class
+       objectclass = 'inetOrgPerson'  # LDAP object class
        # LDAP object classes that will be added to the object when it is created
        # in addition to the objectclass.
-       extra_objectclasses = ['inetOrgPerson', 'organizationalPerson']
-       # Extra options used to confuigure this model
-       ldap_options = ['paged_search']
+       extra_objectclasses = ['top','inetOrgPerson', 'organizationalPerson']
+       # Extra options used to confuigure this model.  Currently, there are no
+       # extra options.
+       ldap_options = []
        # Django admin options
        verbose_name = 'LDAP User'
        verbose_name_plural = 'LDAP Users'
-
-       # Ordering
-       ordering = ['cn']  # Default ordering
+       # Ordering.  Note that this needs to be the field name, not the LDAP attribute name.
+       ordering = ['uid']
+       # If this is a user model, set the password attribute to the LDAP attribute
+       # that contains the user's password.  This is used to set the password with
+       # the `LdapManager.reset_password` method.
+       password_attribute = 'unicodePwd'
 
 
 Field Types
@@ -92,18 +120,22 @@ Basic Fields
        mail = EmailField('mail', max_length=254)
 
        # Boolean field
-       is_active = BooleanField('userAccountControl', default=True)
+       is_active = BooleanField('Is Active?', default=True, db_column='userAccountControl')
 
        # Integer field
-       uidNumber = IntegerField('uidNumber', null=True)
+       uidNumber = IntegerField('UID Number', null=True)
 
        # Date/time fields
        created = DateTimeField('whenCreated', auto_now_add=True)
        modified = DateTimeField('whenChanged', auto_now=True)
-       birthDate = DateField('birthDate', null=True)
+       birthDate = DateField('Birth Date', null=True)
 
        # Binary field
-       photo = BinaryField('jpegPhoto', null=True)
+       photo = BinaryField('Photo', null=True)
+
+       class Meta:
+           ldap_server = 'default'
+           ...
 
 Multi-valued Fields
 ^^^^^^^^^^^^^^^^^^^
@@ -126,12 +158,7 @@ Handle LDAP attributes that can have multiple values:
 
        class Meta:
           ldap_server = 'default'
-          basedn = 'ou=groups,dc=example,dc=com'
-          objectclass = 'groupOfNames'
-          ldap_options = ['paged_search']
-          verbose_name = 'LDAP Group'
-          verbose_name_plural = 'LDAP Groups'
-          ordering = ['cn']
+          ...
 
 Active Directory Fields
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -143,24 +170,20 @@ Special fields for Active Directory environments:
    from ldaporm.fields import ActiveDirectoryTimestampField
 
    class ADUser(Model):
-       sAMAccountName = CharField('sAMAccountName', primary_key=True, max_length=50)
-       cn = CharField('cn', max_length=100)
+       uid = CharField('UID', primary_key=True, max_length=50)
+       full_name = CharField('Full Name', max_length=100, db_column='cn')
 
        # AD timestamp fields
-       lastLogon = ActiveDirectoryTimestampField('lastLogon', null=True)
-       pwdLastSet = ActiveDirectoryTimestampField('pwdLastSet', null=True)
-       accountExpires = ActiveDirectoryTimestampField('accountExpires', null=True)
+       last_logon = ActiveDirectoryTimestampField('lastLogon', null=True, db_column='lastLogon')
+       pwd_last_set = ActiveDirectoryTimestampField('pwdLastSet', null=True, db_column='pwdLastSet')
+       account_expires = ActiveDirectoryTimestampField('accountExpires', null=True, db_column='accountExpires')
 
        class Meta:
           ldap_server = 'default'
-          basedn = 'ou=users,dc=example,dc=com'
-          objectclass = 'person'
-          ldap_options = ['paged_search']
-          verbose_name = 'Person'
-          verbose_name_plural = 'People'
           ordering = ['sAMAccountName']
           userid_attribute = 'sAMAccountName'
           password_attribute = 'unicodePwd'
+          ...
 
 Field Options
 -------------
@@ -198,6 +221,9 @@ additional arguments, so see :doc:`/api/fields` for more information.
        created = DateTimeField('whenCreated', auto_now_add=True)
        modified = DateTimeField('whenChanged', auto_now=True)
 
+       class Meta:
+           ...
+
 Field Validation
 ^^^^^^^^^^^^^^^^
 
@@ -221,6 +247,9 @@ Add custom validation:
            max_length=50,
            validators=[validate_uid_format]
        )
+
+       class Meta:
+           ...
 
 Model Methods
 -------------
@@ -253,7 +282,7 @@ Add custom methods to your models:
            super().save(*args, **kwargs)
 
        class Meta:
-            ...
+           ...
 
 Model Validation
 ^^^^^^^^^^^^^^^^
@@ -328,7 +357,7 @@ Best Practices
 Naming Conventions
 ^^^^^^^^^^^^^^^^^^
 
-* Use descriptive model names (e.g., `LDAPUser`, `ADGroup`)
+* Use descriptive model names (e.g., ``LDAPUser``, ``ADGroup``)
 * Follow LDAP attribute naming conventions
 * Use consistent field naming across models
 
@@ -337,16 +366,18 @@ Performance Considerations
 
 * Use appropriate search scopes
 * Implement proper indexing on LDAP server
-* Use paged searches for large result sets
 * Cache frequently accessed data
 
 Security
 ^^^^^^^^
 
-* Use read-only connections when possible
-* Implement proper access controls
-* Validate all input data
-* Use secure LDAP connections (LDAPS)
+* When reading, the ``read`` connection is always used.  When writing, the
+  ``write`` connection is used.  This helps ensure that you are always using
+  the correct connection for the operation you are performing.
+* Implement proper access controls for your LDAP server.  This is especially
+  important for write operations.  This is outside the scope of this guide.
+* Validate all input data.  This is especially important for write operations.
+  This is outside the scope of this guide.
 
 Error Handling
 ^^^^^^^^^^^^^^
@@ -406,8 +437,7 @@ Here's a complete example of a user management model:
            objectclass = 'person'
            verbose_name = 'LDAP User'
            verbose_name_plural = 'LDAP Users'
-           ordering = ['cn']
-           search_scope = 'subtree'
+           ordering = ['uid']
 
        def get_full_name(self):
            """Return the user's full name."""

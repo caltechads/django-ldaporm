@@ -285,7 +285,7 @@ Troubleshooting
    .. code-block:: bash
 
       # Check service logs
-      docker-compose logs web
+      docker-compose logs django_ldaporm_demo
       docker-compose logs ldap
       docker-compose logs db
 
@@ -427,4 +427,4 @@ Cleanup
    .. code-block:: bash
 
       cd sandbox
-      make clean
+      make docker-clean

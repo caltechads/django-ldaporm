@@ -7,8 +7,7 @@ Requirements
 ------------
 
 * Python 3.10 or higher
-* Django 4.0 or higher
-* python-ldap library
+* Django 4.2 or higher (demo requires 5.2 or higher)
 * Access to an LDAP server
 
 Installing django-ldaporm
@@ -56,7 +55,8 @@ LDAP Server Configuration
 -------------------------
 
 Configure your LDAP servers via the ``LDAP_SERVERS`` setting in your Django
-settings.  See :doc:`/overview/configuration` for more information.
+settings.  See :doc:`/overview/configuration` for more information and other
+configuration options.
 
 .. code-block:: python
 

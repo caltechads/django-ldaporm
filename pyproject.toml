@@ -231,6 +231,7 @@ ignore = [
     "FBT001",   # stop bugging me about booleans in function signatures
     "FBT002",   # stop bugging me about booleans in function signatures
     "PT009",    # use regular assert instead of unittest asserts
+    "ERA001",   # found commented code
 ]
 
 [tool.ruff.format]

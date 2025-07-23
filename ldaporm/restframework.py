@@ -3,7 +3,9 @@ import datetime
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from rest_framework import Request, View, serializers
+from rest_framework import serializers
+from rest_framework.request import Request
+from rest_framework.views import View
 from rest_framework.filters import BaseFilterBackend
 from rest_framework.pagination import BasePagination
 from rest_framework.response import Response

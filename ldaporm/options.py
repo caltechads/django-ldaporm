@@ -5,6 +5,7 @@ This module provides the Options class for managing LDAP model metadata, includi
 field mappings, LDAP server configuration, and model attributes.
 """
 
+import warnings
 from bisect import bisect
 from typing import TYPE_CHECKING, cast
 
@@ -210,6 +211,15 @@ class Options:
                     ",".join(meta_attrs)
                 )
                 raise TypeError(msg)
+
+        # Add deprecation warning for paged_search option
+        if "paged_search" in self.ldap_options:
+            warnings.warn(
+                "The 'paged_search' option in ldap_options is deprecated. "
+                "Paging is now detected automatically. Please remove this option.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         else:
             # format_lazy returns _StrPromise but we need str
             self.verbose_name_plural = format_lazy("{}s", self.verbose_name)  # type: ignore[assignment]

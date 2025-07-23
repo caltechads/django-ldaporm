@@ -70,7 +70,7 @@ Server Configuration Options
 URL Configuration
 ^^^^^^^^^^^^^^^^^^
 
-The `url` parameter supports both LDAP and LDAPS protocols:
+The ``url`` parameter supports both LDAP and LDAPS protocols:
 
 .. code-block:: python
 
@@ -95,13 +95,23 @@ Configure connection behavior:
 
    LDAP_SERVERS = {
        'default': {
-           'url': 'ldaps://ldap.example.com:636',
-           'user': 'cn=admin,dc=example,dc=com',
-           'password': 'your-password',
-           'basedn': 'dc=example,dc=com',
-           'timeout': 30,  # Connection timeout in seconds
-           'retry_max': 3,  # Maximum retry attempts
-           'retry_delay': 1,  # Delay between retries in seconds
+            'basedn': 'dc=example,dc=com',
+            'read': {
+                'url': 'ldaps://ldap.example.com:636',
+                'user': 'cn=admin,dc=example,dc=com',
+                'password': 'your-password',
+                'timeout': 30,  # Connection timeout in seconds
+                'retry_max': 3,  # Maximum retry attempts
+                'retry_delay': 1,  # Delay between retries in seconds
+            },
+            'write': {
+                'url': 'ldaps://ldap.example.com:636',
+                'user': 'cn=admin,dc=example,dc=com',
+                'password': 'your-password',
+                'timeout': 30,  # Connection timeout in seconds
+                'retry_max': 3,  # Maximum retry attempts
+                'retry_delay': 1,  # Delay between retries in seconds
+            }
        }
    }
 
@@ -183,6 +193,70 @@ Configure search behavior:
        }
    }
 
+Server Capabilities Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Configure automatic server capability detection and paging behavior:
+
+.. code-block:: python
+
+   # Server capabilities settings
+   LDAP_SERVER_CAPABILITIES = {
+       # Default page size for paged searches (default: 1000)
+       'default_page_size': 1000,
+
+       # Minimum page size (default: 1)
+       'min_page_size': 1,
+
+       # Maximum page size (default: 10000)
+       'max_page_size': 10000,
+
+       # Cache TTL for server capabilities in seconds (default: 3600)
+       'cache_ttl': 3600,
+   }
+
+The system automatically detects LDAP server capabilities and optimizes search behavior:
+
+**Automatic Paging Detection**
+
+* The system automatically detects if the LDAP server supports paged results
+* Uses server-side paging when available for better performance
+* Falls back to unpaged results for servers that don't support paging
+* Page sizes are automatically adjusted based on server limits
+
+**Server Flavor Detection**
+
+* **Active Directory**: Detected by `forestFunctionality` attribute
+* **389 Directory Server**: Detected by `vendorName` attribute (includes Oracle and ForgeRock variants)
+* **OpenLDAP**: Detected by `vendorName` attribute
+* **Unknown servers**: Use conservative defaults
+
+**Page Size Limits by Server**
+
+* **Active Directory**: 1000 (configurable via `maxPageSize`)
+* **389 Directory Server**: 10000 (configurable via `nsslapd-sizelimit`)
+* **OpenLDAP**: 1000 (configurable via `sizelimit`)
+* **Unknown servers**: 1000 (default)
+
+**Caching**
+
+* Server capabilities are cached at the class level to avoid repeated detection
+* Cache TTL is configurable via ``cache_ttl`` setting
+* Cache can be cleared programmatically if needed
+
+**Backward Compatibility**
+
+* The old ``paged_search`` parameter is deprecated but still supported
+* A deprecation warning is shown when using the old parameter
+* Existing code continues to work without changes
+* New code should rely on automatic detection instead of manual configuration
+
+**Logging and Monitoring**
+* Server capability detection is logged at INFO level
+* Logs include which features are detected and enabled
+* OpenLDAP users receive helpful warnings about server-side sorting configuration
+* Connection errors are properly propagated and logged
+
 Multiple Server Configuration
 -----------------------------
 
@@ -237,7 +311,7 @@ Troubleshooting Configuration
 Common configuration issues:
 
 **Connection Timeouts**
-* Increase `timeout` value
+* Increase ``timeout`` value
 * Check network connectivity
 * Verify LDAP server is running
 
@@ -247,6 +321,18 @@ Common configuration issues:
 * Ensure proper permissions
 
 **TLS Certificate Issues**
-* Set `tls_verify=never` for testing (or unset it, since it defaults to ``never``)
+* Set ``tls_verify=never`` for testing (or unset it, since it defaults to ``never``)
 * Provide proper CA certificates
 * Check certificate expiration
+
+**Server Capability Detection Issues**
+* Check LDAP server logs for connection errors
+* Verify server supports Root DSE queries
+* Clear capability cache if server configuration changes
+* Check for network connectivity issues
+
+**Paging Performance Issues**
+* Adjust ``default_page_size`` based on server performance
+* Monitor memory usage with large result sets
+* Consider reducing ``max_page_size`` for slower servers
+* Check server-side paging configuration

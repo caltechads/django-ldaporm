@@ -13,11 +13,9 @@ import logging
 import os
 import re
 import threading
-import warnings
 from base64 import b64encode as encode
 from collections import namedtuple
 from collections.abc import Callable
-from contextlib import suppress
 
 # Handle StrictVersion import for Python < 3.13 and >= 3.13 compatibility
 try:
@@ -40,6 +38,7 @@ from pyasn1.type import namedtype, tag, univ  # type: ignore[import]
 
 from ldaporm import ldap
 
+from .server_capabilities import LdapServerCapabilities
 from .typing import AddModlist, LDAPData, ModifyDeleteModList
 
 if TYPE_CHECKING:
@@ -130,7 +129,7 @@ def build_sort_control_value(sort_fields: list[str]) -> bytes:
             )
 
         # If you needed orderingRule, e.g. caseIgnoreOrderingMatch:
-        # sort_key.setComponentByName('orderingRule', univ.OctetString('caseIgnoreOrderingMatch'.encode('utf-8')))  # noqa: E501, ERA001
+        # sort_key.setComponentByName('orderingRule', univ.OctetString('caseIgnoreOrderingMatch'.encode('utf-8')))  # noqa: E501
 
         sort_key_list.append(sort_key)
 
@@ -1594,9 +1593,6 @@ class LdapManager:
 
     """
 
-    #: Class-level cache for server-side sorting capability per server configuration
-    _server_sorting_supported: ClassVar[dict[str, bool]] = {}
-
     def __init__(self) -> None:
         """
         Initialize the LdapManager instance and set up configuration attributes.
@@ -2010,11 +2006,16 @@ class LdapManager:
                 "basedn is required either as a parameter or in the model's Meta class"
             )
             raise ValueError(msg)
-        if "paged_search" in self.ldap_options:
+        # Check if server supports paging and use it automatically
+        if LdapServerCapabilities.check_server_paging_support(self.connection):
+            page_size = LdapServerCapabilities.get_server_page_size_limit(
+                self.connection
+            )
             return self._paged_search(
                 basedn,
                 searchfilter,
                 attrlist=attributes,
+                pagesize=page_size,
                 sizelimit=sizelimit,
                 scope=scope,
                 sort_control=sort_control,
@@ -2542,7 +2543,7 @@ class LdapManager:
 
     def _check_server_sorting_support(self, key: str = "read") -> bool:
         """
-        Check if the LDAP server supports server-side sorting by querying the Root DSE.
+        Check if the LDAP server supports server-side sorting.
 
         Args:
             key: Configuration key for the LDAP server.
@@ -2551,75 +2552,11 @@ class LdapManager:
             True if server-side sorting is supported, False otherwise.
 
         """
-        # Check cache first
-        if key in self.__class__._server_sorting_supported:
-            return self.__class__._server_sorting_supported[key]
+        # Ensure we have a connection before checking capabilities
+        if not self.has_connection():
+            self.connect(key)
 
-        # Create a temporary connection to check server capabilities
-        temp_connection = None
-        try:
-            temp_connection = self._connect(key)
-
-            # Query the Root DSE for supported controls
-            result = temp_connection.search_s(
-                "",  # Root DSE
-                ldap.SCOPE_BASE,  # type: ignore[attr-defined]
-                "(objectClass=*)",
-                ["supportedControl"],
-            )
-
-        except ldap.LDAPError as e:  # type: ignore[attr-defined]
-            # Allow SERVER_DOWN and CONNECT_ERROR to propagate (test is inconclusive)
-            if isinstance(e, (ldap.SERVER_DOWN, ldap.CONNECT_ERROR)):  # type: ignore[attr-defined]
-                raise
-            # If we can't check due to other LDAP-specific errors, assume no support
-            # and log the error
-            self.logger.warning(
-                "Failed to check server-side sorting support: %s. "
-                "Falling back to client-side sorting.",
-                e,
-            )
-            self.__class__._server_sorting_supported[key] = False
-            warnings.warn(
-                f"Failed to check server-side sorting support: {e}. "
-                "Falling back to client-side sorting.",
-                stacklevel=2,
-            )
-            return False
-        else:
-            if not result:
-                # No Root DSE found, assume no support
-                self.__class__._server_sorting_supported[key] = False
-                warnings.warn(
-                    "Could not query Root DSE for supported controls. "
-                    "Server-side sorting will be disabled.",
-                    stacklevel=2,
-                )
-                return False
-
-            # Extract supported controls from the result
-            supported_controls = result[0][1].get("supportedControl", [])
-
-            # Check if our server-side sorting OID is in the list
-            sorting_oid = "1.2.840.113556.1.4.473"
-            is_supported = any(
-                control.decode("utf-8") == sorting_oid for control in supported_controls
-            )
-
-            # Cache the result at class level
-            self.__class__._server_sorting_supported[key] = is_supported
-
-            if not is_supported:
-                warnings.warn(
-                    "LDAP server does not support server-side sorting "
-                    f"(OID: {sorting_oid}). Falling back to client-side sorting.",
-                    stacklevel=2,
-                )
-            return is_supported
-        finally:
-            if temp_connection:
-                with suppress(ldap.LDAPError):  # type: ignore[attr-defined]
-                    temp_connection.unbind_s()
+        return LdapServerCapabilities.check_server_sorting_support(self.connection, key)
 
     def count(self) -> int:
         """

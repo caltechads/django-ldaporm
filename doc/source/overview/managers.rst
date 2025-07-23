@@ -23,7 +23,17 @@ What's New (2025)
 - **Slicing and Indexing:** Query results support Python slicing and indexing. Slicing with ``[:stop]`` is efficient; other slices fetch all results then slice in Python.
 - **Convenience Methods:** ``.count()``, ``.as_list()``, ``.get_or_none()``, and ``.first_or_none()`` are available on both F and LdapManager objects.
 - **LDAP Paging:** New ``.page()`` method and ``LdapCursorPagination`` for efficient server-side paging of large result sets.
+- **Automatic Server-Side Sorting:** ``.order_by()`` method will use Server Side Sorting (OID: 20030802.1.1.1.1) for server-side sorting of large result sets, if available.
+- **Automatic Paging Detection:** Paging is now detected automatically based on server capabilities.
+- **Automatic Server Flavor Detection:** Server flavor is now detected automatically based on server capabilities.
+- **Automatic page size detection:** Page size is now detected automatically based on server capabilities.
+- **Django Settings Integration:** Page size limits and cache TTL can be configured via Django settings.
 - **Backward Compatibility:** ``.all()`` is still supported and works as before.
+
+.. deprecated:: 2025
+
+   The ``paged_search`` option in ``Meta.ldap_options`` is deprecated and will be removed
+   in a future version. Paging is now detected automatically based on server capabilities.
 
 Examples:
 
@@ -179,13 +189,13 @@ Querying Objects
 Filtering
 ---------
 
-If you have ``paged_search`` in your ``Meta.options`` list for your model,
-all filtering is done with paged, asynchronous searches.  This means that
-you can filter for a large number of objects and not worry about running
+Paging is now detected automatically based on server capabilities. If your LDAP server
+supports paged results (SimplePagedResultsControl), it will be used automatically.
+This means that you can filter for a large number of objects and not worry about running
 into server side limits or timeouts.
 
-Otherwise, all filtering is done with synchronous searches.  This means that
-you will get all the results at once.
+If your server doesn't support paging, all filtering is done with synchronous searches.
+This means that you will get all the results at once.
 
 .. important::
 
@@ -365,7 +375,7 @@ Debugging the actual LDAP query
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You can debug the actual LDAP query that will by printing the
-the ``__str__`` method on the :py:class:`~ldaporm.managers.F` object::
+the ``__str__`` method on the :py:class:`~ldaporm.managers.F` object:
 
 .. code-block:: python
 
@@ -897,6 +907,28 @@ managed the direct ``python-ldap`` connections.
    <ldap.ldapobject.LDAPObject object at 0x7f0000000000>
 
 
+
+Django Settings
+---------------
+
+See :doc:`/overview/configuration` for more information on the Django settings
+that can be used to configure LDAP ORM behavior.
+
+Server Detection
+---------------
+
+The system automatically detects the LDAP server type to optimize performance and use
+server-specific features:
+
+- **Active Directory**: Detected by presence of `forestFunctionality` attribute in Root DSE
+- **389 Directory Server**: Detected by vendor name containing "Fedora Project", "Red Hat", "Oracle", or "ForgeRock"
+- **OpenLDAP**: Detected by vendor name containing "OpenLDAP Foundation"
+- **Unknown**: Fallback for unrecognized servers
+
+Server detection is used to:
+- Determine optimal page sizes for paged searches
+- Provide server-specific warnings and help messages
+- Cache server capabilities efficiently
 
 Performance Optimization
 ------------------------
