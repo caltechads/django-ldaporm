@@ -19,6 +19,7 @@ services:
         condition: service_healthy
     volumes:
       - ./demo:/ve/lib/python3.13/site-packages/sandbox/demo
+      - .:/app
       - ../ldaporm:/ve/lib/python3.13/site-packages/ldaporm
 
   ldap:

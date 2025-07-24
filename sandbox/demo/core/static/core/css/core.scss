@@ -91,25 +91,14 @@
     }
 }
 
-.ribbon_bar__content {
-    &__breadcrumbs {
-        .breadcrumb-item + .breadcrumb-item::before {
-            color: black !important;
-        }
-        .breadcrumb-item.active span.text-white {
-            color: #333333 !important;
-        }
-        .breadcrumb-item:not(.active) {
-            font-weight: bold;
-            color: #333333 !important;
-            a {
-                pointer-events: auto !important;
-                color: #333333 !important;
-                text-decoration: none;
-            }
-        }
-    }
-  }
+.ribbon_bar {
+    background: #1d273b;
+}
+
+.ribbon_bar__content__breadcrumbs .breadcrumb-item + .breadcrumb-item::before {
+    color: white !important;
+}
+
 
 .user-configuration {
     @include checkbox-toggle();

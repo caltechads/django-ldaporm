@@ -18,6 +18,7 @@ from wildewidgets import (
     FormButton,
     HeaderWithWidget,
     HorizontalLayoutBlock,
+    Link,
     LinkButton,
     LinkedImage,
     Menu,
@@ -25,12 +26,14 @@ from wildewidgets import (
     StandardWidgetMixin,
     TablerVerticalNavbar,
     TemplateWidget,
+    WidgetListLayout,
     WidgetListLayoutHeader,
     WidgetStream,
 )
 
 from ldaporm.managers import F, LdapManager
 from ldaporm.models import Model as LdapModel
+from ldaporm.server_capabilities import LdapServerCapabilities
 from ldaporm.wildewidgets import LdapModelTableMixin
 
 from .forms import (
@@ -61,6 +64,11 @@ class MainMenu(Menu):
             text="Users",
             icon="people-fill",
             url=reverse_lazy("core:user--list"),
+        ),
+        MenuItem(
+            text="Users (VLV)",
+            icon="people-fill",
+            url=reverse_lazy("core:user--vlv-list"),
         ),
         MenuItem(
             text="Groups",
@@ -522,6 +530,313 @@ class UserTable(LdapModelTableMixin, BasicModelTable):
 
         """
         return "<br>".join(row.mail)
+
+
+# ====================================
+# Users: VLV Demonstration
+# ====================================
+
+
+class UserVLVInfoWidget(Block):
+    """
+    Widget for displaying VLV server information and performance metrics.
+
+    This widget shows LDAP server details, VLV support status, query timing,
+    and current slice information to demonstrate VLV functionality.
+    """
+
+    def __init__(self, queryset: F, page_obj: Any, query_time: float) -> None:  # noqa: ARG002
+        """
+        Initialize the VLV info widget.
+
+        Args:
+            queryset: The LDAP queryset being used
+            page_obj: Django paginator page object
+
+        """
+        super().__init__(css_class="mb-3 p-0")
+
+        execution_time = round(query_time * 1000, 2)  # Convert to ms
+
+        # Check if VLV is enabled
+        connection = cast("LdapManager", LDAPUser.objects).connection
+        vlv_enabled = LdapServerCapabilities.check_server_vlv_support(connection)
+        server_info = LdapServerCapabilities.detect_server_flavor(connection)
+
+        server_info = Block(
+            Block("Server", css_class="fw-bold fs-5"),
+            Block(server_info, css_class="fs-5"),  # type: ignore[arg-type]
+            css_class=(  # type: ignore[arg-type]
+                "d-flex justify-content-between p-3 bg-blue text-blue-fg border-bottom"
+            ),
+        )
+        vlv_status = Block(
+            Block("VLV Enabled?", css_class="fw-bold fs-5"),
+            Block(str(vlv_enabled), css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
+            css_class=(  # type: ignore[arg-type]
+                "d-flex justify-content-between p-3 bg-gray-800 text-blackborder-bottom"
+            ),
+        )
+        query_time = Block(
+            Block("Query Time", css_class="fw-bold fs-5"),
+            Block(f"{execution_time} ms", css_class="fs-5 font-monospace"),  # type: ignore[index]
+            css_class=(
+                "d-flex justify-content-between p-3 border-bottom bg-white "
+                "text-white-fg"
+            ),
+        )
+        slice_info = Block(
+            Block("Slice", css_class="fw-bold fs-5"),
+            Block(
+                f"{page_obj.start_index()}-{page_obj.end_index()}",
+                css_class="fs-5 font-monospace",
+            ),  # type: ignore[index]
+            css_class=(
+                "d-flex justify-content-between p-3 border-bottom bg-white "
+                "text-white-fg"
+            ),
+        )
+        total_records = Block(
+            Block("Total Records", css_class="fw-bold fs-5"),
+            Block(
+                str(cast("LdapManager", LDAPUser.objects).count()),
+                css_class="fs-5 font-monospace",
+            ),
+            css_class=(
+                "d-flex justify-content-between p-3 border-bottom bg-white "
+                "text-white-fg"
+            ),
+        )
+
+        # Add all blocks
+        self.add_block(server_info)
+        self.add_block(vlv_status)
+        self.add_block(query_time)
+        self.add_block(slice_info)
+        self.add_block(total_records)
+
+
+class VLVInfoWidget(Block):
+    """
+    Widget for displaying VLV server information and performance metrics.
+    """
+
+    title: str = "Virtual List View (VLV)"
+    icon: str = "info-circle"
+    name: str = "vlv-info"
+    css_class: str = "mb-3"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_block(
+            Block(
+                "VLV (Virtual List View) allows efficient pagination of large LDAP "
+                "result sets by fetching only the requested slice of data rather "
+                "than all records. This demonstration shows Django ListView "
+                "pagination working with LDAP VLV controls.",
+                css_class="alert alert-info mt-3",
+            )
+        )
+
+
+class UserVLVTableWidget(Block):
+    """
+    Widget for displaying a table of users built from Block primitives.
+
+    This widget demonstrates raw Django pagination without DataTable.js,
+    showing the same user fields as the main UserTable but using pure HTML.
+    """
+
+    title: str = "Users (VLV)"
+    icon: str = "people-fill"
+    name: str = "user-vlv"
+
+    def __init__(self, queryset: F, page_obj: Any) -> None:  # noqa: ARG002
+        """
+        Initialize the VLV table widget.
+
+        Args:
+            queryset: The LDAP queryset being used
+            page_obj: Django paginator page object containing user data
+
+        """
+        super().__init__(css_class="table-responsive mb-3")
+
+        # Create table structure
+        table = Block(tag="table", css_class="table table-striped")
+
+        # Table header
+        thead = Block(tag="thead", css_class="table-dark")
+        header_row = Block(tag="tr")
+
+        headers = [
+            ("Username", ""),
+            ("Name", ""),
+            ("Email", ""),
+            ("Employee Type", ""),
+            ("Employee Number", ""),
+        ]
+
+        for header_text, css_class in headers:
+            th = Block(header_text, tag="th", css_class=css_class)
+            header_row.add_block(th)
+
+        thead.add_block(header_row)
+        table.add_block(thead)
+
+        # Table body
+        tbody = Block(tag="tbody")
+
+        for user in page_obj.object_list:
+            row = Block(tag="tr")
+
+            # Username column (with link)
+            uid_cell = Block(tag="td")
+            uid_link = Link(
+                user.uid,
+                url=reverse("core:user--detail", kwargs={"uid": user.uid}),
+            )
+            uid_cell.add_block(uid_link)
+            row.add_block(uid_cell)
+
+            # Name column
+            name_cell = Block(str(user.full_name), tag="td")
+            row.add_block(name_cell)
+
+            # Email column (join multiple emails with <br>)
+            email_text = (
+                "<br>".join(str(email) for email in user.mail) if user.mail else ""
+            )
+            email_cell = Block(email_text, tag="td")
+            row.add_block(email_cell)
+
+            # Employee Type column
+            emp_type_cell = Block(
+                str(user.employee_type) if user.employee_type else "", tag="td"
+            )
+            row.add_block(emp_type_cell)
+
+            # Employee Number column
+            emp_num_cell = Block(
+                str(user.employee_number) if user.employee_number else "", tag="td"
+            )
+            row.add_block(emp_num_cell)
+
+            tbody.add_block(row)
+
+        table.add_block(tbody)
+        self.add_block(table)
+        self.add_block(UserVLVPaginationWidget(page_obj))
+
+
+class UserVLVPaginationWidget(Block):
+    """
+    Widget for displaying Django pagination controls built from Block primitives.
+
+    This widget creates pagination navigation using Bootstrap styling
+    without relying on DataTable.js pagination.
+    """
+
+    def __init__(self, page_obj: Any) -> None:
+        """
+        Initialize the VLV pagination widget.
+
+        Args:
+            page_obj: Django paginator page object
+
+        """
+        super().__init__(css_class="d-flex justify-content-center mt-3")
+
+        nav = Block(tag="nav", attributes={"aria-label": "User pagination"})
+        ul = Block(tag="ul", css_class="pagination")
+
+        # Previous button
+        prev_li = Block(
+            tag="li",
+            css_class="page-item"
+            + (" disabled" if not page_obj.has_previous() else ""),
+        )
+        if page_obj.has_previous():
+            prev_link = Link(
+                "Previous",
+                css_class="page-link",
+                url=f"?page={page_obj.previous_page_number()}",
+            )
+        else:
+            prev_link = Block("Previous", tag="span", css_class="page-link")
+        prev_li.add_block(prev_link)
+        ul.add_block(prev_li)
+
+        # Page numbers
+        paginator = page_obj.paginator
+        current_page = page_obj.number
+
+        # Show a window of page numbers around current page
+        start_page = max(1, current_page - 2)
+        end_page = min(paginator.num_pages, current_page + 2)
+
+        for page_num in range(start_page, end_page + 1):
+            page_li = Block(
+                tag="li",
+                css_class="page-item" + (" active" if page_num == current_page else ""),
+            )
+
+            if page_num == current_page:
+                page_link = Block(str(page_num), tag="span", css_class="page-link")
+            else:
+                page_link = Link(
+                    str(page_num),
+                    css_class="page-link",
+                    url=f"?page={page_num}",
+                )
+
+            page_li.add_block(page_link)
+            ul.add_block(page_li)
+
+        # Next button
+        next_li = Block(
+            tag="li",
+            css_class="page-item" + (" disabled" if not page_obj.has_next() else ""),
+        )
+        if page_obj.has_next():
+            next_link = Link(
+                "Next",
+                css_class="page-link",
+                url=f"?page={page_obj.next_page_number()}",
+            )
+        else:
+            next_link = Block("Next", tag="span", css_class="page-link")
+        next_li.add_block(next_link)
+        ul.add_block(next_li)
+
+        nav.add_block(ul)
+        self.add_block(nav)
+
+
+class UserVLVCompositeWidget(WidgetListLayout):
+    """
+    Composite widget that combines VLV info, table, and pagination widgets.
+
+    This widget demonstrates VLV functionality by showing server information,
+    a paginated table of users, and pagination controls.
+    """
+
+    def __init__(
+        self, queryset: F, page_obj: Any, query_time: float, **kwargs: Any
+    ) -> None:
+        """
+        Initialize the composite VLV widget.
+
+        Args:
+            queryset: The LDAP queryset being used
+            page_obj: Django paginator page object
+            **kwargs: Additional keyword arguments
+
+        """
+        super().__init__(title="Users (VLV)", **kwargs)
+        self.add_sidebar_bare_widget(UserVLVInfoWidget(queryset, page_obj, query_time))
+        self.add_widget(VLVInfoWidget())
+        self.add_widget(UserVLVTableWidget(queryset, page_obj))
 
 
 # ====================================

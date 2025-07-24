@@ -1,0 +1,264 @@
+.ribbon_bar {
+  background: #1d273b; }
+
+.ribbon_bar__content__breadcrumbs .breadcrumb-item + .breadcrumb-item::before {
+  color: white !important; }
+
+.user-configuration :focus {
+  outline: 0; }
+
+.user-configuration .form-check,
+.user-configuration .custom-checkbox {
+  padding-left: 0; }
+  .user-configuration .form-check .custom-control-label,
+  .user-configuration .form-check .form-check-label,
+  .user-configuration .custom-checkbox .custom-control-label,
+  .user-configuration .custom-checkbox .form-check-label {
+    display: block;
+    width: 100%;
+    position: relative; }
+
+.user-configuration .form-check-input,
+.user-configuration .custom-control-input {
+  position: absolute;
+  z-index: -1;
+  opacity: 0;
+  outline: 0; }
+
+.user-configuration .form-check-input,
+.user-configuration .custom-control-input:focus {
+  outline: 0;
+  border: 1px solid black; }
+
+.user-configuration .form-check-input:focus ~ .form-check-label::before,
+.user-configuration .custom-control-input:focus ~ .custom-control-label::before {
+  border: 1px solid black; }
+
+.user-configuration .form-check-label::before,
+.user-configuration .custom-control-label::before {
+  height: 20px;
+  background-color: #D14900;
+  border: 0;
+  transition: background-color .15s ease-in-out; }
+
+.user-configuration .form-check .form-check-label::before,
+.user-configuration .custom-control .custom-control-label::before {
+  position: absolute;
+  left: inherit;
+  right: 0;
+  top: 1px;
+  width: 40px;
+  border-radius: 30px;
+  box-shadow: none;
+  content: " "; }
+
+.user-configuration .form-check .form-check-label::after,
+.user-configuration .custom-control .custom-control-label::after {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: inherit;
+  right: 20.4px;
+  background-color: white;
+  border-radius: 30px;
+  transition: transform 0.15s ease-in-out 0s, background-color 0.15s ease-in-out 0s;
+  content: " "; }
+
+.user-configuration .form-check-input:checked ~ .form-check-label::before,
+.user-configuration .custom-control-input:checked ~ .custom-control-label::before {
+  color: white;
+  border: 0;
+  background-color: #55a630; }
+
+.user-configuration .form-check .form-check-input:checked ~ .form-check-label::after,
+.user-configuration .custom-control .custom-control-input:checked ~ .custom-control-label::after {
+  transform: translateX(1.05rem); }
+
+.user-configuration .form-check .form-check-input:disabled ~ .form-check-label::before,
+.user-configuration .custom-control .custom-control-input:disabled ~ .custom-control-label::before {
+  background-color: rgba(209, 73, 0, 0.5); }
+
+.user-configuration .form-check .form-check-input:disabled:checked ~ .form-check-label::before,
+.user-configuration .custom-control .custom-control-input:disabled:checked ~ .custom-control-label::before {
+  background-color: rgba(85, 166, 48, 0.5); }
+
+#search--roles :focus {
+  outline: 0; }
+
+#search--roles .form-check,
+#search--roles .custom-checkbox {
+  padding-left: 0; }
+  #search--roles .form-check .custom-control-label,
+  #search--roles .form-check .form-check-label,
+  #search--roles .custom-checkbox .custom-control-label,
+  #search--roles .custom-checkbox .form-check-label {
+    display: block;
+    width: 100%;
+    position: relative; }
+
+#search--roles .form-check-input,
+#search--roles .custom-control-input {
+  position: absolute;
+  z-index: -1;
+  opacity: 0;
+  outline: 0; }
+
+#search--roles .form-check-input,
+#search--roles .custom-control-input:focus {
+  outline: 0;
+  border: 1px solid black; }
+
+#search--roles .form-check-input:focus ~ .form-check-label::before,
+#search--roles .custom-control-input:focus ~ .custom-control-label::before {
+  border: 1px solid black; }
+
+#search--roles .form-check-label::before,
+#search--roles .custom-control-label::before {
+  height: 20px;
+  background-color: #D14900;
+  border: 0;
+  transition: background-color .15s ease-in-out; }
+
+#search--roles .form-check .form-check-label::before,
+#search--roles .custom-control .custom-control-label::before {
+  position: absolute;
+  left: inherit;
+  right: 0;
+  top: 1px;
+  width: 40px;
+  border-radius: 30px;
+  box-shadow: none;
+  content: " "; }
+
+#search--roles .form-check .form-check-label::after,
+#search--roles .custom-control .custom-control-label::after {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: inherit;
+  right: 20.4px;
+  background-color: white;
+  border-radius: 30px;
+  transition: transform 0.15s ease-in-out 0s, background-color 0.15s ease-in-out 0s;
+  content: " "; }
+
+#search--roles .form-check-input:checked ~ .form-check-label::before,
+#search--roles .custom-control-input:checked ~ .custom-control-label::before {
+  color: white;
+  border: 0;
+  background-color: #55a630; }
+
+#search--roles .form-check .form-check-input:checked ~ .form-check-label::after,
+#search--roles .custom-control .custom-control-input:checked ~ .custom-control-label::after {
+  transform: translateX(1.05rem); }
+
+#search--roles .form-check .form-check-input:disabled ~ .form-check-label::before,
+#search--roles .custom-control .custom-control-input:disabled ~ .custom-control-label::before {
+  background-color: rgba(209, 73, 0, 0.5); }
+
+#search--roles .form-check .form-check-input:disabled:checked ~ .form-check-label::before,
+#search--roles .custom-control .custom-control-input:disabled:checked ~ .custom-control-label::before {
+  background-color: rgba(85, 166, 48, 0.5); }
+
+#search--roles .filter--enabled {
+  width: 170px; }
+
+.managed-roles :focus {
+  outline: 0; }
+
+.managed-roles .form-check,
+.managed-roles .custom-checkbox {
+  padding-left: 0; }
+  .managed-roles .form-check .custom-control-label,
+  .managed-roles .form-check .form-check-label,
+  .managed-roles .custom-checkbox .custom-control-label,
+  .managed-roles .custom-checkbox .form-check-label {
+    display: block;
+    width: 100%;
+    position: relative; }
+
+.managed-roles .form-check-input,
+.managed-roles .custom-control-input {
+  position: absolute;
+  z-index: -1;
+  opacity: 0;
+  outline: 0; }
+
+.managed-roles .form-check-input,
+.managed-roles .custom-control-input:focus {
+  outline: 0;
+  border: 1px solid black; }
+
+.managed-roles .form-check-input:focus ~ .form-check-label::before,
+.managed-roles .custom-control-input:focus ~ .custom-control-label::before {
+  border: 1px solid black; }
+
+.managed-roles .form-check-label::before,
+.managed-roles .custom-control-label::before {
+  height: 20px;
+  background-color: #D14900;
+  border: 0;
+  transition: background-color .15s ease-in-out; }
+
+.managed-roles .form-check .form-check-label::before,
+.managed-roles .custom-control .custom-control-label::before {
+  position: absolute;
+  left: inherit;
+  right: 0;
+  top: 1px;
+  width: 40px;
+  border-radius: 30px;
+  box-shadow: none;
+  content: " "; }
+
+.managed-roles .form-check .form-check-label::after,
+.managed-roles .custom-control .custom-control-label::after {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: inherit;
+  right: 20.4px;
+  background-color: white;
+  border-radius: 30px;
+  transition: transform 0.15s ease-in-out 0s, background-color 0.15s ease-in-out 0s;
+  content: " "; }
+
+.managed-roles .form-check-input:checked ~ .form-check-label::before,
+.managed-roles .custom-control-input:checked ~ .custom-control-label::before {
+  color: white;
+  border: 0;
+  background-color: #55a630; }
+
+.managed-roles .form-check .form-check-input:checked ~ .form-check-label::after,
+.managed-roles .custom-control .custom-control-input:checked ~ .custom-control-label::after {
+  transform: translateX(1.05rem); }
+
+.managed-roles .form-check .form-check-input:disabled ~ .form-check-label::before,
+.managed-roles .custom-control .custom-control-input:disabled ~ .custom-control-label::before {
+  background-color: rgba(209, 73, 0, 0.5); }
+
+.managed-roles .form-check .form-check-input:disabled:checked ~ .form-check-label::before,
+.managed-roles .custom-control .custom-control-input:disabled:checked ~ .custom-control-label::before {
+  background-color: rgba(85, 166, 48, 0.5); }
+
+.managed-roles .form-label {
+  display: none; }
+
+.managed-roles fieldset {
+  border: none;
+  padding: 0; }
+
+.managed-roles .form-check {
+  border-bottom: 1px solid #eee;
+  padding: 1rem 2rem; }
+  .managed-roles .form-check:hover {
+    background-color: #fafafa; }
+
+.collapse-toggle button[aria-expanded="false"] .bi-chevron-down {
+  transition: .3s transform ease-in-out; }
+
+.collapse-toggle button[aria-expanded="true"] .bi-chevron-down {
+  transform: rotate(90deg); }

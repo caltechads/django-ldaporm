@@ -1,3 +1,4 @@
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from braces.views import (
@@ -6,13 +7,14 @@ from braces.views import (
     JSONResponseMixin,
 )
 from django.contrib import messages
+from django.core.paginator import Page, Paginator
 from django.forms import Form
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import Http404, redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import CreateView, FormView, UpdateView, View
+from django.views.generic import CreateView, FormView, ListView, UpdateView, View
 from django.views.generic.base import ContextMixin
 from django.views.generic.edit import TemplateResponseMixin
 from wildewidgets import (
@@ -57,6 +59,7 @@ from .wildewidgets import (
     UserRoleWidget,
     UserTableWidget,
     UserVerifyPasswordWidget,
+    UserVLVCompositeWidget,
     WildewidgetsMixin,
 )
 
@@ -320,6 +323,91 @@ class UserListView(
         """
         breadcrumbs = BaseBreadcrumbs()
         breadcrumbs.add_breadcrumb("Users")
+        return breadcrumbs
+
+
+class UserVLVListView(WildewidgetsMixin, NavbarMixin, ListView):
+    """
+    View for displaying a paginated list of users using VLV (Virtual List View).
+
+    This view demonstrates Django ListView pagination with LDAP VLV controls,
+    showing how efficient slicing works with large LDAP result sets compared
+    to DataTable.js pagination.
+
+    Attributes:
+        model: The LDAP model to display
+        paginate_by: Number of records per page
+        navbar_class: The class to use for the navigation sidebar
+        menu_item: The menu item to highlight in the navigation
+
+    """
+
+    model = LDAPUser
+    paginate_by: int = 10
+    navbar_class: type[Navbar] = Sidebar
+    menu_item: str = "Users (VLV)"
+    ordering: str = "uid"
+
+    def get_queryset(self) -> F:
+        """
+        Get the queryset for the VLV user list view.
+
+        Returns:
+            Ordered queryset of LDAP users
+
+        """
+        return cast("LdapManager", LDAPUser.objects).all()
+
+    def get_content(self) -> None:
+        """
+        Get the content for the VLV user list view.
+        """
+        return
+
+    def paginate_queryset(
+        self, queryset: F, page_size: int
+    ) -> tuple[Paginator, Page, F, bool]:
+        """
+        Paginate the queryset for the VLV user list view.
+        """
+        start_time = time.time()
+        retval = super().paginate_queryset(queryset, page_size)
+        end_time = time.time()
+        self.query_time = end_time - start_time
+        return retval
+
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
+        """
+        Get the context data for the VLV user list view.
+
+        .. note::
+
+           We're doing this here instead of in ``get_content`` because we need
+        """
+        context = super().get_context_data(**kwargs)
+        context["content"] = UserVLVCompositeWidget(
+            self.get_queryset(),
+            context["page_obj"],
+            self.query_time,
+        )
+        breadcrumbs: BreadcrumbBlock | None = self.get_breadcrumbs()
+        if breadcrumbs:
+            context["breadcrumbs"] = breadcrumbs
+            context["page_title"] = breadcrumbs.flatten()
+
+        return context
+
+    def get_breadcrumbs(self) -> BreadcrumbBlock:
+        """
+        Get the breadcrumb navigation for this view.
+
+        Returns:
+            Breadcrumb navigation showing the path to this VLV demo
+
+        """
+        breadcrumbs = BaseBreadcrumbs()
+        breadcrumbs.add_breadcrumb("Users", reverse("core:user--list"))
+        breadcrumbs.add_breadcrumb("Virtual List View (VLV)")
         return breadcrumbs
 
 

@@ -6,6 +6,7 @@ app_name: str = "core"
 
 urlpatterns = [
     path("", views.UserListView.as_view(), name="user--list"),
+    path("users/vlv/", views.UserVLVListView.as_view(), name="user--vlv-list"),
     path("user/<str:uid>/edit/", views.UserDetailView.as_view(), name="user--detail"),
     path("user/add/", views.UserAddView.as_view(), name="user--add"),
     path(
