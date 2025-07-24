@@ -130,6 +130,14 @@ Key Features
 * **Query Interface**: Django QuerySet-like filtering and querying
 * **CRUD Operations**: Create, read, update, and delete LDAP objects
 
+Caveats
+-------
+
+* **No Admin Integration**: ``django-ldaporm`` does not provide Django Admin
+  integration.  We tried, but the Django Admin is tied to deeply to Django ORM
+  models, querysets and managers for us to make it work.
+
+
 Getting Started
 --------------
 
