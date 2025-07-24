@@ -6,13 +6,17 @@ asn1==3.1.0
     # via django-ldaporm
 asttokens==3.0.0
     # via stack-data
+attrs==25.3.0
+    # via
+    #   jsonschema
+    #   referencing
 crispy-bootstrap5==2025.6
     # via
     #   demo (pyproject.toml)
     #   django-wildewidgets
 decorator==5.1.1
     # via ipython
-django==5.1.4
+django==5.2.4
     # via
     #   demo (pyproject.toml)
     #   crispy-bootstrap5
@@ -27,6 +31,7 @@ django==5.1.4
     #   django-wildewidgets
     #   django-xff
     #   djangorestframework
+    #   drf-spectacular
 django-appconf==1.0.6
     # via django-compressor
 django-braces==1.16.0
@@ -60,6 +65,10 @@ django-wildewidgets==1.1.6
 django-xff==1.3.0
     # via demo (pyproject.toml)
 djangorestframework==3.16.0
+    # via
+    #   demo (pyproject.toml)
+    #   drf-spectacular
+drf-spectacular==0.28.0
     # via demo (pyproject.toml)
 enum-compat==0.0.3
     # via asn1
@@ -67,10 +76,16 @@ executing==2.1.0
     # via stack-data
 gunicorn==23.0.0
     # via demo (pyproject.toml)
+inflection==0.5.1
+    # via drf-spectacular
 ipython==8.30.0
     # via demo (pyproject.toml)
 jedi==0.19.2
     # via ipython
+jsonschema==4.25.0
+    # via drf-spectacular
+jsonschema-specifications==2025.4.1
+    # via jsonschema
 ldap-filter==1.0.1
     # via django-ldaporm
 libsass==0.23.0
@@ -104,12 +119,22 @@ python-ldap==3.4.4
     # via django-ldaporm
 pytz==2025.2
     # via django-ldaporm
+pyyaml==6.0.2
+    # via drf-spectacular
 rcssmin==1.1.2
     # via django-compressor
 redis==5.2.1
     # via demo (pyproject.toml)
+referencing==0.36.2
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
 rjsmin==1.2.2
     # via django-compressor
+rpds-py==0.26.0
+    # via
+    #   jsonschema
+    #   referencing
 sqlparse==0.5.3
     # via
     #   django
@@ -125,6 +150,10 @@ traitlets==5.14.3
     #   ipython
     #   matplotlib-inline
 typing-extensions==4.12.2
-    # via ipython
+    # via
+    #   ipython
+    #   referencing
+uritemplate==4.2.0
+    # via drf-spectacular
 wcwidth==0.2.13
     # via prompt-toolkit

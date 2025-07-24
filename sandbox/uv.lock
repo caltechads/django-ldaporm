@@ -8,14 +8,14 @@ resolution-markers = [
 
 [[package]]
 name = "asgiref"
-version = "3.9.0"
+version = "3.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/68/fb4fb78c9eac59d5e819108a57664737f855c5a8e9b76aec1738bb137f9e/asgiref-3.9.0.tar.gz", hash = "sha256:3dd2556d0f08c4fab8a010d9ab05ef8c34565f6bf32381d17505f7ca5b273767", size = 36772, upload-time = "2025-07-03T13:25:01.491Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/61/0aa957eec22ff70b830b22ff91f825e70e1ef732c06666a805730f28b36b/asgiref-3.9.1.tar.gz", hash = "sha256:a5ab6582236218e5ef1648f242fd9f10626cfd4de8dc377db215d5d5098e3142", size = 36870, upload-time = "2025-07-08T09:07:43.344Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/f9/76c9f4d4985b5a642926162e2d41fe6019b1fa929cfa58abb7d2dc9041e5/asgiref-3.9.0-py3-none-any.whl", hash = "sha256:06a41250a0114d2b6f6a2cb3ab962147d355b53d1de15eebc34a9d04a7b79981", size = 23788, upload-time = "2025-07-03T13:24:59.115Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/3c/0464dcada90d5da0e71018c04a140ad6349558afb30b3051b4264cc5b965/asgiref-3.9.1-py3-none-any.whl", hash = "sha256:f3bba7092a48005b5f5bacd747d36ee4a5a61f4a269a6df590b43144355ebd2c", size = 23790, upload-time = "2025-07-08T09:07:41.548Z" },
 ]
 
 [[package]]
@@ -268,7 +268,7 @@ wheels = [
 
 [[package]]
 name = "django-ldaporm"
-version = "1.1.1"
+version = "1.2.0"
 source = { path = "django-ldaporm.tar.gz" }
 dependencies = [
     { name = "asn1" },
@@ -277,7 +277,7 @@ dependencies = [
     { name = "python-ldap" },
     { name = "pytz" },
 ]
-sdist = { hash = "sha256:1988ab9a0f089587eed1c80830bdda7fc7df8b13146c477274caf483f057164b" }
+sdist = { hash = "sha256:dfef382200b10d196914d15c539fda1e1ca620c65a6703a7ff18a0a794bf1687" }
 
 [package.metadata]
 requires-dist = [
@@ -311,16 +311,16 @@ wheels = [
 
 [[package]]
 name = "django-wildewidgets"
-version = "1.1.6"
+version = "1.1.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "crispy-bootstrap5" },
     { name = "django" },
     { name = "django-crispy-forms" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/f2/a28a26fd200872789101d5b8fb6fe705ff575dbd838c5e9134f0c4807221/django_wildewidgets-1.1.6.tar.gz", hash = "sha256:39c51c359ef9d185f8fccab7bbce72fae117a6eb8b1ed05f56aab35f8379cf9f", size = 178457, upload-time = "2025-06-27T18:27:17.046Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/f2/549d51ec3bd10eb2372c514c38b01d1ad0a7c4e45f1192e536633c5608f6/django_wildewidgets-1.1.7.tar.gz", hash = "sha256:e4a8c792072a5825b0f39657aa6dfe8f3cf26f8414252ae74e323cb94c166400", size = 178554, upload-time = "2025-07-22T22:24:47.78Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/f4/b130a514996d353a2592c6d24735871ed5501d332d4eccb96865089852f2/django_wildewidgets-1.1.6-py3-none-any.whl", hash = "sha256:e71d70964aee7655121148162399df25308d1c22bffde6fc9974fec7b04f0abb", size = 214322, upload-time = "2025-06-27T18:27:15.476Z" },
+    { url = "https://files.pythonhosted.org/packages/68/22/d738493eed27e5fc935e959860b88100387d0d9bef7d7f533e1d677904ec/django_wildewidgets-1.1.7-py3-none-any.whl", hash = "sha256:4423a3889df5c1075d55cc9057413127ddd6780ce5c181d4e37670059b608ad5", size = 214385, upload-time = "2025-07-22T22:24:46.068Z" },
 ]
 
 [[package]]
