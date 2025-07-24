@@ -126,7 +126,7 @@ class TestLdapServerCapabilities(unittest.TestCase):
         flavor = LdapServerCapabilities.detect_server_flavor(
             self.mock_connection, self.key
         )
-        self.assertEqual(flavor, "unknown")
+        self.assertEqual(flavor, "Unknown Vendor")
 
     def test_check_control_support(self):
         """Test control support detection."""

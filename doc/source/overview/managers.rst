@@ -76,6 +76,11 @@ You can now iterate over query results directly:
    Slicing operations (e.g., ``[10:20]``) automatically use Virtual List View (VLV)
    when supported by the LDAP server, providing efficient server-side slicing.
    When VLV is not supported, slicing falls back to client-side operations.
+
+   **VLV requires ordering:** Models must have ``Meta.ordering`` set or queries
+   must use ``.order_by()`` for VLV to work. Without ordering, an
+   ``ImproperlyConfigured`` exception will be raised.
+
    See :doc:`vlv` for more details.
 
 Convenience Methods

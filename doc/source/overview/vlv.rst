@@ -28,6 +28,58 @@ How it works
 - **Django Pagination Integration:** `LdapVlvPagination` class for Django pagination
 - **OpenLDAP Warnings:** Automatic warnings when OpenLDAP is detected without sssvlv overlay
 
+VLV Requirements
+----------------
+
+**Ordering Required for VLV**
+
+VLV operations require proper ordering to be specified. This can be done in two ways:
+
+1. **Model-level ordering** (recommended):
+
+   .. code-block:: python
+
+      class User(Model):
+          uid = CharField(primary_key=True)
+          cn = CharField()
+
+          class Meta:
+              basedn = "ou=users,dc=example,dc=com"
+              objectclass = "posixAccount"
+              ordering = ['uid']  # Required for VLV
+
+2. **Query-level ordering**:
+
+   .. code-block:: python
+
+      # Explicit ordering for VLV
+      users = User.objects.filter(is_active=True).order_by('uid')[10:20]
+
+**Error Handling**
+
+If ordering is not specified when VLV is attempted, an ``ImproperlyConfigured``
+exception will be raised:
+
+.. code-block:: python
+
+   # This will raise ImproperlyConfigured if no Meta.ordering is set
+   try:
+       users = User.objects.all()[10:20]
+   except ImproperlyConfigured as e:
+       print(f"VLV requires ordering: {e}")
+
+**Out-of-Bounds Behavior**
+
+VLV operations will raise ``IndexError`` when slicing beyond available data:
+
+.. code-block:: python
+
+   # If there are only 50 users, this will raise IndexError
+   try:
+       users = User.objects.all()[100:110]
+   except IndexError as e:
+       print(f"Slice out of range: {e}")
+
 Basic Usage
 -----------
 
@@ -45,6 +97,7 @@ VLV is used transparently when you slice query results:
        class Meta:
            basedn = "ou=users,dc=example,dc=com"
            objectclass = "posixAccount"
+           ordering = ['uid']  # Required for VLV
 
    # VLV is used automatically for slicing
    users = User.objects.filter(is_active=True)[10:20]  # Gets users 10-19
@@ -169,6 +222,36 @@ VLV uses context IDs to maintain state between requests. This is handled automat
 Error Handling
 ^^^^^^^^^^^^^^
 
+VLV operations can encounter several types of errors:
+
+1. **Configuration Errors:**
+
+.. code-block:: python
+
+   from django.core.exceptions import ImproperlyConfigured
+
+   # Missing ordering configuration
+   try:
+       users = User.objects.all()[10:20]
+   except ImproperlyConfigured as e:
+       print(f"VLV configuration error: {e}")
+       # Use explicit ordering as fallback
+       users = User.objects.all().order_by('uid')[10:20]
+
+2. **Out-of-Bounds Errors:**
+
+.. code-block:: python
+
+   # Handle out-of-bounds slicing
+   try:
+       users = User.objects.all()[100:200]
+   except IndexError as e:
+       print(f"Slice out of range: {e}")
+       # Handle gracefully or use smaller slice
+       users = User.objects.all()[:50]
+
+3. **VLV Operation Failures:**
+
 VLV operations automatically fall back to client-side slicing if:
 
 - VLV is not supported by the server
@@ -179,10 +262,13 @@ VLV operations automatically fall back to client-side slicing if:
 
    # This will use VLV if supported, otherwise client-side slicing
    try:
-       users = User.objects.all()[100:200]
+       users = User.objects.all().order_by('uid')[100:200]
+   except (IndexError, ImproperlyConfigured) as e:
+       # Handle configuration and range errors
+       print(f"Error: {e}")
    except Exception as e:
        # Handle any remaining errors
-       print(f"Error: {e}")
+       print(f"Unexpected error: {e}")
 
 Custom VLV Controls
 ^^^^^^^^^^^^^^^^^^^
@@ -233,19 +319,35 @@ For large datasets, VLV is significantly more efficient:
 Best Practices
 --------------
 
-1. **Use slicing for pagination:** Always use slicing for pagination rather than
+1. **Always specify ordering:** Ensure your models have ``Meta.ordering`` set
+   or use explicit ``.order_by()`` for VLV operations.
+
+   .. code-block:: python
+
+      # Good: Model with ordering
+      class User(Model):
+          class Meta:
+              ordering = ['uid']
+
+      # Good: Explicit ordering
+      users = User.objects.filter(active=True).order_by('uid')[10:20]
+
+2. **Use slicing for pagination:** Always use slicing for pagination rather than
    fetching all results and slicing on the client side.
 
-2. **Check server support:** Use `supports_vlv()` to check if VLV is available
+3. **Check server support:** Use `supports_vlv()` to check if VLV is available
    before implementing VLV-specific features.
 
-3. **Handle fallbacks gracefully:** Always handle the case where VLV is not
+4. **Handle errors gracefully:** Always handle ``ImproperlyConfigured`` and
+   ``IndexError`` exceptions when using VLV.
+
+5. **Handle fallbacks gracefully:** Always handle the case where VLV is not
    supported.
 
-4. **Monitor performance:** Use Django's query logging to monitor LDAP query
+6. **Monitor performance:** Use Django's query logging to monitor LDAP query
    performance.
 
-5. **Configure OpenLDAP properly:** Ensure the sssvlv overlay is installed and
+7. **Configure OpenLDAP properly:** Ensure the sssvlv overlay is installed and
    configured for OpenLDAP servers.
 
 Example: User Management Interface
@@ -257,23 +359,31 @@ Here's a complete example of using VLV for a user management interface:
 
    from django.core.paginator import Paginator
    from django.shortcuts import render
+   from django.core.exceptions import ImproperlyConfigured
    from ldaporm.managers import LdapVlvPagination
 
    def user_list(request):
        # Get page number from request
        page_number = request.GET.get('page', 1)
 
-       # Create query with filtering
+       # Create query with filtering and proper ordering for VLV
        users_query = User.objects.filter(is_active=True).order_by('uid')
 
        # Create paginator with VLV support
-       paginator = LdapVlvPagination(
-           object_list=users_query,
-           per_page=20
-       )
+       try:
+           paginator = LdapVlvPagination(
+               object_list=users_query,
+               per_page=20
+           )
 
-       # Get page
-       page = paginator.get_page(page_number)
+           # Get page
+           page = paginator.get_page(page_number)
+
+       except ImproperlyConfigured as e:
+           # Handle missing ordering configuration
+           return render(request, 'users/error.html', {
+               'error': f'VLV configuration error: {e}'
+           })
 
        return render(request, 'users/list.html', {
            'page': page,
@@ -311,19 +421,29 @@ Troubleshooting
 Common Issues
 ^^^^^^^^^^^^
 
-1. **VLV not working on OpenLDAP:**
+1. **VLV requires ordering error:**
+   - Ensure your model has ``Meta.ordering`` set
+   - Or use explicit ``.order_by()`` in your query
+   - Example: ``User.objects.filter(active=True).order_by('uid')[10:20]``
+
+2. **VLV not working on OpenLDAP:**
    - Ensure sssvlv overlay is installed
    - Check overlay configuration
    - Restart slapd after configuration changes
 
-2. **Performance issues:**
+3. **Performance issues:**
    - Check if VLV is being used (enable debug logging)
    - Verify server supports VLV
    - Monitor LDAP query performance
 
-3. **Context ID errors:**
+4. **Context ID errors:**
    - Context IDs are managed automatically
    - Ensure proper error handling for VLV failures
+
+5. **IndexError on slicing:**
+   - VLV raises ``IndexError`` when slicing beyond available data
+   - Use ``try/except`` blocks for out-of-bounds handling
+   - Consider using ``.count()`` to check available data first
 
 Debugging
 ^^^^^^^^^

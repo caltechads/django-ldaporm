@@ -552,6 +552,7 @@ class UserVLVInfoWidget(Block):
         Args:
             queryset: The LDAP queryset being used
             page_obj: Django paginator page object
+            query_time: Time taken to execute the query, seconds
 
         """
         super().__init__(css_class="mb-3 p-0")

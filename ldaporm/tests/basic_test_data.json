@@ -1,0 +1,75 @@
+[
+  [
+    "cn=admin,dc=example,dc=com",
+    {
+      "cn": ["admin"],
+      "userPassword": ["admin"],
+      "objectclass": ["simpleSecurityObject", "organizationalRole", "top"]
+    }
+  ],
+  [
+    "uid=alice,ou=users,dc=example,dc=com",
+    {
+      "uid": ["alice"],
+      "cn": ["Alice Johnson"],
+      "sn": ["Johnson"],
+      "uidNumber": ["1001"],
+      "gidNumber": ["1001"],
+      "homeDirectory": ["/home/alice"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=bob,ou=users,dc=example,dc=com",
+    {
+      "uid": ["bob"],
+      "cn": ["Bob Smith"],
+      "sn": ["Smith"],
+      "uidNumber": ["1002"],
+      "gidNumber": ["1002"],
+      "homeDirectory": ["/home/bob"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=charlie,ou=users,dc=example,dc=com",
+    {
+      "uid": ["charlie"],
+      "cn": ["Charlie Brown"],
+      "sn": ["Brown"],
+      "uidNumber": ["1003"],
+      "gidNumber": ["1003"],
+      "homeDirectory": ["/home/charlie"],
+      "loginShell": ["/bin/zsh"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=diana,ou=users,dc=example,dc=com",
+    {
+      "uid": ["diana"],
+      "cn": ["Diana Prince"],
+      "sn": ["Prince"],
+      "uidNumber": ["1004"],
+      "gidNumber": ["1004"],
+      "homeDirectory": ["/home/diana"],
+      "loginShell": ["/bin/bash"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ],
+  [
+    "uid=edward,ou=users,dc=example,dc=com",
+    {
+      "uid": ["edward"],
+      "cn": ["Edward Norton"],
+      "sn": ["Norton"],
+      "uidNumber": ["1005"],
+      "gidNumber": ["1005"],
+      "homeDirectory": ["/home/edward"],
+      "loginShell": ["/bin/tcsh"],
+      "objectclass": ["posixAccount", "top"]
+    }
+  ]
+]

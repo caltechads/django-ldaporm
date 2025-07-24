@@ -36,7 +36,7 @@ from ldap import modlist
 from ldap.controls import LDAPControl, SimplePagedResultsControl
 from ldap_filter import Filter
 from pyasn1.codec.ber import encoder  # type: ignore[import]
-from pyasn1.type import namedtype, tag, univ  # type: ignore[import]
+from pyasn1.type import namedtype, tag, univ, namedval  # type: ignore[import]
 
 from ldaporm import ldap
 
@@ -197,22 +197,27 @@ class VlvRequest(univ.Sequence):
 
 
 class VlvResponse(univ.Sequence):
-    """
-    ``VlvResponse`` is a sequence of targetPosition, contentCount,
-    virtualListViewResult, and contextID.
+    """VLV Response structure compatible with Microsoft Active Directory format."""
 
-    This is used to parse the response from the Virtual List View control.
-
-    See RFC 2891 for more details.
-    """
-
-    componentType: ClassVar[namedtype.NamedTypes] = namedtype.NamedTypes(  # noqa: N815
+    componentType: ClassVar[namedtype.NamedTypes] = namedtype.NamedTypes(
         namedtype.NamedType("targetPosition", univ.Integer()),
         namedtype.NamedType("contentCount", univ.Integer()),
-        namedtype.OptionalNamedType(
+        namedtype.NamedType(
             "virtualListViewResult",
             univ.Enumerated().subtype(
-                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
+                namedValues=namedval.NamedValues(
+                    ("success", 0),
+                    ("operationsError", 1),
+                    ("unwillingToPerform", 53),
+                    ("insufficientAccessRights", 50),
+                    ("busy", 51),
+                    ("timeLimitExceeded", 3),
+                    ("adminLimitExceeded", 11),
+                    ("sortControlMissing", 60),
+                    ("offsetRangeError", 61),
+                    ("other", 80),
+                ),
+                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0),
             ),
         ),
         namedtype.OptionalNamedType(
@@ -322,14 +327,18 @@ def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
             "content_count": int(vlv_response.getComponentByName("contentCount")),
         }
 
-        # Optional components
-        if vlv_response.getComponentByName("virtualListViewResult") is not None:
-            result["virtual_list_view_result"] = int(
-                vlv_response.getComponentByName("virtualListViewResult")
-            )
+        # virtualListViewResult is required in RFC 2891
+        result["virtual_list_view_result"] = int(
+            vlv_response.getComponentByName("virtualListViewResult")
+        )
 
-        if vlv_response.getComponentByName("contextID") is not None:
-            result["context_id"] = vlv_response.getComponentByName("contextID")
+        # contextID is optional
+        context_id = vlv_response.getComponentByName("contextID")
+        try:
+            context_id_value = bytes(context_id) if context_id else None
+        except:
+            context_id_value = None
+        result["context_id"] = context_id_value
 
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to parse VLV response: %s", str(e))
@@ -774,14 +783,18 @@ class F:
 
         """
         self._require_manager()
-        if not self._order_by:
+
+        # Use effective ordering (includes both explicit order_by and Meta.ordering)
+        effective_ordering = self._get_effective_ordering()
+        if not effective_ordering:
             return None
+
         if self.manager is None:
             msg = "F instance is not bound to a manager."
             raise F.UnboundFilter(msg)
         if not self.manager._check_server_sorting_support():
             return None
-        return ServerSideSortControl(sort_key_list=self._order_by)
+        return ServerSideSortControl(sort_key_list=effective_ordering)
 
     def _create_vlv_control(
         self,
@@ -811,8 +824,14 @@ class F:
         if not self.manager._check_server_vlv_support():
             return None
 
-        before_count = LdapServerCapabilities._get_vlv_default_before_count()
-        after_count = LdapServerCapabilities._get_vlv_default_after_count()
+        # Calculate before_count and after_count from the requested count
+        # For a slice [start:start+count], we want count total entries starting at offset
+        # VLV works by specifying a target position and entries before/after it
+        # To get count entries starting at offset, we set:
+        # - before_count = 0 (no entries before)
+        # - after_count = count - 1 (count-1 entries after the target, plus target = count total)
+        before_count = 0
+        after_count = max(0, count - 1) if count > 0 else 0
 
         return VirtualListViewControl(
             before_count=before_count,
@@ -893,7 +912,7 @@ class F:
             return False
 
         # VLV is most beneficial for large offsets or when we need sorting
-        if start > 100 or self._order_by:  # noqa: PLR2004
+        if start >= 100 or self._order_by:  # noqa: PLR2004
             return True
 
         # For small slices, use client-side unless we have ordering
@@ -915,6 +934,17 @@ class F:
         if self.manager is None:
             msg = "F instance is not bound to a manager."
             raise F.UnboundFilter(msg)
+
+        # Validate that ordering is properly configured for VLV operations
+        effective_ordering = self._get_effective_ordering()
+        if not effective_ordering:
+            model_name = self.model.__name__ if self.model else "Unknown"
+            raise ImproperlyConfigured(
+                f"Model {model_name} must define ordering for VLV operations. "
+                f"VLV requires stable sort order for proper pagination. "
+                f"Either use .order_by('field_name') on your query or set "
+                f"Meta.ordering = ['field_name'] in your model definition."
+            )
 
         # Generate search hash for context ID management
         search_hash = self._generate_search_hash()
@@ -944,6 +974,31 @@ class F:
 
             # Parse VLV response and extract context ID
             vlv_response_data = self._parse_vlv_response_controls(response_controls)
+
+            # Handle VLV error responses
+            if vlv_response_data and "virtual_list_view_result" in vlv_response_data:
+                result_code = vlv_response_data["virtual_list_view_result"]
+                logger.debug(f"Processing VLV response with result code: {result_code}")
+
+                if result_code == 61:  # offsetRangeError
+                    logger.debug(
+                        f"Raising IndexError for offset range error: start={start}"
+                    )
+                    raise IndexError(
+                        f"VLV offset {start + 1} is out of range for the result set"
+                    )
+                elif result_code == 60:  # sortControlMissing
+                    logger.debug(
+                        "VLV operation failed: sort control missing, falling back to client-side"
+                    )
+                    # Let it fall through to return empty results or raise appropriate error
+                elif result_code != 0:  # Other VLV errors
+                    logger.debug(f"VLV operation failed with error code {result_code}")
+                    # For other errors, we might want to fall back to client-side processing
+                    # but for now, let's continue with the results we got
+            else:
+                logger.debug(f"VLV response data: {vlv_response_data}")
+
             if vlv_response_data and "context_id" in vlv_response_data:
                 self._set_vlv_context_id(search_hash, vlv_response_data["context_id"])
 
@@ -971,7 +1026,7 @@ class F:
             return objects
 
     def _parse_vlv_response_controls(
-        self, response_controls: list[Any]
+        self, response_controls: list[ldap.controls.LDAPControl]
     ) -> dict[str, Any]:
         """
         Parse VLV response controls to extract metadata.
@@ -983,11 +1038,21 @@ class F:
             Dictionary containing VLV response data.
 
         """
-        for control in response_controls:
+        logger.debug(f"Parsing {len(response_controls)} response controls")
+        for i, control in enumerate(response_controls):
+            logger.debug(
+                f"Control {i}: type={getattr(control, 'controlType', 'unknown')}, "
+                f"hasValue={hasattr(control, 'controlValue')}, "
+                f"valueLength={len(control.controlValue) if hasattr(control, 'controlValue') and control.controlValue else 0}"
+            )
             if (
                 hasattr(control, "controlType")
-                and control.controlType == VirtualListViewControl.control_type
+                and control.controlType
+                == "2.16.840.1.113730.3.4.10"  # VLV Response Control OID
             ):
+                logger.debug(
+                    f"Found VLV response control with value: {control.controlValue.hex() if control.controlValue else 'None'}"
+                )
                 if hasattr(control, "controlValue") and control.controlValue:
                     return parse_vlv_response(control.controlValue)
         return {}
@@ -1944,6 +2009,50 @@ class F:
             objects = cast("list[Model]", objects)[:limit]
 
         return cast("list[Model]", objects)
+
+    def _get_effective_ordering(self) -> list[str]:
+        """
+        Get the effective ordering for this F object.
+
+        Returns _order_by if not empty, otherwise falls back to model._meta.ordering.
+        Validates that all ordering fields exist on the model.
+
+        Returns:
+            List of ordering field names.
+
+        Raises:
+            ImproperlyConfigured: If ordering fields don't exist on the model.
+        """
+        # Ensure we have a model
+        if self.model is None:
+            raise ImproperlyConfigured(
+                "F object must be bound to a model for ordering validation"
+            )
+
+        # Get ordering - prefer explicit _order_by, fall back to Meta.ordering
+        ordering = (
+            self._order_by
+            if self._order_by
+            else getattr(self.model._meta, "ordering", [])
+        )
+
+        # Validate that ordering fields exist on the model
+        if ordering and self.model._meta is not None:
+            model_fields = {
+                field.name
+                for field in self.model._meta.get_fields()
+                if hasattr(field, "name") and field.name is not None
+            }
+            for field_name in ordering:
+                # Remove leading - for reverse ordering
+                clean_field_name = field_name.lstrip("-")
+                if clean_field_name not in model_fields:
+                    raise ImproperlyConfigured(
+                        f"Model {self.model.__name__} ordering field '{field_name}' does not exist. "
+                        f"Available fields: {', '.join(sorted(model_fields))}"
+                    )
+
+        return ordering
 
 
 class FIterator:
