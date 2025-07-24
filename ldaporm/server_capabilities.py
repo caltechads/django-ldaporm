@@ -289,6 +289,7 @@ class LdapServerCapabilities:
             or "Red Hat" in vendor_name
             or "Oracle" in vendor_name
             or "ForgeRock" in vendor_name
+            or "389" in vendor_name
         ):
             return "389"
 
@@ -296,7 +297,7 @@ class LdapServerCapabilities:
         if "OpenLDAP Foundation" in vendor_name:
             return "openldap"
 
-        return "unknown"
+        return vendor_name
 
     @classmethod
     def _determine_page_size(cls, flavor: str, root_dse_attrs: dict[str, Any]) -> int:
