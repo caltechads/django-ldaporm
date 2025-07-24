@@ -17,25 +17,30 @@ All models automatically have their ``objects`` attribute set to an instance of
 setting the ``objects`` attribute to an instance of a subclass of
 :py:class:`~ldaporm.managers.LdapManager`.
 
-What's New (2025)
------------------
+Features
+--------
 
-- **Direct Iteration:** You can now iterate over query results directly, without needing to call ``.all()``.
+- **QuerySet-like Interface:** ``LdapManager`` provides a Django QuerySet-like interface for LDAP operations.  It handles LDAP searches, filtering, and CRUD operations while maintaining a familiar Django API.
+- **Direct Iteration:** You can iterate over query results directly, without needing to call ``.all()``.
 - **Slicing and Indexing:** Query results support Python slicing and indexing. Slicing with ``[:stop]`` is efficient; other slices fetch all results then slice in Python.
-- **Convenience Methods:** ``.count()``, ``.as_list()``, ``.get_or_none()``, and ``.first_or_none()`` are available on both F and LdapManager objects.
-- **LDAP Paging:** New ``.page()`` method and ``LdapCursorPagination`` for efficient server-side paging of large result sets.
-- **Automatic Server-Side Sorting:** ``.order_by()`` method will use Server Side Sorting (OID: 20030802.1.1.1.1) for server-side sorting of large result sets, if available.
-- **Virtual List View (VLV):** Automatic VLV support for efficient slicing of large result sets with fallback to client-side slicing.
-- **Automatic Paging Detection:** Paging is now detected automatically based on server capabilities.
+- **Convenience Methods:** ``.as_list()``, ``.get_or_none()``, and ``.first_or_none()`` are available on both :py:class:`~ldaporm.managers.F` and :py:class:`~ldaporm.managers.LdapManager` objects.
 - **Automatic Server Flavor Detection:** Server flavor is now detected automatically based on server capabilities.
 - **Automatic page size detection:** Page size is now detected automatically based on server capabilities.
+- **Automatic Paging Detection:** Paged Results Control (OID: 1.2.840.113556.1.4.319) is now detected automatically based on server capabilities, and if available, will be used automatically when doing searches.
+- **LDAP Paging:** New :py:meth:`~ldaporm.managers.LdapManager.page` method and :py:class:`~ldaporm.managers.LdapCursorPagination` for efficient server-side paging of large result sets.
+- **Automatic Server-Side Sorting:** :py:meth:`~ldaporm.managers.LdapManager.order_by` method will use Server Side Sorting (OID: 20030802.1.1.1.1) for server-side sorting of large result sets, if available.
+- **Virtual List View (VLV):**  Virtual List View Control (OID: 2.16.840.1.113730.3.4.9) is automatically detected and used for efficient slicing of large result sets with fallback to client-side slicing.
 - **Django Settings Integration:** Page size limits and cache TTL can be configured via Django settings.
-- **Backward Compatibility:** ``.all()`` is still supported and works as before.
+- **Backward Compatibility:** ``.all()`` is supported and works as before.
 
-.. deprecated:: 2025
+.. deprecated:: 1.3.0
 
-   The ``paged_search`` option in ``Meta.ldap_options`` is deprecated and will be removed
-   in a future version. Paging is now detected automatically based on server capabilities.
+    Prior to version 1.3.0, the ``paged_search`` option in ``Meta.ldap_options``
+    was required in order to enable paging.  This is no longer required, and
+    support for the Paged Results Control is now detected automatically.
+
+    The ``paged_search`` option in ``Meta.ldap_options`` is deprecated and will
+    be ignored in this and future versions.
 
 Basic Querying
 --------------
