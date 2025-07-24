@@ -564,8 +564,8 @@ class TestVlvExceptionHandling(LDAPFakerMixin, unittest.TestCase):
         self.assertEqual(result["current_page"], 1)
 
 
-class NoOrderingTestUser(Model):
-    """Test model without ordering for validation testing."""
+class AutoOrderingTestUser(Model):
+    """Test model with automatic ordering for validation testing."""
 
     uid = CharField(primary_key=True)
     cn = CharField()
@@ -574,7 +574,7 @@ class NoOrderingTestUser(Model):
         basedn = "ou=users,dc=example,dc=com"
         objectclass = "posixAccount"
         ldap_server = "test_server"
-        ordering: list[str] = []  # No ordering - should trigger ImproperlyConfigured
+        # No explicit ordering - should automatically use primary key
         ldap_options: list[str] = []
         extra_objectclasses = ["top"]
 
@@ -613,31 +613,33 @@ class TestVlvOrderingValidation(LDAPFakerMixin, unittest.TestCase):
 
         # Create manager instance
         self.manager = LdapManager()
-        self.manager.contribute_to_class(NoOrderingTestUser, 'objects')
+        self.manager.contribute_to_class(AutoOrderingTestUser, 'objects')
 
     def tearDown(self):
         """Clean up after each test."""
         # Stop settings patcher
         self.settings_patcher.stop()
 
-    def test_vlv_requires_ordering(self):
-        """Test that VLV operations require model ordering."""
-        from django.core.exceptions import ImproperlyConfigured
-
+    def test_vlv_automatic_ordering(self):
+        """Test that VLV operations work with automatic primary key ordering."""
         # Connect to the fake LDAP server
         self.manager.connect("read")
 
-        # Create F object with model that has no ordering
+        # Create F object with model that has automatic ordering
         f_obj = F(self.manager)
 
-        # Test that VLV slice raises ImproperlyConfigured
-        with self.assertRaises(ImproperlyConfigured) as cm:
-            f_obj[100:110]  # This should trigger VLV and fail due to no ordering
+        # Verify that the model got automatic ordering
+        self.assertEqual(self.manager.model._meta.ordering, ['uid'])
 
-        error_message = str(cm.exception)
-        self.assertIn("must define ordering for VLV operations", error_message)
-        self.assertIn("Meta.ordering", error_message)
-        self.assertIn("order_by", error_message)
+        # Test that VLV slice works with automatic ordering
+        # This should work without raising an exception
+        try:
+            result = f_obj[0:5]  # Small slice to avoid out-of-bounds
+            # Should not raise ImproperlyConfigured
+            self.assertIsNotNone(result)
+        except IndexError:
+            # IndexError is acceptable (out of bounds), but not ImproperlyConfigured
+            pass
 
     def test_explicit_order_by_works(self):
         """Test that explicit .order_by() works even if Meta.ordering is empty."""

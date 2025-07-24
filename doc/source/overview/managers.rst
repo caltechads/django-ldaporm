@@ -77,9 +77,9 @@ You can now iterate over query results directly:
    when supported by the LDAP server, providing efficient server-side slicing.
    When VLV is not supported, slicing falls back to client-side operations.
 
-   **VLV requires ordering:** Models must have ``Meta.ordering`` set or queries
-   must use ``.order_by()`` for VLV to work. Without ordering, an
-   ``ImproperlyConfigured`` exception will be raised.
+   **VLV ordering is automatic:** Models automatically use primary key ordering
+   for VLV operations. You can override this with ``Meta.ordering`` or
+   ``.order_by()`` if needed.
 
    See :doc:`vlv` for more details.
 

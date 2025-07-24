@@ -36,7 +36,7 @@ from ldap import modlist
 from ldap.controls import LDAPControl, SimplePagedResultsControl
 from ldap_filter import Filter
 from pyasn1.codec.ber import encoder  # type: ignore[import]
-from pyasn1.type import namedtype, tag, univ, namedval  # type: ignore[import]
+from pyasn1.type import namedtype, namedval, tag, univ  # type: ignore[import]
 
 from ldaporm import ldap
 
@@ -918,7 +918,7 @@ class F:
         # For small slices, use client-side unless we have ordering
         return count > 50 or bool(self._order_by)  # noqa: PLR2004
 
-    def _execute_vlv_slice(self, start: int, count: int) -> list["Model"]:
+    def _execute_vlv_slice(self, start: int, count: int) -> list["Model"]:  # noqa: PLR0912
         """
         Execute VLV slice operation.
 
@@ -939,12 +939,13 @@ class F:
         effective_ordering = self._get_effective_ordering()
         if not effective_ordering:
             model_name = self.model.__name__ if self.model else "Unknown"
-            raise ImproperlyConfigured(
+            msg = (
                 f"Model {model_name} must define ordering for VLV operations. "
                 f"VLV requires stable sort order for proper pagination. "
                 f"Either use .order_by('field_name') on your query or set "
                 f"Meta.ordering = ['field_name'] in your model definition."
             )
+            raise ImproperlyConfigured(msg)
 
         # Generate search hash for context ID management
         search_hash = self._generate_search_hash()
@@ -978,22 +979,24 @@ class F:
             # Handle VLV error responses
             if vlv_response_data and "virtual_list_view_result" in vlv_response_data:
                 result_code = vlv_response_data["virtual_list_view_result"]
-                logger.debug(f"Processing VLV response with result code: {result_code}")
-
-                if result_code == 61:  # offsetRangeError
+                if result_code == 61:  # offsetRangeError  # noqa: PLR2004
                     logger.debug(
-                        f"Raising IndexError for offset range error: start={start}"
+                        "VLV offset range error (start=%s): returning available "
+                        "results per RFC 2891",
+                        start,
                     )
-                    raise IndexError(
-                        f"VLV offset {start + 1} is out of range for the result set"
-                    )
-                elif result_code == 60:  # sortControlMissing
+                    # RFC 2891: Don't raise error, return available results
+                    # The server should have clamped the request and returned
+                    # what's available
+                if result_code == 60:  # sortControlMissing  # noqa: PLR2004
                     logger.debug(
-                        "VLV operation failed: sort control missing, falling back to client-side"
+                        "VLV operation failed: sort control missing, falling back "
+                        "to client-side"
                     )
-                    # Let it fall through to return empty results or raise appropriate error
+                    # Let it fall through to return empty results or raise
+                    # appropriate error
                 elif result_code != 0:  # Other VLV errors
-                    logger.debug(f"VLV operation failed with error code {result_code}")
+                    logger.debug("VLV operation failed with error code %s", result_code)
                     # For other errors, we might want to fall back to client-side processing
                     # but for now, let's continue with the results we got
             else:
@@ -2022,12 +2025,12 @@ class F:
 
         Raises:
             ImproperlyConfigured: If ordering fields don't exist on the model.
+
         """
         # Ensure we have a model
         if self.model is None:
-            raise ImproperlyConfigured(
-                "F object must be bound to a model for ordering validation"
-            )
+            msg = "F object must be bound to a model for ordering validation"
+            raise ImproperlyConfigured(msg)
 
         # Get ordering - prefer explicit _order_by, fall back to Meta.ordering
         ordering = (
@@ -2047,10 +2050,12 @@ class F:
                 # Remove leading - for reverse ordering
                 clean_field_name = field_name.lstrip("-")
                 if clean_field_name not in model_fields:
-                    raise ImproperlyConfigured(
-                        f"Model {self.model.__name__} ordering field '{field_name}' does not exist. "
-                        f"Available fields: {', '.join(sorted(model_fields))}"
+                    msg = (
+                        f"Model {self.model.__name__} ordering field '{field_name}' "
+                        f"does not exist. Available fields: "
+                        f"{', '.join(sorted(model_fields))}"
                     )
+                    raise ImproperlyConfigured(msg)
 
         return ordering
 

@@ -275,6 +275,11 @@ class Options:
         if self.pk is None:
             msg = f"'{self.object_name}' model doesn't have a primary key"
             raise ImproperlyConfigured(msg)
+
+        # Auto-configure ordering for VLV if not explicitly set
+        if not self.ordering and self.pk:
+            self.ordering = [cast("str", self.pk.name)]
+
         # Always make sure we have objectclass in our model, so we can filter by it
         # don't call self.attributes here, because that gets cached
         for f in self._get_fields():

@@ -31,65 +31,29 @@ How it works
 VLV Requirements
 ----------------
 
-**Ordering Required for VLV**
+**Automatic Ordering Configuration**
 
-VLV operations require proper ordering to be specified. This can be done in two ways:
+VLV operations require proper ordering to be specified. django-ldaporm now automatically
+configures ordering to make VLV work out of the box:
 
-1. **Model-level ordering** (recommended):
-
-   .. code-block:: python
-
-      class User(Model):
-          uid = CharField(primary_key=True)
-          cn = CharField()
-
-          class Meta:
-              basedn = "ou=users,dc=example,dc=com"
-              objectclass = "posixAccount"
-              ordering = ['uid']  # Required for VLV
-
-2. **Query-level ordering**:
-
-   .. code-block:: python
-
-      # Explicit ordering for VLV
-      users = User.objects.filter(is_active=True).order_by('uid')[10:20]
-
-**Error Handling**
-
-If ordering is not specified when VLV is attempted, an ``ImproperlyConfigured``
-exception will be raised:
+- **Automatic Default:** If no ``Meta.ordering`` is specified, models automatically
+  use the primary key field for ordering
+- **Manual Override:** You can still explicitly set ``Meta.ordering`` or use
+  ``.order_by()`` to customize the ordering
 
 .. code-block:: python
 
-   # This will raise ImproperlyConfigured if no Meta.ordering is set
-   try:
-       users = User.objects.all()[10:20]
-   except ImproperlyConfigured as e:
-       print(f"VLV requires ordering: {e}")
+   # Automatic ordering (no configuration needed)
+   class User(Model):
+       uid = CharField(primary_key=True)  # Will automatically order by 'uid'
+       cn = CharField()
 
-**Out-of-Bounds Behavior**
+       class Meta:
+           basedn = "ou=users,dc=example,dc=com"
+           objectclass = "posixAccount"
+           # No ordering needed - automatically uses primary key
 
-VLV operations will raise ``IndexError`` when slicing beyond available data:
-
-.. code-block:: python
-
-   # If there are only 50 users, this will raise IndexError
-   try:
-       users = User.objects.all()[100:110]
-   except IndexError as e:
-       print(f"Slice out of range: {e}")
-
-Basic Usage
------------
-
-VLV is used transparently when you slice query results:
-
-.. code-block:: python
-
-   from ldaporm.models import Model
-   from ldaporm.fields import CharField
-
+   # Manual ordering (explicit configuration)
    class User(Model):
        uid = CharField(primary_key=True)
        cn = CharField()
@@ -97,7 +61,45 @@ VLV is used transparently when you slice query results:
        class Meta:
            basedn = "ou=users,dc=example,dc=com"
            objectclass = "posixAccount"
-           ordering = ['uid']  # Required for VLV
+           ordering = ['cn']  # Custom ordering
+
+   # Query-level ordering (overrides default)
+   users = User.objects.filter(active=True).order_by('cn')[10:20]
+
+**Error Handling**
+
+If a model has no primary key (which is invalid), an ``ImproperlyConfigured``
+exception will be raised during model creation:
+
+.. code-block:: python
+
+   # This will raise ImproperlyConfigured during class creation
+   class InvalidUser(Model):
+       name = CharField()  # No primary_key=True
+
+       class Meta:
+           basedn = "ou=users,dc=example,dc=com"
+           objectclass = "posixAccount"
+
+Basic Usage
+-----------
+
+VLV is used transparently when you slice query results. With automatic ordering
+configuration, VLV works out of the box:
+
+.. code-block:: python
+
+   from ldaporm.models import Model
+   from ldaporm.fields import CharField
+
+   class User(Model):
+       uid = CharField(primary_key=True)  # Automatically orders by 'uid'
+       cn = CharField()
+
+       class Meta:
+           basedn = "ou=users,dc=example,dc=com"
+           objectclass = "posixAccount"
+           # No ordering configuration needed!
 
    # VLV is used automatically for slicing
    users = User.objects.filter(is_active=True)[10:20]  # Gets users 10-19
@@ -238,17 +240,23 @@ VLV operations can encounter several types of errors:
        # Use explicit ordering as fallback
        users = User.objects.all().order_by('uid')[10:20]
 
-2. **Out-of-Bounds Errors:**
+2. **Out-of-Bounds Slicing:**
+
+VLV operations follow RFC 2891 and Python slicing behavior - no errors are raised
+for out-of-bounds requests. Instead, available data is returned:
 
 .. code-block:: python
 
-   # Handle out-of-bounds slicing
-   try:
-       users = User.objects.all()[100:200]
-   except IndexError as e:
-       print(f"Slice out of range: {e}")
-       # Handle gracefully or use smaller slice
-       users = User.objects.all()[:50]
+   # RFC 2891 and Python-compliant behavior
+   users = User.objects.all().order_by('uid')
+
+   # If there are only 50 users, this returns empty list (no error)
+   result = users[100:200]
+   print(f"Got {len(result)} users")  # Prints: Got 0 users
+
+   # If requesting near the end, returns available entries
+   result = users[45:55]  # Returns users 45-49 (5 entries)
+   print(f"Got {len(result)} users")  # Prints: Got 5 users
 
 3. **VLV Operation Failures:**
 
@@ -263,9 +271,9 @@ VLV operations automatically fall back to client-side slicing if:
    # This will use VLV if supported, otherwise client-side slicing
    try:
        users = User.objects.all().order_by('uid')[100:200]
-   except (IndexError, ImproperlyConfigured) as e:
-       # Handle configuration and range errors
-       print(f"Error: {e}")
+   except ImproperlyConfigured as e:
+       # Handle configuration errors
+       print(f"Configuration error: {e}")
    except Exception as e:
        # Handle any remaining errors
        print(f"Unexpected error: {e}")
@@ -319,35 +327,49 @@ For large datasets, VLV is significantly more efficient:
 Best Practices
 --------------
 
-1. **Always specify ordering:** Ensure your models have ``Meta.ordering`` set
-   or use explicit ``.order_by()`` for VLV operations.
+1. **Automatic ordering works for most cases:** Models automatically use primary
+   key ordering, which works well for most VLV scenarios.
 
    .. code-block:: python
 
-      # Good: Model with ordering
+      # Good: Automatic ordering (most common case)
       class User(Model):
+          uid = CharField(primary_key=True)  # Auto-orders by 'uid'
+
           class Meta:
-              ordering = ['uid']
+              objectclass = "posixAccount"
 
-      # Good: Explicit ordering
-      users = User.objects.filter(active=True).order_by('uid')[10:20]
+2. **Customize ordering when needed:** Use explicit ordering for specific requirements.
 
-2. **Use slicing for pagination:** Always use slicing for pagination rather than
+   .. code-block:: python
+
+      # Good: Custom ordering when needed
+      class User(Model):
+          uid = CharField(primary_key=True)
+          cn = CharField()
+
+          class Meta:
+              ordering = ['cn']  # Custom ordering by common name
+
+      # Good: Query-level ordering for one-off cases
+      users = User.objects.filter(active=True).order_by('cn')[10:20]
+
+3. **Use slicing for pagination:** Always use slicing for pagination rather than
    fetching all results and slicing on the client side.
 
-3. **Check server support:** Use `supports_vlv()` to check if VLV is available
+4. **Check server support:** Use `supports_vlv()` to check if VLV is available
    before implementing VLV-specific features.
 
-4. **Handle errors gracefully:** Always handle ``ImproperlyConfigured`` and
-   ``IndexError`` exceptions when using VLV.
+5. **Slicing is safe:** Out-of-bounds slicing follows Python and RFC 2891 behavior -
+   returns available data without raising errors.
 
-5. **Handle fallbacks gracefully:** Always handle the case where VLV is not
+6. **Handle fallbacks gracefully:** Always handle the case where VLV is not
    supported.
 
-6. **Monitor performance:** Use Django's query logging to monitor LDAP query
+7. **Monitor performance:** Use Django's query logging to monitor LDAP query
    performance.
 
-7. **Configure OpenLDAP properly:** Ensure the sssvlv overlay is installed and
+8. **Configure OpenLDAP properly:** Ensure the sssvlv overlay is installed and
    configured for OpenLDAP servers.
 
 Example: User Management Interface
@@ -366,8 +388,8 @@ Here's a complete example of using VLV for a user management interface:
        # Get page number from request
        page_number = request.GET.get('page', 1)
 
-       # Create query with filtering and proper ordering for VLV
-       users_query = User.objects.filter(is_active=True).order_by('uid')
+       # Create query with filtering - ordering is automatic
+       users_query = User.objects.filter(is_active=True)
 
        # Create paginator with VLV support
        try:
@@ -380,7 +402,7 @@ Here's a complete example of using VLV for a user management interface:
            page = paginator.get_page(page_number)
 
        except ImproperlyConfigured as e:
-           # Handle missing ordering configuration
+           # Handle missing ordering configuration (rare with automatic ordering)
            return render(request, 'users/error.html', {
                'error': f'VLV configuration error: {e}'
            })
@@ -421,29 +443,38 @@ Troubleshooting
 Common Issues
 ^^^^^^^^^^^^
 
-1. **VLV requires ordering error:**
-   - Ensure your model has ``Meta.ordering`` set
-   - Or use explicit ``.order_by()`` in your query
-   - Example: ``User.objects.filter(active=True).order_by('uid')[10:20]``
-
-2. **VLV not working on OpenLDAP:**
+1. **VLV not working on OpenLDAP:**
    - Ensure sssvlv overlay is installed
    - Check overlay configuration
    - Restart slapd after configuration changes
 
-3. **Performance issues:**
+2. **Performance issues:**
    - Check if VLV is being used (enable debug logging)
    - Verify server supports VLV
    - Monitor LDAP query performance
+
+3. **Custom ordering not working:**
+   - Verify field names in ``Meta.ordering`` are correct
+   - Use explicit ``.order_by()`` in queries when needed
+   - Example: ``User.objects.filter(active=True).order_by('cn')[10:20]``
 
 4. **Context ID errors:**
    - Context IDs are managed automatically
    - Ensure proper error handling for VLV failures
 
-5. **IndexError on slicing:**
-   - VLV raises ``IndexError`` when slicing beyond available data
-   - Use ``try/except`` blocks for out-of-bounds handling
-   - Consider using ``.count()`` to check available data first
+5. **Out-of-bounds slicing:**
+   - VLV follows RFC 2891: returns available data instead of errors
+   - Out-of-bounds slicing returns empty list or partial results
+   - Use ``.count()`` to check available data if needed
+
+   .. code-block:: python
+
+      # Check count before slicing if needed
+      total = User.objects.count()
+      if total > 100:
+          users = User.objects.all()[100:110]
+      else:
+          users = User.objects.all()  # Get all available
 
 Debugging
 ^^^^^^^^^
