@@ -1438,6 +1438,23 @@ class F:
         """
         return self._execute_query()
 
+    def distinct(self, *field_names) -> "F":  # noqa: ARG002
+        """
+        Return a new F object with distinct values.
+
+        For LDAP, this is a no-op since LDAP doesn't have the concept of
+        distinct in the same way as SQL databases; LDAP never returns duplicate
+        values from a query. We return self for compatibility.
+
+        Args:
+            *field_names: Field names to make distinct (ignored for LDAP).
+
+        Returns:
+            Self for method chaining compatibility.
+
+        """
+        return self
+
     def delete(self) -> None:
         """
         Delete the object matching the query.
@@ -3071,6 +3088,22 @@ class LdapManager:
         Return a list of all objects for this model from LDAP.
         """
         return self.__filter().as_list()
+
+    def distinct(self, *field_names) -> "F":
+        """
+        Return a new F object with distinct values.
+
+        For LDAP, this is a no-op since LDAP doesn't have the concept of distinct
+        in the same way as SQL databases. We return self for compatibility.
+
+        Args:
+            *field_names: Field names to make distinct (ignored for LDAP).
+
+        Returns:
+            Self for method chaining compatibility.
+
+        """
+        return self.__filter().distinct(*field_names)
 
     def get_or_none(self, *args, **kwargs):
         """
