@@ -32,6 +32,7 @@ from wildewidgets import (
 from ldaporm.managers import F, LdapManager
 from ldaporm.models import Model as LdapModel
 from ldaporm.wildewidgets import LdapModelTableMixin
+
 from .forms import (
     LDAPGroupAddMemberForm,
     LDAPGroupEditForm,
@@ -40,7 +41,7 @@ from .forms import (
     ManagedRoleForm,
     VerifyPasswordForm,
 )
-from sandbox.demo.core.ldap.models import LDAPGroup, LDAPUser, NSRole
+from .ldap.models import LDAPGroup, LDAPUser, NSRole
 
 # ====================================
 # Navigation
@@ -224,7 +225,7 @@ class UserDataDetailWidget(WidgetStream):
         )
         email = Block(
             Block("Email", css_class="fw-bold fs-5"),
-            Block(user.mail[0], css_class="fs-5 font-monospace"),  # type: ignore[arg-type]
+            Block(user.mail[0], css_class="fs-5 font-monospace"),  # type: ignore[index]
             css_class=(
                 "d-flex justify-content-between p-3 border-bottom bg-white "
                 "text-white-fg"
@@ -276,7 +277,7 @@ class UserConfigurationWidget(WidgetStream):
         """
         dn = ValueBlock("Distinguished Name", user.dn)
         uid_number = ValueBlock("UID Number", user.uid_number)
-        _group = LDAPGroup.objects.get(gid_number=user.gid_number)
+        _group = cast("LdapManager", LDAPGroup.objects).get(gid_number=user.gid_number)
         group = ValueBlock("Group", f"{_group.cn} ({_group.gid_number})")
         room_number = ValueBlock("Room Number", user.room_number)
         created_at = ValueBlock("Created At", str(user.created_at))
