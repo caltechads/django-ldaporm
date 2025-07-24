@@ -2,12 +2,14 @@ Quickstart Guide
 ================
 
 This guide will walk you through setting up django-ldaporm in your Django project
-and creating your first LDAP model.
+and creating your first LDAP model. For detailed installation instructions and
+advanced configuration options, see the :doc:`installation guide <installation>`
+and :doc:`configuration guide <configuration>`.
 
 Installation
 ------------
 
-First, install django-ldaporm:
+Install django-ldaporm using pip:
 
 .. code-block:: bash
 
@@ -25,8 +27,8 @@ Add ``django-ldaporm`` to ``INSTALLED_APPS`` in your Django settings:
 Configuration
 -------------
 
-Configure your LDAP servers in your Django settings.  See
-:doc:`/overview/configuration` for more information.
+Configure your LDAP servers in your Django settings. For complete configuration
+options, see the :doc:`configuration guide <configuration>`.
 
 .. code-block:: python
 
@@ -76,6 +78,8 @@ Create a model for LDAP users:
            verbose_name = 'LDAP User'
            verbose_name_plural = 'LDAP Users'
 
+For detailed model configuration options, see :doc:`models`.
+
 Basic Usage
 -----------
 
@@ -109,6 +113,8 @@ Query LDAP users:
 
    # Delete a user
    user.delete()
+
+For advanced querying options, see :doc:`managers`.
 
 Using with Django Forms
 -----------------------
@@ -153,19 +159,29 @@ Use the form in a view:
 Using with Django Admin
 -----------------------
 
-Register your model with Django admin:
+Register your model with Django admin using the ldaporm admin integration:
 
 .. code-block:: python
 
-   from django.contrib import admin
+   from ldaporm.admin import register_ldap_model, LdapUserAdmin
    from .models import LDAPUser
 
-   @admin.register(LDAPUser)
-   class LDAPUserAdmin(admin.ModelAdmin):
+   # Register with default admin class
+   register_ldap_model(LDAPUser)
+
+   # Or register with specialized user admin class
+   register_ldap_model(LDAPUser, LdapUserAdmin)
+
+   # Or create a custom admin class
+   class CustomUserAdmin(LdapUserAdmin):
        list_display = ['uid', 'cn', 'sn', 'mail', 'is_active']
-       list_filter = ['is_active', 'created']
+       list_filter = ['is_active']
        search_fields = ['uid', 'cn', 'sn', 'mail']
-       readonly_fields = ['created', 'modified']
+       readonly_fields = ['uidNumber']
+
+   register_ldap_model(LDAPUser, CustomUserAdmin)
+
+The admin integration provides automatic field conversion, LDAP validation, and full Django Admin functionality. You can mix Django ORM models and LDAP ORM models in the same admin interface. See :doc:`/admin` for complete documentation.
 
 Advanced Features
 -----------------
@@ -205,10 +221,14 @@ Handle multi-valued LDAP attributes:
            basedn = 'ou=groups,dc=example,dc=com'
            objectclass = 'groupOfNames'
 
+For complete field documentation, see :doc:`../api/fields`.
+
 Next Steps
 ----------
 
 * Read the :doc:`installation guide <installation>` for detailed setup instructions
 * Explore the :doc:`models guide <models>` for advanced model configuration
-* Check out the :doc:`fields guide <fields>` for available field types
+* Check out the :doc:`fields guide <fields>` for available field types and usage patterns
 * See the :doc:`managers guide <managers>` for querying and filtering options
+* Learn about :doc:`/admin` for Django Admin integration
+* Review the :doc:`../api/fields` for complete field API reference

@@ -2,6 +2,7 @@ Installation Guide
 ==================
 
 This guide covers the complete installation and setup process for django-ldaporm.
+For a quick start, see the :doc:`quickstart guide <quickstart>`.
 
 Requirements
 ------------
@@ -55,8 +56,7 @@ LDAP Server Configuration
 -------------------------
 
 Configure your LDAP servers via the ``LDAP_SERVERS`` setting in your Django
-settings.  See :doc:`/overview/configuration` for more information and other
-configuration options.
+settings. For complete configuration options, see the :doc:`configuration guide <configuration>`.
 
 .. code-block:: python
 
@@ -82,9 +82,16 @@ Troubleshooting
 Common Installation Issues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**python-ldap installation fails***
+**python-ldap installation fails**
 
 See `python-ldap build prerequisites <https://www.python-ldap.org/en/python-ldap-3.4.3/installing.html#build-prerequisites>`_.
+
+**Connection issues**
+
+* Verify your LDAP server is accessible
+* Check your LDAP server configuration
+* Ensure proper authentication credentials
+* Review the :doc:`configuration guide <configuration>` for advanced settings
 
 Testing Your Installation
 -------------------------

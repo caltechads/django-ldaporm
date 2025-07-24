@@ -155,6 +155,19 @@ Release Process
    - Add release notes
    - Document breaking changes
 
+3. **Push to master**:
+
+   When you push to the master branch, a GitHub Action will automatically:
+
+   - Run `make compile` to regenerate `requirements.txt`
+   - Commit any changes to `requirements.txt` if dependencies were updated
+
+   **Note**: This requires the `GITHUB_TOKEN` secret to have the following permissions:
+
+   - **Contents**: Read and write access to repository contents
+   - **Metadata**: Read access to repository metadata
+
+   These permissions are typically available by default for GitHub Actions running on the same repository.
 
 4. **Build and upload to PyPI**:
 

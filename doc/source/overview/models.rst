@@ -63,6 +63,46 @@ You can use different field names from LDAP attribute names by using the
            verbose_name_plural = 'LDAP Users'
            ordering = ['uid']
 
+Django Admin Integration
+-----------------------
+
+LDAP models can be integrated with Django Admin for easy management through the web interface. See :doc:`/admin` for complete documentation on Django Admin integration.
+
+Basic Setup
+^^^^^^^^^^^
+
+To enable Django Admin for your LDAP models:
+
+.. code-block:: python
+
+   from ldaporm.admin import register_ldap_model
+   from ldaporm import Model
+   from ldaporm.fields import CharField, EmailField
+
+   class LDAPUser(Model):
+       uid = CharField(primary_key=True, verbose_name="Username")
+       cn = CharField(verbose_name="Common Name")
+       email = EmailField(verbose_name="Email Address")
+
+       class Meta:
+           ldap_server = 'default'
+           basedn = 'ou=users,dc=example,dc=com'
+           objectclass = 'person'
+           verbose_name = 'LDAP User'
+           verbose_name_plural = 'LDAP Users'
+
+   # Register with Django Admin
+   register_ldap_model(LDAPUser)
+
+The admin integration provides:
+
+* **Automatic Field Conversion**: All ldaporm field types are converted to appropriate Django fields
+* **LDAP Validation**: Proper validation for LDAP-specific constraints
+* **Admin Interface**: Full Django Admin functionality (list views, detail views, forms)
+* **User Experience**: Proper fieldsets, search, filtering, and admin actions
+
+For advanced configuration and custom admin classes, see the :doc:`/admin` documentation.
+
 Model Meta Options
 ------------------
 

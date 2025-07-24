@@ -32,6 +32,15 @@ django-ldaporm
    overview/wildewidgets
 
 .. toctree::
+   :caption: Runbook
+   :hidden:
+
+   runbook/development
+   runbook/testing
+   runbook/demo
+   runbook/troubleshooting
+
+.. toctree::
    :caption: Reference
    :hidden:
 
@@ -44,36 +53,40 @@ django-ldaporm
    api/wildewidgets
 
 .. toctree::
-   :caption: Runbook
+   :caption: Additional
    :hidden:
 
-   runbook/development
-   runbook/testing
-   runbook/demo
+   glossary
+   faq
+   compatibility
 
 ``django-ldaporm`` is a Django ORM-like module that allows you to treat LDAP
 object classes like RDBMS tables. This enables you to use Django forms, fields,
-and views natively with LDAP models, providing a familiar Django interface for
+views, and admin natively with LDAP models, providing a familiar Django interface for
 LDAP data management.
 
 Overview
 --------
 
-``django-ldaporm`` provides three main components:
+``django-ldaporm`` provides four main components:
 
 Models
    Django-like model classes that represent LDAP object classes, with field
    definitions that map to LDAP attributes. Models support validation, forms,
-   and admin integration just like Django ORM models.
+   and admin integration just like Django ORM models. See :doc:`overview/models`
+   for usage patterns and :doc:`api/models` for complete API reference.
 
 Fields
    Field types that handle conversion between Python data types and LDAP
    attribute formats, including support for Active Directory timestamps,
-   binary data, and multi-valued attributes.
+   binary data, and multi-valued attributes. See :doc:`overview/fields` for
+   usage examples and :doc:`api/fields` for complete field documentation.
 
 Managers
    Query managers that provide Django QuerySet-like interfaces for LDAP
-   searches, including filtering, ordering, and CRUD operations.
+   searches, including filtering, ordering, and CRUD operations. See
+   :doc:`overview/managers` for query patterns and :doc:`api/managers` for
+   complete API reference.
 
 Why django-ldaporm?
 -------------------
@@ -117,22 +130,32 @@ Key Features
 * **Query Interface**: Django QuerySet-like filtering and querying
 * **CRUD Operations**: Create, read, update, and delete LDAP objects
 
+Getting Started
+--------------
+
+The fastest way to get started with django-ldaporm is to follow the
+:doc:`quickstart guide <overview/quickstart>`, which will walk you through:
+
+1. Installing django-ldaporm
+2. Configuring your LDAP connection
+3. Creating your first LDAP model
+4. Performing basic CRUD operations
+
+For detailed installation instructions and advanced configuration options,
+see the :doc:`installation guide <overview/installation>` and
+:doc:`configuration guide <overview/configuration>`.
+
 Installation
 ------------
 
-``django-ldaporm`` is a pure Python package that can be installed via pip:
+The recommended way to install django-ldaporm is using pip:
 
 .. code-block:: bash
 
    pip install django-ldaporm
 
-For development installation:
-
-.. code-block:: bash
-
-   git clone https://github.com/your-repo/django-ldaporm.git
-   cd django-ldaporm
-   pip install -e .
+For alternative installation methods (git, uv) and detailed setup instructions,
+see the :doc:`installation guide <overview/installation>`.
 
 Quick Start
 -----------
