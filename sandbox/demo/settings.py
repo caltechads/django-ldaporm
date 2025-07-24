@@ -236,11 +236,6 @@ FIXTURE_DIRS: tuple[str, ...] = (str(APPS_DIR.path("fixtures")),)
 
 # SECURITY
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/3.2/ref/settings/#secure-proxy-ssl-header
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # noqa: ERA001
-# https://docs.djangoproject.com/en/3.2/ref/settings/#secure-ssl-redirect
-# SECURE_SSL_REDIRECT = env.bool('DJANGO_SECURE_SSL_REDIRECT', default=True)  # noqa: E501, ERA001
-# https://docs.djangoproject.com/en/3.2/ref/settings/#session-cookie-httponly
 SESSION_COOKIE_HTTPONLY: bool = True
 # https://docs.djangoproject.com/en/3.2/ref/settings/#session-cookie-secure
 SESSION_COOKIE_SECURE: bool = True
@@ -446,6 +441,15 @@ if ENABLE_DEBUG_TOOLBAR:
         "SHOW_TOOLBAR_CALLBACK": lambda: True,
     }
 
+# ------------------------------------------------------------------------------
+# REST Framework settings
+# ------------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_FILTER_BACKENDS": [],
+    "DEFAULT_ORDERING": [],
+}
 # django-queryinspect
 # ------------------------------------------------------------------------------
 if DEVELOPMENT and env.bool("ENABLE_QUERYINSPECT", default=False):  # type: ignore[arg-type]
@@ -469,7 +473,7 @@ if DEVELOPMENT and env.bool("ENABLE_QUERYINSPECT", default=False):  # type: igno
     # Uncomment this to filter traceback output to include only lines of our
     # app's first-party code.  I personally don't find this useful, because the
     # offending Python is sometimes actually somewhere in django core.
-    # QUERY_INSPECT_TRACEBACK_ROOTS = ['/']  # noqa: ERA001
+    # QUERY_INSPECT_TRACEBACK_ROOTS = ['/']
 
 # TESTING
 # ------------------------------------------------------------------------------
