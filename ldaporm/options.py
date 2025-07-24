@@ -98,6 +98,12 @@ class Options:
         #: The default permissions for this model.  This is a tuple of the
         #: permissions that are applied to the model by default.  This is here
         #: really just to fool Django's ModelForm.
+
+        # Django Admin compatibility attributes
+        #: The app label for this model (for Django Admin compatibility).
+        self.app_label: str | None = None
+        #: Whether this model is abstract (for Django Admin compatibility).
+        self.abstract: bool = False
         self.default_permissions: tuple[str, ...] = ("add", "change", "delete", "view")
         #: The permissions for this model.  This is a list of the permissions
         #: that are applied to the model.  This is here really just to fool
@@ -168,7 +174,7 @@ class Options:
         with override(None):
             return str(self.verbose_name)
 
-    def contribute_to_class(self, cls: type["Model"], name: str) -> None:  # noqa: ARG002
+    def contribute_to_class(self, cls: type["Model"], name: str) -> None:  # noqa: ARG002, PLR0912
         """
         Used by the :py:class:`~ldaporm.models.LdapModelBase`` metaclass to
         add this :py:class:`Options` instance to a model class.
@@ -183,6 +189,34 @@ class Options:
         # First, construct the default values for these options.
         self.object_name = cls.__name__
         self.model_name = self.object_name.lower()
+
+        # Set app_label based on module path
+        module_parts = cls.__module__.split(".")
+        app_label = "ldaporm"  # fallback
+        for i, part in enumerate(module_parts):
+            if part in ["models", "ldap"] and i > 0:
+                app_label = module_parts[i - 1]
+                # Special case: if the part before is "ldap", use "ldaporm"
+                if app_label == "ldap":
+                    app_label = "ldaporm"
+                break
+        else:
+            # Fallback to the first part of the module path, but only if it's
+            # not a special case
+            if (
+                module_parts
+                and module_parts[0]
+                and module_parts[0] not in ["models", "ldap"]
+            ):
+                app_label = module_parts[0]
+            # Special cases: "ldap.models" or "models" should use "ldaporm"
+            elif module_parts and module_parts[0] in ["models", "ldap"]:
+                app_label = "ldaporm"
+            # Final fallback for empty strings or other cases
+            else:
+                app_label = "ldaporm"
+
+        self.app_label = app_label
         self.verbose_name = camel_case_to_spaces(self.object_name)
 
         # Next, apply any overridden values from 'class Meta'.
