@@ -794,7 +794,21 @@ class F:
             raise F.UnboundFilter(msg)
         if not self.manager._check_server_sorting_support():
             return None
-        return ServerSideSortControl(sort_key_list=effective_ordering)
+
+        # Convert field names to LDAP attribute names
+        ldap_sort_keys = []
+        for field_name in effective_ordering:
+            if field_name.startswith("-"):
+                # Handle descending order
+                clean_field_name = field_name[1:]
+                ldap_attr = self.get_attribute(clean_field_name)
+                ldap_sort_keys.append(f"-{ldap_attr}")
+            else:
+                # Handle ascending order
+                ldap_attr = self.get_attribute(field_name)
+                ldap_sort_keys.append(ldap_attr)
+
+        return ServerSideSortControl(sort_key_list=ldap_sort_keys)
 
     def _create_vlv_control(
         self,
