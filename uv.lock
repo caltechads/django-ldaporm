@@ -1227,7 +1227,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/fd/8b/1eeb4025dc1d3ac2f
 
 [[package]]
 name = "python-ldap-faker"
-version = "1.3.2"
+version = "1.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asn1" },
@@ -1235,9 +1235,9 @@ dependencies = [
     { name = "ldap-filter" },
     { name = "python-ldap" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/5c/ee789ee675b7eaf5c2fb01adc526788e37ee2927f17733c8064ef68990e7/python_ldap_faker-1.3.2.tar.gz", hash = "sha256:4d48406863a6f0692fe2d8de05c146c36c73f6233b1855cfb3058084bc6a5935", size = 74079, upload-time = "2025-07-23T23:24:43.342Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/b2/4e65ad176bded46ba231da20633f27c3663df5dc6a2c983bab60a6cbf001/python_ldap_faker-1.3.4.tar.gz", hash = "sha256:cda7f01ef2f5171508c171f05b532b39ca54be78d7cdb6040ef7d0757d16eff8", size = 80950, upload-time = "2025-07-25T00:56:44.458Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/6b/0d95bc03581a805ba960b960cbf72eee2e72ef84fe445ebf69d146245e00/python_ldap_faker-1.3.2-py3-none-any.whl", hash = "sha256:a95e982d18a201310548a9e9bdab9842706fce891419655c27fccc0acdd076e1", size = 86157, upload-time = "2025-07-23T23:24:42.015Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/76/5584e6d271fee8eae306f52d210e55b301d240dbce5f0e0d5be2f9022b6d/python_ldap_faker-1.3.4-py3-none-any.whl", hash = "sha256:60685cbbd8488eb8f3e08bc0df67133d7b50861be627614a94586bc69d640bcf", size = 93860, upload-time = "2025-07-25T00:56:43.373Z" },
 ]
 
 [[package]]
