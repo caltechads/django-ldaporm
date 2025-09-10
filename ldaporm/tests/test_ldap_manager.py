@@ -999,6 +999,24 @@ class TestLdapManagerWithFaker(LDAPFakerMixin, unittest.TestCase):
         updated_group = cast("LdapManager", MyTestGroup.objects).get(cn="testgroup")
         self.assertEqual(len(updated_group.memberUid), 2)
 
+    def test_group_operations_with_no_members(self):
+        extra_groups = [
+            [
+                "cn=empty,ou=groups,dc=example,dc=com",                {
+                    "cn": [b"empty"],
+                    "gidNumber": [b"2004"],
+                    "objectclass": [b"posixGroup", b"top"],
+                }
+            ],
+        ]
+        # Register the extra users
+        for dn, attrs in extra_groups:
+            self.server_factory.default.register_object((dn, attrs))  # type: ignore[attr-defined]
+
+        empty_group = cast("LdapManager", MyTestGroup.objects).get(cn="empty")
+        self.assertIsNotNone(empty_group)
+        self.assertEqual(len(empty_group.memberUid), 0)
+
     # ========================================
     # Tests for new LdapManager convenience methods
     # ========================================

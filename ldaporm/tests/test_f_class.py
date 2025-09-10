@@ -232,7 +232,7 @@ class TestFClassWithFaker(LDAPFakerMixin, unittest.TestCase):
         assert result.uid == "alice"
         assert result.cn == "Alice Johnson"
         # These should not be loaded
-        assert not hasattr(result, 'sn') or result.sn is None
+        assert not hasattr(result, 'sn') or result.sn is ''
 
     def test_order_by(self):
         """Test ordering of results."""

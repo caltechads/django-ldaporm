@@ -1828,7 +1828,7 @@ class CharListField(CharField):
             An empty list if no default is set, otherwise the default value.
 
         """
-        if self.default is None:
+        if self.default is None or self.default == NOT_PROVIDED:
             return []
         return self._get_default()  # type: ignore[return-value]
 
@@ -1848,7 +1848,10 @@ class CharListField(CharField):
             A list of decoded strings.
 
         """
-        return Field.from_db_value(self, value)
+        value = Field.from_db_value(self, value)
+        if value is None:
+            value = []
+        return value
 
     def to_python(self, value: str | list[str] | None) -> list[str]:  # type: ignore[override]
         """

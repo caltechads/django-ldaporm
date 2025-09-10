@@ -324,11 +324,11 @@ class Model(metaclass=LdapModelBase):
         for field_name, value in kwargs.items():
             setattr(instance, field_name, value)
 
-        # Initialize unloaded fields to None to indicate they weren't loaded
+        # Initialize unloaded fields to their default values
         opts = cast("Options", cls._meta)
         for field in opts.fields:
             if field.name and field.name not in loaded_fields:
-                setattr(instance, field.name, None)
+                setattr(instance, field.name, field.get_default())
 
         # Send post_init signal
         post_init.send(sender=cls, instance=instance)
@@ -336,7 +336,7 @@ class Model(metaclass=LdapModelBase):
         return instance
 
     @classproperty
-    def _default_manager(cls) -> "LdapManager":
+    def _default_manager(cls) -> "LdapManager":  # noqa: N805
         """
         Get the default manager for this model.
 
