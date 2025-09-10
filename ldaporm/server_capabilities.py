@@ -418,9 +418,9 @@ class LdapServerCapabilities:
         """
         logger.warning(
             "OpenLDAP server '%s' does not support server-side Virtual List View. "
-            "To enable server-side Virtual List View, add 'overlay sssvlv' to your OpenLDAP "
-            "configuration (slapd.conf) or add the following to your cn=config: "
-            "dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config "
+            "To enable server-side Virtual List View, add 'overlay sssvlv' to your "
+            "OpenLDAP configuration (slapd.conf) or add the following to your "
+            "cn=config: dn: olcOverlay=sssvlv,olcDatabase={1}mdb,cn=config "
             "objectClass: olcOverlayConfig "
             "objectClass: olcSssVlvConfig "
             "olcOverlay: sssvlv",
