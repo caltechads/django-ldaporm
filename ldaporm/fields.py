@@ -14,11 +14,7 @@ import warnings
 from base64 import b64encode as encode
 from collections.abc import Callable, Sequence
 from functools import partialmethod, total_ordering
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 import pytz
 from django import forms
@@ -47,15 +43,21 @@ if TYPE_CHECKING:
 #: Type alias for field validators
 Validator = Callable[[Any], None]
 
+_T = TypeVar("_T")
 
 @total_ordering
-class Field:
+class Field(Generic[_T]):
     """
     Base field class for LDAP ORM models.
 
     This class provides enough of a Django ORM Field implementation to allow
     building Django ORM-like models and fool ModelForm into working with LDAP data.
     It handles the conversion between Python data types and LDAP attribute formats.
+
+    Subclasses should derive from Field[<type>], where <type> is the Python type of the
+    data in the field, e.g. Field[str] for a string field, Field[int] for an integer
+    field, etc. This ensures that MyPy treats the field as the value it presents.
+    rather than a "Field" object.
 
     Args:
         verbose_name: The human-readable name of the field.
@@ -232,6 +234,19 @@ class Field:
 
         """
         return hash(self.creation_counter)
+
+    def __get__(self, instance: "Model", owner: type[Any] | None = None) -> _T:
+        """
+        Get the value of the field from the model instance.
+        This method exists exclusively to convince MyPy that this field is actually
+        the value it presents, rather than a "Field" object (or a subclass of Field).
+        """
+        return getattr(instance, self.attname)
+
+    # This doesn't appear to be necessary to make MyPy happy, but it may be useful at
+    # some point.
+    # def __set__(self, instance: "Model", value: _T) -> None:
+    #     setattr(instance, self.attname, value)
 
     def has_default(self) -> bool:
         """
@@ -817,7 +832,7 @@ class Field:
             )
 
 
-class BooleanField(Field):
+class BooleanField(Field[bool]):
     """
     A boolean field which stores data internally as bool() but stores the
     strings 'true' and 'false' in LDAP.
@@ -977,7 +992,7 @@ class AllCapsBooleanField(BooleanField):
     LDAP_FALSE: str = "FALSE"
 
 
-class CharField(Field):
+class CharField(Field[str]):
     """
     A field for storing character strings.
 
@@ -1062,7 +1077,7 @@ class CharField(Field):
         return super().formfield(**defaults)
 
 
-class DateField(Field):
+class DateField(Field[datetime.date]):
     """
     A field for storing dates without time information.
 
@@ -1665,7 +1680,7 @@ class EmailForwardField(CharField):
     description: str = _("Email address")  # type: ignore[assignment]
 
 
-class IntegerField(Field):
+class IntegerField(Field[int]):
     """
     A field for storing integer values.
 
@@ -1818,7 +1833,7 @@ class CharListField(CharField):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.empty_values += ("[]",)
-        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))  # type: ignore[attr-defined]
+        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))
 
     def get_default(self) -> list[str]:
         """
@@ -2241,7 +2256,7 @@ class ActiveDirectoryTimestampField(DateTimeField):
         return int(total_seconds * self.INTERVALS_PER_SECOND)
 
 
-class BinaryField(Field):
+class BinaryField(Field[bytes]):
     """
     A field for storing binary data.
 
