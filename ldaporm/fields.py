@@ -1812,7 +1812,7 @@ class IntegerField(Field[int]):
         )
 
 
-class CharListField(CharField):
+class CharListField(Field[list[str]]):
     """
     A field for storing lists of character strings.
 
@@ -1863,7 +1863,7 @@ class CharListField(CharField):
             A list of decoded strings.
 
         """
-        value = Field.from_db_value(self, value)
+        value = super().from_db_value(value)
         if value is None:
             value = []
         return value
