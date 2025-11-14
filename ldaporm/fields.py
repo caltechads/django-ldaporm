@@ -1014,7 +1014,7 @@ class CharField(Field[str]):
         super().__init__(*args, **kwargs)
         self.validators.append(dj_validators.MaxLengthValidator(self.max_length))
 
-    def to_python(self, value: str | None) -> str | None:
+    def to_python(self, value: Any) -> str | None:
         """
         Convert the value to a Python string.
 
