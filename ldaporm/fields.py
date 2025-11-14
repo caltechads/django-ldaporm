@@ -621,7 +621,7 @@ class Field(Generic[_T]):
                     choice in ("", None) for choice, _ in self.flatchoices
                 )
                 if not blank_defined:
-                    choices = blank_choice + choices  # type: ignore[operator]
+                    choices = blank_choice + choices
             return choices
         return blank_choice
 
@@ -853,7 +853,7 @@ class BooleanField(Field[bool]):
     empty_strings_allowed: bool = False
 
     #: Error messages for boolean validation.
-    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+    default_error_messages: dict[str, str] = {  # noqa: RUF012
         "invalid": _("'%(value)s' value must be either True or False."),  # type: ignore[dict-item]
         "invalid_nullable": _("'%(value)s' value must be either True, False, or None."),  # type: ignore[dict-item]
     }
@@ -1012,7 +1012,7 @@ class CharField(Field[str]):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))  # type: ignore[attr-defined]
+        self.validators.append(dj_validators.MaxLengthValidator(self.max_length))
 
     def to_python(self, value: str | None) -> str | None:
         """
@@ -1096,7 +1096,7 @@ class DateField(Field[datetime.date]):
     #: Date fields don't allow empty strings.
     empty_strings_allowed: bool = False
     #: Error messages for date validation.
-    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+    default_error_messages: dict[str, str] = {  # noqa: RUF012
         "invalid": _(
             "'%(value)s' value has an invalid date format. It must be in YYYY-MM-DD format."  # type: ignore[dict-item]  # noqa: E501
         ),
@@ -1845,7 +1845,7 @@ class CharListField(Field[list[str]]):
         """
         if self.default is None or self.default == NOT_PROVIDED:
             return []
-        return self._get_default()  # type: ignore[return-value]
+        return self._get_default()
 
     def from_db_value(self, value):
         """
@@ -2073,7 +2073,7 @@ class ActiveDirectoryTimestampField(DateTimeField):
     description: str = _("Active Directory DateTime")  # type: ignore[assignment]
 
     #: Error messages for Active Directory datetime validation.
-    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+    default_error_messages: dict[str, str] = {  # noqa: RUF012
         "invalid": _(  # type: ignore[dict-item]
             "'%(value)s' value has an invalid format. It must be an 18-digit integer."
         ),
@@ -2275,7 +2275,7 @@ class BinaryField(Field[bytes]):
     #: Binary fields don't allow empty strings.
     empty_strings_allowed: bool = False
     #: Error messages for binary validation.
-    default_error_messages: dict[str, str] = {  # type: ignore[assignment]  # noqa: RUF012
+    default_error_messages: dict[str, str] = {  # noqa: RUF012
         "invalid": _("'%(value)s' value must be bytes or bytearray."),  # type: ignore[dict-item]
     }
     #: Human-readable description of the field type.
