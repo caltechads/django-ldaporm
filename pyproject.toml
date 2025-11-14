@@ -178,10 +178,6 @@ ignore_missing_imports = true
 module = "django_filter.*"
 ignore_missing_imports = true
 
-[tool.basedpyright]
-python_version = "3.10"
-typeCheckingMode = "off"
-
 [tool.ruff]
 # Same as Black.
 line-length = 88

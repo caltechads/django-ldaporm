@@ -247,10 +247,6 @@ traitlets==5.14.3
     # via
     #   ipython
     #   matplotlib-inline
-typing-extensions==4.14.1
-    # via
-    #   ipython
-    #   referencing
 tzdata==2025.2
     # via faker
 unittest-xml-reporting==3.2.0

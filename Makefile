@@ -14,6 +14,9 @@ clean:
 dist: clean
 	@python -m build
 
+sync:
+	@uv sync --dev
+
 release: dist
 	@bin/release.sh
 
