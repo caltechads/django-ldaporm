@@ -9,6 +9,7 @@ import warnings
 from bisect import bisect
 from typing import TYPE_CHECKING, cast
 
+from django.apps import apps # vgiralt Needed for Django Admin
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.utils.functional import cached_property
 from django.utils.text import camel_case_to_spaces, format_lazy
@@ -102,8 +103,16 @@ class Options:
         # Django Admin compatibility attributes
         #: The app label for this model (for Django Admin compatibility).
         self.app_label: str | None = None
+        #: The app label for this model (for Django Admin compatibility).
+        self.app_config: type | None = None
         #: Whether this model is abstract (for Django Admin compatibility).
         self.abstract: bool = False
+        #: Whether this model has a composite PK (for Django Admin compatibility).
+        self.is_composite_pk: bool = False
+        #: Whether this model has been swapped (for Django Admin compatibility).
+        self.swapped: bool | None = None
+        #: Needed for Django Admin delete operations
+        self.parents: dict = {}
         self.default_permissions: tuple[str, ...] = ("add", "change", "delete", "view")
         #: The permissions for this model.  This is a list of the permissions
         #: that are applied to the model.  This is here really just to fool
@@ -217,6 +226,11 @@ class Options:
                 app_label = "ldaporm"
 
         self.app_label = app_label
+
+        # vgiralt Once we have the app_label, we populate the app_config
+        # Needed for Django Admin
+        self.app_config = apps.get_containing_app_config(app_label)
+
         self.verbose_name = camel_case_to_spaces(self.object_name)
 
         # Next, apply any overridden values from 'class Meta'.

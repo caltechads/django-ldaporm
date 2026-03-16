@@ -52,6 +52,15 @@ if TYPE_CHECKING:
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion("2.4")
 logger = logging.getLogger("django-ldaporm")
 
+# -----------------------
+# We need to emulate the Query object if we want to use Django Admin
+# -----------------------
+from collections import namedtuple
+Query = namedtuple(
+    'Query',
+    ['select_related','model', 'order_by'],
+    defaults=[True,None,None]
+)
 
 # -----------------------
 # LDAP Controls
@@ -563,6 +572,14 @@ class Modlist:
         # Now build the ldap.MOD_DELETE and ldap.MOD_REPLACE modlists
         deletes: dict[str, Any] = {}
         replacements: dict[str, Any] = {}
+
+        # vgiralt check if the object needs new classes
+        if new_classes := set(new._meta.extra_objectclasses)-set(new.objectclass):
+            new.objectclass += list(new_classes)
+            replacements['objectclass'] = [
+                bytes(name, 'ascii') for name in new.objectclass
+            ]
+
         for key, value in changes.items():
             if value == [] or all(x is None for x in value):
                 deletes[key] = None
@@ -622,6 +639,8 @@ class F:
             self._meta = cast("Options", self.model._meta)
             self.fields_map = self._meta.fields_map
             self.attributes_map = self._meta.attributes_map
+            # vgiralt pk required for Django Admin
+            self._meta.attributes_map['pk'] = self._meta.pk.name
             self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
             self.attributes = self._meta.attributes
             self._attributes = self.attributes
@@ -634,6 +653,27 @@ class F:
             self.chain = []
             self._exclude_chain = []
             self._exclude_groups = []
+        # vgirat The manager returns us as the "QuerySet",
+        # vgirat we need a Query object as a property for the Admin
+        self.query = Query(model=self.model, order_by=self._order_by)
+        self.ordered = self._order_by is not None
+
+    # vgirat _clone required for Admin to work
+    def _clone(self) -> "F":
+        c = self.__class__()
+        c.manager = self.manager
+        c.model = self.model
+        c._meta = self._meta
+        c.fields_map = self.fields_map
+        c.attributes_map = self.attributes_map
+        c.attribute_to_field_name_map = self.attribute_to_field_name_map
+        c.attributes = self.attributes
+        c._attributes = self._attributes
+        c._order_by = self._order_by
+        c.chain = self.chain
+        c._exclude_chain = self._exclude_chain
+        c._exclude_groups = self._exclude_groups
+        return c
 
     def bind_manager(self, manager: "LdapManager") -> None:
         if manager is None:
@@ -708,6 +748,11 @@ class F:
 
         return cast("list[Model]", objects)
 
+    # vgiralt using method requiered for Django Admin
+    def using(self, alias: str) -> "F":
+        return self
+        return self.manager.model._meta.ldap_server
+        
     @property
     def _filter(self) -> "GroupAnd":  # noqa: PLR0912
         """
@@ -2986,6 +3031,17 @@ class LdapManager:
     def all(self) -> "F":
         """
         Return the F object for compatibility with Django REST Framework.
+
+        Returns:
+            The F object, which is iterable and supports pagination.
+
+        """
+        return self.__filter()
+
+    # vgiralt method required for Django Admin
+    def get_queryset(self) -> "F":
+        """
+        Return the F object for compatibility with Django admin
 
         Returns:
             The F object, which is iterable and supports pagination.

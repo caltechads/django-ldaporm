@@ -167,6 +167,10 @@ class Field(Generic[_T]):
             messages.update(getattr(c, "default_error_messages", {}))
         messages.update(error_messages or {})
         self.error_messages = messages
+        # vgiralt Properties needed for Django Admin
+        self.remote_field = None
+        self.auto_created = False
+        self.is_relation = False
 
     def __repr__(self) -> str:
         """
@@ -435,6 +439,18 @@ class Field(Generic[_T]):
 
         """
         return cast("str", self.db_column or self.name)
+
+    # vgiralt required for Django Admin
+    @cached_property
+    def unique(self) -> bool:
+        """
+        Find if the value of the attribute MUST be unique.
+        Django Admin requires the property to function.
+
+        Returns:
+            Attribute uniqueness, currently, just if it's the PK
+        """
+        return self.primary_key
 
     @cached_property
     def _get_default(self) -> Callable[[], Any]:

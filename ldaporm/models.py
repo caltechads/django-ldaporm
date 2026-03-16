@@ -134,6 +134,27 @@ class classproperty(property):  # noqa: N801
         return self.fget(objtype)
 
 
+# vgiralt Next two classes are needed for Admin to work
+class ModelStateFieldsCacheDescriptor:
+    def __get__(self, instance, cls=None):
+        if instance is None:
+            return self
+        res = instance.fields_cache = {}
+        return res
+
+
+class ModelState:
+    """Store model instance state."""
+
+    db: str | None = None
+    # If true, uniqueness validation checks will consider this a new, unsaved
+    # object. Necessary for correct validation of new instances of objects with
+    # explicit (non-auto) PKs. This impacts validation only; it has no effect
+    # on the actual save.
+    adding: bool = True
+    fields_cache = ModelStateFieldsCacheDescriptor()
+
+
 class Model(metaclass=LdapModelBase):
     """
     Base class for LDAP ORM models.
@@ -161,6 +182,8 @@ class Model(metaclass=LdapModelBase):
     _meta: Options | None = None
     #: The default manager for this model.
     objects: LdapManager | None = None
+    # vgiralt Needed for Django Admin
+    _state: ModelState | None = None
 
     def __init__(self, *args, **kwargs) -> None:
         """
@@ -180,6 +203,9 @@ class Model(metaclass=LdapModelBase):
         opts = cast("Options", self._meta)
         _setattr = setattr
         self._dn: str | None = None
+
+        # vgiralt The state object is needed by Django Admin
+        self._state = ModelState()
 
         pre_init.send(sender=cls, args=args, kwargs=kwargs)
 
@@ -330,7 +356,14 @@ class Model(metaclass=LdapModelBase):
             if field.name and field.name not in loaded_fields:
                 setattr(instance, field.name, field.get_default())
 
+        # vigiralt Instance _state needed for Django Admin
+        if instance._state is None:
+            instance._state = ModelState()
+        instance._state.adding = False
+        instance._state.db = None # cls._meta.ldap_server
+
         # Send post_init signal
+        # vgiralt This is sent from __init__, isn't it redundant here?
         post_init.send(sender=cls, instance=instance)
 
         return instance
@@ -620,3 +653,23 @@ class Model(metaclass=LdapModelBase):
             perform actual uniqueness validation.
 
         """
+
+    # vgiralt Required for Django Admin
+    def serializable_value(self, field_name: str) -> str:
+        """
+        Return the value of the field name for this instance. If the field is
+        a foreign key, return the id value instead of the object. If there's
+        no Field object with this name on the model, return the model
+        attribute's value.
+        
+        Used to serialize a field's value (in the serializer, or form output,
+        for example). Normally, you would just access the attribute directly
+        and not use this method.
+        """
+        try:
+            field = self._meta.get_field(field_name)
+        except FieldDoesNotExist:
+            return getattr(self, field_name)
+        return getattr(self, field.attname)
+            
+
