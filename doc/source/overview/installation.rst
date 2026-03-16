@@ -101,7 +101,7 @@ Create a simple test to verify your installation:
 .. code-block:: python
 
    # test_ldap.py
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField
 
    class TestUser(Model):

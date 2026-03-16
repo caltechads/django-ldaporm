@@ -55,7 +55,7 @@ Create a model for LDAP users:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField, EmailField, BooleanField, DateTimeField
 
    class LDAPUser(Model):
