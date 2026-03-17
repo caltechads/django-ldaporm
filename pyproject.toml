@@ -51,6 +51,8 @@ dev = [
     "django-stubs>=5.1.1",
     "build>=1.2.2.post1",
     "wheel>=0.38.0",
+    "ruff>=0.15.6",
+    "mypy>=1.19.1",
 ]
 test = [
     "testfixtures>=6.10.0",
