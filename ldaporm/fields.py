@@ -167,7 +167,7 @@ class Field(Generic[_T]):
             messages.update(getattr(c, "default_error_messages", {}))
         messages.update(error_messages or {})
         self.error_messages = messages
-        # vgiralt Properties needed for Django Admin
+        # Properties needed for Django Admin
         self.remote_field = None
         self.auto_created = False
         self.is_relation = False
@@ -440,7 +440,7 @@ class Field(Generic[_T]):
         """
         return cast("str", self.db_column or self.name)
 
-    # vgiralt required for Django Admin
+    # required for Django Admin
     @cached_property
     def unique(self) -> bool:
         """

@@ -573,7 +573,7 @@ class Modlist:
         deletes: dict[str, Any] = {}
         replacements: dict[str, Any] = {}
 
-        # vgiralt check if the object needs new classes
+        # check if the object needs new classes
         if new_classes := set(new._meta.extra_objectclasses)-set(new.objectclass):
             new.objectclass += list(new_classes)
             replacements['objectclass'] = [
@@ -639,7 +639,7 @@ class F:
             self._meta = cast("Options", self.model._meta)
             self.fields_map = self._meta.fields_map
             self.attributes_map = self._meta.attributes_map
-            # vgiralt pk required for Django Admin
+            # pk required for Django Admin
             self._meta.attributes_map['pk'] = self._meta.pk.name
             self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
             self.attributes = self._meta.attributes
@@ -748,7 +748,7 @@ class F:
 
         return cast("list[Model]", objects)
 
-    # vgiralt using method requiered for Django Admin
+    # using method requiered for Django Admin
     def using(self, alias: str) -> "F":
         return self
         return self.manager.model._meta.ldap_server
@@ -3038,7 +3038,7 @@ class LdapManager:
         """
         return self.__filter()
 
-    # vgiralt method required for Django Admin
+    # method required for Django Admin
     def get_queryset(self) -> "F":
         """
         Return the F object for compatibility with Django admin

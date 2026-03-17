@@ -134,7 +134,7 @@ class classproperty(property):  # noqa: N801
         return self.fget(objtype)
 
 
-# vgiralt Next two classes are needed for Admin to work
+# Next two classes are needed for Admin to work
 class ModelStateFieldsCacheDescriptor:
     def __get__(self, instance, cls=None):
         if instance is None:
@@ -182,7 +182,7 @@ class Model(metaclass=LdapModelBase):
     _meta: Options | None = None
     #: The default manager for this model.
     objects: LdapManager | None = None
-    # vgiralt Needed for Django Admin
+    # Needed for Django Admin
     _state: ModelState | None = None
 
     def __init__(self, *args, **kwargs) -> None:
@@ -204,7 +204,7 @@ class Model(metaclass=LdapModelBase):
         _setattr = setattr
         self._dn: str | None = None
 
-        # vgiralt The state object is needed by Django Admin
+        # The state object is needed by Django Admin
         self._state = ModelState()
 
         pre_init.send(sender=cls, args=args, kwargs=kwargs)
@@ -363,7 +363,7 @@ class Model(metaclass=LdapModelBase):
         instance._state.db = None # cls._meta.ldap_server
 
         # Send post_init signal
-        # vgiralt This is sent from __init__, isn't it redundant here?
+        # This is sent from __init__, isn't it redundant here?
         post_init.send(sender=cls, instance=instance)
 
         return instance
@@ -654,7 +654,7 @@ class Model(metaclass=LdapModelBase):
 
         """
 
-    # vgiralt Required for Django Admin
+    # Required for Django Admin
     def serializable_value(self, field_name: str) -> str:
         """
         Return the value of the field name for this instance. If the field is

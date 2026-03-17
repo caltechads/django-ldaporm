@@ -9,7 +9,7 @@ import warnings
 from bisect import bisect
 from typing import TYPE_CHECKING, cast
 
-from django.apps import apps # vgiralt Needed for Django Admin
+from django.apps import apps # Needed for Django Admin
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.utils.functional import cached_property
 from django.utils.text import camel_case_to_spaces, format_lazy
@@ -227,7 +227,7 @@ class Options:
 
         self.app_label = app_label
 
-        # vgiralt Once we have the app_label, we populate the app_config
+        # Once we have the app_label, we populate the app_config
         # Needed for Django Admin
         self.app_config = apps.get_containing_app_config(app_label)
 
