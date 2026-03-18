@@ -1015,11 +1015,11 @@ class CharField(Field[str]):
     This field handles string data with optional maximum length validation.
     It converts between Python strings and LDAP byte strings.
 
-    Keyword Args:
-        **kwargs: Keyword arguments passed to the parent class.
-
     Args:
         *args: Positional arguments passed to the parent class.
+
+    Keyword Args:
+        **kwargs: Keyword arguments passed to the parent class.
 
     """
 
@@ -1100,11 +1100,13 @@ class DateField(Field[datetime.date]):
     This field handles date data, converting between Python date objects
     and LDAP date string format (YYYYMMDD).
 
-    Keyword Args:
+    Args:
         verbose_name: The human-readable name of the field.
         name: The name of the field in the LDAP schema.
         auto_now: If True, automatically set to current date on save.
         auto_now_add: If True, automatically set to current date on creation.
+
+    Keyword Args:
         **kwargs: Additional keyword arguments passed to the parent class.
 
     """
@@ -1634,11 +1636,11 @@ class EmailField(CharField):
     built-in email validator and sets a default max_length of 254 to be
     compliant with RFCs 3696 and 5321.
 
-    Keyword Args:
-        **kwargs: Keyword arguments passed to the parent class.
-
     Args:
         *args: Positional arguments passed to the parent class.
+
+    Keyword Args:
+        **kwargs: Keyword arguments passed to the parent class.
 
     """
 
@@ -1661,9 +1663,11 @@ class EmailField(CharField):
         """
         Return a Django form field for this email field.
 
-        Keyword Args:
+        Args:
             form_class: The form field class to use.
             choices_form_class: The form field class to use for choices.
+
+        Keyword Args:
             **kwargs: Additional keyword arguments for the form field.
 
         Returns:
@@ -1810,9 +1814,11 @@ class IntegerField(Field[int]):
         """
         Return a Django form field for this integer field.
 
-        Keyword Args:
+        Args:
             form_class: The form field class to use.
             choices_form_class: The form field class to use for choices.
+
+        Keyword Args:
             **kwargs: Additional keyword arguments for the form field.
 
         Returns:
@@ -1836,11 +1842,11 @@ class CharListField(Field[list[str]]):
     and LDAP multi-valued attributes. It treats newlines as delimiters
     when converting from strings to lists.
 
-    Keyword Args:
-        **kwargs: Keyword arguments passed to the parent class.
-
     Args:
         *args: Positional arguments passed to the parent class.
+
+    Keyword Args:
+        **kwargs: Keyword arguments passed to the parent class.
 
     """
 
@@ -1888,7 +1894,7 @@ class CharListField(Field[list[str]]):
         """
         Convert the value to a Python list of strings.
 
-        Keyword Args:
+        Args:
             value: The value to convert. Can be string, list, or None.
 
         Returns:
@@ -1910,9 +1916,11 @@ class CharListField(Field[list[str]]):
         """
         Return a Django form field for this character list field.
 
-        Keyword Args:
+        Args:
             form_class: Unused parameter for compatibility.
             choices_form_class: Unused parameter for compatibility.
+
+        Keyword Args:
             **kwargs: Additional keyword arguments for the form field.
 
         Returns:
@@ -2280,11 +2288,11 @@ class BinaryField(Field[bytes]):
     and LDAP binary attributes. It's commonly used for storing photos,
     certificates, and other binary data in LDAP.
 
-    Keyword Args:
-        **kwargs: Keyword arguments passed to the parent class.
-
     Args:
         *args: Positional arguments passed to the parent class.
+
+    Keyword Args:
+        **kwargs: Keyword arguments passed to the parent class.
 
     """
 

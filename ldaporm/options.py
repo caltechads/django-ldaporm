@@ -397,7 +397,7 @@ class Options:
     def fields_map(self) -> dict[str, "Field"]:
         """
         Get a mapping of field names to field instances.  This is used by
-        the :py:class:`~ldaporm.manager.LdapManager`` to get the field
+        the :py:class:`~ldaporm.managers.LdapManager` to get the field
         instances for a model.
 
         Returns:
@@ -414,7 +414,7 @@ class Options:
     def attributes_map(self) -> dict[str, str]:
         """
         Get a mapping of field names to LDAP attribute names.  This is used by
-        the :py:class:`~ldaporm.manager.LdapManager`` to map LDAP attribute names
+        the :py:class:`~ldaporm.managers.LdapManager` to map LDAP attribute names
         to :py:class:`~ldaporm.fields.Field` instances for a model.
 
         Returns:
@@ -431,7 +431,7 @@ class Options:
     def attribute_to_field_name_map(self) -> dict[str, str]:
         """
         Get a mapping of LDAP attribute names to field names.  This is used by
-        the :py:class:`~ldaporm.manager.LdapManager`` to map LDAP attribute names
+        the :py:class:`~ldaporm.managers.LdapManager` to map LDAP attribute names
         to python field names for a model.
 
         Returns:
@@ -444,7 +444,7 @@ class Options:
     def attributes(self) -> list[str]:
         """
         Get a list of LDAP attribute names for all fields.  This is used by
-        the :py:class:`~ldaporm.manager.LdapManager`` to get the LDAP attribute
+        the :py:class:`~ldaporm.managers.LdapManager` to get the LDAP attribute
         names for a model.
 
         Returns:

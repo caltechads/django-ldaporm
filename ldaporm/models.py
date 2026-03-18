@@ -67,7 +67,7 @@ class LdapModelBase(type):
         attr_meta = attrs.pop("Meta", None)
         meta = attr_meta or getattr(new_class, "Meta", None)
 
-        # Add our Meta class.  This simluates the Django ORM Meta class
+        # Add our Meta class.  This simulates the Django ORM Meta class
         # enough that ModelForm will work for us, among other things
         new_class.add_to_class("_meta", Options(meta))
 
@@ -356,7 +356,7 @@ class Model(metaclass=LdapModelBase):
             if field.name and field.name not in loaded_fields:
                 setattr(instance, field.name, field.get_default())
 
-        # Instance _state needed for Django Admin
+        # Vital: Instance _state needed for Django Admin
         if instance._state is None:
             instance._state = ModelState()
         instance._state.adding = False
@@ -657,17 +657,23 @@ class Model(metaclass=LdapModelBase):
     # Required for Django Admin
     def serializable_value(self, field_name: str) -> str:
         """
-        Return the value of the field name for this instance. If the field is
-        a foreign key, return the id value instead of the object. If there's
-        no Field object with this name on the model, return the model
-        attribute's value.
-        
-        Used to serialize a field's value (in the serializer, or form output,
-        for example). Normally, you would just access the attribute directly
-        and not use this method.
+        Return the value of the field for serialization.
+
+        If the field is a foreign key, return the id value instead of the object.
+        If there's no Field object with this name on the model, return the model
+        attribute's value. Used to serialize a field's value (in the serializer,
+        or form output, for example). Normally, you would just access the
+        attribute directly and not use this method.
+
+        Args:
+            field_name: The name of the field to retrieve.
+
+        Returns:
+            The serialized value of the field.
         """
         try:
-            field = self._meta.get_field(field_name)
+            meta = cast("Options", self._meta)
+            field = meta.get_field(field_name)
         except FieldDoesNotExist:
             return getattr(self, field_name)
         return getattr(self, field.attname)

@@ -331,7 +331,7 @@ def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
     try:
         vlv_response, _ = decoder.decode(control_value, asn1Spec=VlvResponse())
 
-        result = {
+        result: dict[str, Any] = {
             "target_position": int(vlv_response.getComponentByName("targetPosition")),
             "content_count": int(vlv_response.getComponentByName("contentCount")),
         }
@@ -344,8 +344,8 @@ def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
         # contextID is optional
         context_id = vlv_response.getComponentByName("contextID")
         try:
-            context_id_value = bytes(context_id) if context_id else None
-        except:
+            context_id_value: bytes | None = bytes(context_id) if context_id else None
+        except Exception:
             context_id_value = None
         result["context_id"] = context_id_value
 
@@ -574,7 +574,8 @@ class Modlist:
         replacements: dict[str, Any] = {}
 
         # check if the object needs new classes
-        if new_classes := set(new._meta.extra_objectclasses)-set(new.objectclass):
+        new_meta = cast("Options", new._meta)
+        if new_classes := set(new_meta.extra_objectclasses) - set(new.objectclass):
             new.objectclass += list(new_classes)
             replacements['objectclass'] = [
                 bytes(name, 'ascii') for name in new.objectclass
@@ -639,8 +640,9 @@ class F:
             self._meta = cast("Options", self.model._meta)
             self.fields_map = self._meta.fields_map
             self.attributes_map = self._meta.attributes_map
-            # pk required for Django Admin
-            self._meta.attributes_map['pk'] = self._meta.pk.name
+            # pk required for Django Admin (pk is always set after Options._prepare)
+            assert self._meta.pk is not None
+            self._meta.attributes_map["pk"] = self._meta.pk.name
             self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
             self.attributes = self._meta.attributes
             self._attributes = self.attributes
