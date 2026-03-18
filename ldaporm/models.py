@@ -356,7 +356,7 @@ class Model(metaclass=LdapModelBase):
             if field.name and field.name not in loaded_fields:
                 setattr(instance, field.name, field.get_default())
 
-        # vigiralt Instance _state needed for Django Admin
+        # Instance _state needed for Django Admin
         if instance._state is None:
             instance._state = ModelState()
         instance._state.adding = False
