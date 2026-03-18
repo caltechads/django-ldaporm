@@ -357,7 +357,7 @@ Create a simple test script to isolate issues:
 .. code-block:: python
 
    # test_ldap.py
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField
 
    class TestUser(Model):

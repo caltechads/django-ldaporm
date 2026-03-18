@@ -20,7 +20,7 @@ more information about how the ``Meta`` class informs your model.
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField, EmailField, BooleanField
 
    class LDAPUser(Model):
@@ -76,7 +76,7 @@ To enable Django Admin for your LDAP models:
 .. code-block:: python
 
    from ldaporm.admin import register_ldap_model
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField, EmailField
 
    class LDAPUser(Model):
@@ -238,7 +238,7 @@ additional arguments, so see :doc:`/api/fields` for more information.
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField, BooleanField, DateTimeField
 
    class User(Model):
@@ -272,7 +272,7 @@ Add custom validation:
 .. code-block:: python
 
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharField
    from django.core.exceptions import ValidationError
 
@@ -434,7 +434,7 @@ Here's a complete example of a user management model:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import (
        CharField, EmailField, BooleanField, DateTimeField,
        CharListField, ActiveDirectoryTimestampField
