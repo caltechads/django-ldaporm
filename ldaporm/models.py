@@ -22,7 +22,7 @@ from django.db.models.signals import class_prepared, post_init, pre_init
 
 from ldaporm.fields import Field
 from ldaporm.managers import LdapManager
-from ldaporm.typing import LDAPData
+from ldaporm.types import LDAPData
 
 from .options import Options
 

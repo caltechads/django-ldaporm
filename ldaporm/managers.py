@@ -41,7 +41,7 @@ from pyasn1.type import namedtype, namedval, tag, univ  # type: ignore[import]
 from ldaporm import ldap
 
 from .server_capabilities import LdapServerCapabilities
-from .typing import AddModlist, LDAPData, ModifyDeleteModList
+from .types import AddModlist, LDAPData, ModifyDeleteModList
 
 if TYPE_CHECKING:
     from ldap_filter.filter import GroupAnd
@@ -1043,7 +1043,7 @@ class F:
             return objects
 
     def _parse_vlv_response_controls(
-        self, response_controls: list[ldap.controls.LDAPControl]
+        self, response_controls: list[LDAPControl]
     ) -> dict[str, Any]:
         """
         Parse VLV response controls to extract metadata.
