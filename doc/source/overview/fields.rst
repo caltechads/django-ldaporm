@@ -70,7 +70,7 @@ Maps to LDAP email attributes with email validation:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import EmailField
 
    class User(Model):
@@ -91,7 +91,7 @@ Maps to LDAP boolean attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import BooleanField
 
    class User(Model):
@@ -112,7 +112,7 @@ Maps to LDAP integer attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import IntegerField
 
    class User(Model):
@@ -133,7 +133,7 @@ Maps to LDAP timestamp attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import DateTimeField
 
    class User(Model):
@@ -154,7 +154,7 @@ Maps to LDAP date attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import DateField
    from datetime import date
 
@@ -178,7 +178,7 @@ Specialized field for Active Directory timestamp attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import ActiveDirectoryTimestampField
 
    class ADUser(Model):
@@ -199,7 +199,7 @@ Handles multi-valued LDAP attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import CharListField
 
    class Group(Model):
@@ -220,7 +220,7 @@ Handles binary LDAP attributes:
 
 .. code-block:: python
 
-   from ldaporm import Model
+   from ldaporm.models import Model
    from ldaporm.fields import BinaryField
 
    class User(Model):

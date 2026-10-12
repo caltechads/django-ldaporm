@@ -52,6 +52,15 @@ if TYPE_CHECKING:
 LDAP24API = StrictVersion(ldap.__version__) >= StrictVersion("2.4")
 logger = logging.getLogger("django-ldaporm")
 
+# -----------------------
+# We need to emulate the Query object if we want to use Django Admin
+# -----------------------
+from collections import namedtuple
+Query = namedtuple(
+    'Query',
+    ['select_related','model', 'order_by'],
+    defaults=[True,None,None]
+)
 
 # -----------------------
 # LDAP Controls
@@ -322,7 +331,7 @@ def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
     try:
         vlv_response, _ = decoder.decode(control_value, asn1Spec=VlvResponse())
 
-        result = {
+        result: dict[str, Any] = {
             "target_position": int(vlv_response.getComponentByName("targetPosition")),
             "content_count": int(vlv_response.getComponentByName("contentCount")),
         }
@@ -335,8 +344,8 @@ def parse_vlv_response(control_value: bytes) -> dict[str, Any]:
         # contextID is optional
         context_id = vlv_response.getComponentByName("contextID")
         try:
-            context_id_value = bytes(context_id) if context_id else None
-        except:
+            context_id_value: bytes | None = bytes(context_id) if context_id else None
+        except Exception:
             context_id_value = None
         result["context_id"] = context_id_value
 
@@ -563,6 +572,15 @@ class Modlist:
         # Now build the ldap.MOD_DELETE and ldap.MOD_REPLACE modlists
         deletes: dict[str, Any] = {}
         replacements: dict[str, Any] = {}
+
+        # check if the object needs new classes
+        new_meta = cast("Options", new._meta)
+        if new_classes := set(new_meta.extra_objectclasses) - set(new.objectclass):
+            new.objectclass += list(new_classes)
+            replacements['objectclass'] = [
+                bytes(name, 'ascii') for name in new.objectclass
+            ]
+
         for key, value in changes.items():
             if value == [] or all(x is None for x in value):
                 deletes[key] = None
@@ -622,6 +640,9 @@ class F:
             self._meta = cast("Options", self.model._meta)
             self.fields_map = self._meta.fields_map
             self.attributes_map = self._meta.attributes_map
+            # pk required for Django Admin (pk is always set after Options._prepare)
+            assert self._meta.pk is not None
+            self._meta.attributes_map["pk"] = self._meta.pk.name
             self.attribute_to_field_name_map = self._meta.attribute_to_field_name_map
             self.attributes = self._meta.attributes
             self._attributes = self.attributes
@@ -634,6 +655,27 @@ class F:
             self.chain = []
             self._exclude_chain = []
             self._exclude_groups = []
+        # vgirat The manager returns us as the "QuerySet",
+        # vgirat we need a Query object as a property for the Admin
+        self.query = Query(model=self.model, order_by=self._order_by)
+        self.ordered = self._order_by is not None
+
+    # vgirat _clone required for Admin to work
+    def _clone(self) -> "F":
+        c = self.__class__()
+        c.manager = self.manager
+        c.model = self.model
+        c._meta = self._meta
+        c.fields_map = self.fields_map
+        c.attributes_map = self.attributes_map
+        c.attribute_to_field_name_map = self.attribute_to_field_name_map
+        c.attributes = self.attributes
+        c._attributes = self._attributes
+        c._order_by = self._order_by
+        c.chain = self.chain
+        c._exclude_chain = self._exclude_chain
+        c._exclude_groups = self._exclude_groups
+        return c
 
     def bind_manager(self, manager: "LdapManager") -> None:
         if manager is None:
@@ -708,6 +750,11 @@ class F:
 
         return cast("list[Model]", objects)
 
+    # using method requiered for Django Admin
+    def using(self, alias: str) -> "F":
+        return self
+        return self.manager.model._meta.ldap_server
+        
     @property
     def _filter(self) -> "GroupAnd":  # noqa: PLR0912
         """
@@ -2986,6 +3033,17 @@ class LdapManager:
     def all(self) -> "F":
         """
         Return the F object for compatibility with Django REST Framework.
+
+        Returns:
+            The F object, which is iterable and supports pagination.
+
+        """
+        return self.__filter()
+
+    # method required for Django Admin
+    def get_queryset(self) -> "F":
+        """
+        Return the F object for compatibility with Django admin
 
         Returns:
             The F object, which is iterable and supports pagination.

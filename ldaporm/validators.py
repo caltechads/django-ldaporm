@@ -14,7 +14,7 @@ class EmailForwardValidator:  # noqa: PLW1641
 
         foo@example.com
 
-    Keyword Args:
+    Args:
         message: The message to display when the validation fails.
         code: The code to display when the validation fails.
 
@@ -38,6 +38,9 @@ class EmailForwardValidator:  # noqa: PLW1641
     def _validate_email(self, value: Any) -> None:
         """
         Validate that the input is a valid email address.
+
+        Args:
+            value: The value to validate.
         """
         if value in self.empty_values:
             return
