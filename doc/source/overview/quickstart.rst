@@ -74,7 +74,7 @@ Create a model for LDAP users:
            ldap_server = 'default'
            basedn = 'ou=users,dc=example,dc=com'
            objectclass = 'person'
-           objectclasses = ['inetOrgPerson', 'organizationalPerson']
+           extra_objectclasses = ['inetOrgPerson', 'organizationalPerson']
            verbose_name = 'LDAP User'
            verbose_name_plural = 'LDAP Users'
 
